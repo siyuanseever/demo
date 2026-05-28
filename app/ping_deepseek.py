@@ -17,12 +17,16 @@ def main() -> None:
         model=settings.deepseek_model,
         base_url=settings.deepseek_base_url,
         timeout=settings.deepseek_timeout,
+        thinking=settings.deepseek_thinking,
+        stream=settings.deepseek_stream,
     )
     started_at = time.monotonic()
     print("DeepSeek ping")
     print(f"base_url={settings.deepseek_base_url}")
     print(f"model={settings.deepseek_model}")
     print(f"timeout={settings.deepseek_timeout}s")
+    print(f"thinking={settings.deepseek_thinking}")
+    print(f"stream={settings.deepseek_stream}")
     print(f"has_key={bool(settings.deepseek_api_key)}")
 
     response = client.chat(
@@ -42,4 +46,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

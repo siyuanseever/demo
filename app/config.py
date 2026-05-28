@@ -8,6 +8,8 @@ class Settings:
     deepseek_model: str
     deepseek_base_url: str
     deepseek_timeout: float
+    deepseek_thinking: str
+    deepseek_stream: bool
     app_db_path: str
     llm_provider: str
     log_path: str
@@ -34,6 +36,8 @@ def get_settings() -> Settings:
         deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         deepseek_timeout=float(os.getenv("DEEPSEEK_TIMEOUT", "90")),
+        deepseek_thinking=os.getenv("DEEPSEEK_THINKING", "disabled"),
+        deepseek_stream=os.getenv("DEEPSEEK_STREAM", "true").lower() == "true",
         app_db_path=os.getenv("APP_DB_PATH", "data/app.db"),
         llm_provider=os.getenv("LLM_PROVIDER", "deepseek"),
         log_path=os.getenv("APP_LOG_PATH", "logs/app.log"),

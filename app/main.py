@@ -21,6 +21,8 @@ def build_orchestrator() -> ConversationOrchestrator:
             model=settings.deepseek_model,
             base_url=settings.deepseek_base_url,
             timeout=settings.deepseek_timeout,
+            thinking=settings.deepseek_thinking,
+            stream=settings.deepseek_stream,
         )
     store = Store(settings.app_db_path)
     return ConversationOrchestrator(llm=llm, store=store)

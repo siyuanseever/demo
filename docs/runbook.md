@@ -69,6 +69,8 @@ tail -f logs/app.log
 
 ```bash
 DEEPSEEK_TIMEOUT=15
+DEEPSEEK_THINKING=disabled
+DEEPSEEK_STREAM=true
 WEB_TIMEOUT_MS=20000
 ```
 
