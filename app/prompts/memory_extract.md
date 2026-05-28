@@ -3,7 +3,7 @@
 必须只输出 JSON，不要输出 Markdown。
 
 可用 category 只能是：
-{categories}
+{{categories}}
 
 JSON schema：
 {
@@ -25,4 +25,3 @@ JSON schema：
 - 敏感信息要保守，置信度低就不要保存。
 - importance 为 1-5，5 表示很重要。
 - confidence 为 0-1。
-

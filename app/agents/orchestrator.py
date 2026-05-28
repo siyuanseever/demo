@@ -84,8 +84,8 @@ class ConversationOrchestrator:
         return json.loads(response.content)
 
     def _extract_memories(self, transcript: str) -> list[dict]:
-        prompt = read_prompt("memory_extract.md").format(
-            categories=", ".join(MEMORY_CATEGORIES)
+        prompt = read_prompt("memory_extract.md").replace(
+            "{{categories}}", ", ".join(MEMORY_CATEGORIES)
         )
         response = self.llm.chat(
             [
@@ -103,4 +103,3 @@ class ConversationOrchestrator:
             if memory.get("category") in MEMORY_CATEGORIES and memory.get("content"):
                 valid.append(memory)
         return valid
-

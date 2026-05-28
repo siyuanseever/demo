@@ -178,6 +178,8 @@
   },
   "active": "bf08a9078406e2e4",
   "lastOpenFiles": [
+    "app/__pycache__/web.cpython-312.pyc",
+    "app/web.py",
     "data/app.db",
     "app/memory/__pycache__/store.cpython-312.pyc",
     "app/memory/__pycache__/schema.cpython-312.pyc",
@@ -187,8 +189,6 @@
     "app/llm/__pycache__/deepseek.cpython-312.pyc",
     "app/llm/__pycache__/base.cpython-312.pyc",
     "app/llm/__pycache__/__init__.cpython-312.pyc",
-    "app/llm/__pycache__",
-    "app/agents/__pycache__/safety.cpython-312.pyc",
     "app/evals/rubric.md",
     "docs/memory_taxonomy.md",
     "docs/product_principles.md",
