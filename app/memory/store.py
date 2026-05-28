@@ -16,71 +16,74 @@ class Store:
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)
-        self.conn = sqlite3.connect(path)
-        self.conn.row_factory = sqlite3.Row
         self.migrate()
 
+    def connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
     def migrate(self) -> None:
-        self.conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL,
-                ended_at TEXT
-            );
+        with self.connect() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    ended_at TEXT
+                );
 
-            CREATE TABLE IF NOT EXISTS messages (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                model TEXT,
-                metadata TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL
-            );
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    model TEXT,
+                    metadata TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS memories (
-                id TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                category TEXT NOT NULL,
-                content TEXT NOT NULL,
-                evidence TEXT NOT NULL,
-                confidence REAL NOT NULL,
-                importance INTEGER NOT NULL,
-                source_session_id TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
+                CREATE TABLE IF NOT EXISTS memories (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    evidence TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    importance INTEGER NOT NULL,
+                    source_session_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS journals (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL,
-                summary TEXT NOT NULL,
-                emotion_curve TEXT NOT NULL,
-                keywords TEXT NOT NULL,
-                insights TEXT NOT NULL,
-                suggested_next_step TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
-            """
-        )
-        self.conn.commit()
+                CREATE TABLE IF NOT EXISTS journals (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    emotion_curve TEXT NOT NULL,
+                    keywords TEXT NOT NULL,
+                    insights TEXT NOT NULL,
+                    suggested_next_step TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                """
+            )
 
     def create_session(self) -> str:
         session_id = str(uuid.uuid4())
-        self.conn.execute(
-            "INSERT INTO sessions (id, created_at) VALUES (?, ?)",
-            (session_id, utc_now()),
-        )
-        self.conn.commit()
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO sessions (id, created_at) VALUES (?, ?)",
+                (session_id, utc_now()),
+            )
         return session_id
 
     def end_session(self, session_id: str) -> None:
-        self.conn.execute(
-            "UPDATE sessions SET ended_at = ? WHERE id = ?",
-            (utc_now(), session_id),
-        )
-        self.conn.commit()
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE sessions SET ended_at = ? WHERE id = ?",
+                (utc_now(), session_id),
+            )
 
     def add_message(
         self,
@@ -91,91 +94,93 @@ class Store:
         model: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        self.conn.execute(
-            """
-            INSERT INTO messages (id, session_id, role, content, model, metadata, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(uuid.uuid4()),
-                session_id,
-                role,
-                content,
-                model,
-                json.dumps(metadata or {}, ensure_ascii=False),
-                utc_now(),
-            ),
-        )
-        self.conn.commit()
-
-    def get_session_messages(self, session_id: str) -> list[sqlite3.Row]:
-        cursor = self.conn.execute(
-            """
-            SELECT role, content, model, created_at
-            FROM messages
-            WHERE session_id = ?
-            ORDER BY created_at ASC
-            """,
-            (session_id,),
-        )
-        return list(cursor.fetchall())
-
-    def recent_memories(self, limit: int = 12) -> list[sqlite3.Row]:
-        cursor = self.conn.execute(
-            """
-            SELECT category, content, evidence, confidence, importance, updated_at
-            FROM memories
-            ORDER BY importance DESC, updated_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        )
-        return list(cursor.fetchall())
-
-    def add_memories(self, session_id: str, memories: list[dict[str, Any]]) -> None:
-        for memory in memories[:3]:
-            self.conn.execute(
+        with self.connect() as conn:
+            conn.execute(
                 """
-                INSERT INTO memories (
-                    id, user_id, category, content, evidence, confidence, importance,
-                    source_session_id, created_at, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (id, session_id, role, content, model, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
-                    "default",
-                    memory["category"],
-                    memory["content"],
-                    memory["evidence"],
-                    float(memory.get("confidence", 0.5)),
-                    int(memory.get("importance", 3)),
                     session_id,
-                    utc_now(),
+                    role,
+                    content,
+                    model,
+                    json.dumps(metadata or {}, ensure_ascii=False),
                     utc_now(),
                 ),
             )
-        self.conn.commit()
+
+    def get_session_messages(self, session_id: str) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT role, content, model, created_at
+                FROM messages
+                WHERE session_id = ?
+                ORDER BY created_at ASC
+                """,
+                (session_id,),
+            )
+            return list(cursor.fetchall())
+
+    def recent_memories(self, limit: int = 12) -> list[sqlite3.Row]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT category, content, evidence, confidence, importance, updated_at
+                FROM memories
+                ORDER BY importance DESC, updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return list(cursor.fetchall())
+
+    def add_memories(self, session_id: str, memories: list[dict[str, Any]]) -> None:
+        with self.connect() as conn:
+            for memory in memories[:3]:
+                now = utc_now()
+                conn.execute(
+                    """
+                    INSERT INTO memories (
+                        id, user_id, category, content, evidence, confidence, importance,
+                        source_session_id, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid.uuid4()),
+                        "default",
+                        memory["category"],
+                        memory["content"],
+                        memory["evidence"],
+                        float(memory.get("confidence", 0.5)),
+                        int(memory.get("importance", 3)),
+                        session_id,
+                        now,
+                        now,
+                    ),
+                )
 
     def add_journal(self, session_id: str, journal: dict[str, Any]) -> None:
-        self.conn.execute(
-            """
-            INSERT INTO journals (
-                id, session_id, summary, emotion_curve, keywords,
-                insights, suggested_next_step, created_at
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO journals (
+                    id, session_id, summary, emotion_curve, keywords,
+                    insights, suggested_next_step, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    session_id,
+                    journal.get("summary", ""),
+                    json.dumps(journal.get("emotion_curve", []), ensure_ascii=False),
+                    json.dumps(journal.get("keywords", []), ensure_ascii=False),
+                    json.dumps(journal.get("insights", []), ensure_ascii=False),
+                    journal.get("suggested_next_step", ""),
+                    utc_now(),
+                ),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(uuid.uuid4()),
-                session_id,
-                journal.get("summary", ""),
-                json.dumps(journal.get("emotion_curve", []), ensure_ascii=False),
-                json.dumps(journal.get("keywords", []), ensure_ascii=False),
-                json.dumps(journal.get("insights", []), ensure_ascii=False),
-                journal.get("suggested_next_step", ""),
-                utc_now(),
-            ),
-        )
-        self.conn.commit()
-
