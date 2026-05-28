@@ -1,20 +1,27 @@
 from app.agents.orchestrator import ConversationOrchestrator
 from app.config import get_settings
 from app.llm.deepseek import DeepSeekClient
+from app.llm.fake import FakeClient
+from app.logging_setup import setup_logging
 from app.memory.store import Store
 
 
 def build_orchestrator() -> ConversationOrchestrator:
     settings = get_settings()
-    if not settings.deepseek_api_key:
+    setup_logging(settings.log_path)
+    if settings.llm_provider == "fake":
+        llm = FakeClient()
+    elif not settings.deepseek_api_key:
         raise SystemExit(
             "缺少 DEEPSEEK_API_KEY。请复制 .env.example 为 .env，或在 shell 中 export。"
         )
-    llm = DeepSeekClient(
-        api_key=settings.deepseek_api_key,
-        model=settings.deepseek_model,
-        base_url=settings.deepseek_base_url,
-    )
+    else:
+        llm = DeepSeekClient(
+            api_key=settings.deepseek_api_key,
+            model=settings.deepseek_model,
+            base_url=settings.deepseek_base_url,
+            timeout=settings.deepseek_timeout,
+        )
     store = Store(settings.app_db_path)
     return ConversationOrchestrator(llm=llm, store=store)
 

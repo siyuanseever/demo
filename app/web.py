@@ -1,7 +1,10 @@
 import json
+import logging
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+from app.config import get_settings
 from app.main import build_orchestrator
 
 
@@ -152,6 +155,7 @@ HTML = """<!doctype html>
       send.disabled = value;
       end.disabled = value;
       input.disabled = value;
+      send.textContent = value ? "等待中..." : "发送";
     }
 
     function addMessage(role, text) {
@@ -179,12 +183,27 @@ HTML = """<!doctype html>
       messages.scrollTop = messages.scrollHeight;
     }
 
-    async function post(path, payload = {}) {
-      const response = await fetch(path, {
+    const WEB_TIMEOUT_MS = __WEB_TIMEOUT_MS__;
+
+    async function post(path, payload = {}, timeoutMs = WEB_TIMEOUT_MS) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      let response;
+      try {
+        response = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      } catch (error) {
+        if (error.name === "AbortError") {
+          throw new Error("请求超过 " + Math.round(timeoutMs / 1000) + " 秒未返回。请看 logs/app.log 判断是模型超时还是网络问题。");
+        }
+        throw error;
+      } finally {
+        clearTimeout(timer);
+      }
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "请求失败");
       return data;
@@ -203,6 +222,7 @@ HTML = """<!doctype html>
       if (!text) return;
       input.value = "";
       addMessage("user", text);
+      addSystem("小鹿正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
       setBusy(true);
       try {
         const data = await post("/api/chat", { session_id: sessionId, text });
@@ -256,15 +276,20 @@ class WebApp:
 
 class Handler(BaseHTTPRequestHandler):
     app: WebApp
+    logger = logging.getLogger(__name__)
 
     def do_GET(self) -> None:
         if urlparse(self.path).path != "/":
             self.send_error(404)
             return
-        self.respond_html(HTML)
+        settings = get_settings()
+        html = HTML.replace("__WEB_TIMEOUT_MS__", str(settings.web_timeout_ms))
+        self.respond_html(html)
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
+        started_at = time.monotonic()
+        self.logger.info("http start path=%s", path)
         try:
             if path == "/api/session":
                 session_id = self.app.orchestrator.start_session()
@@ -281,7 +306,14 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.send_error(404)
         except Exception as error:
+            self.logger.exception("http error path=%s", path)
             self.respond_json({"error": str(error)}, status=500)
+        finally:
+            self.logger.info(
+                "http done path=%s elapsed=%.2fs",
+                path,
+                time.monotonic() - started_at,
+            )
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
@@ -312,10 +344,10 @@ def main() -> None:
     Handler.app = WebApp()
     server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
     print("小鹿 Web UI 已启动：http://127.0.0.1:8765")
+    print("后台日志：logs/app.log")
     print("按 Ctrl+C 停止。")
     server.serve_forever()
 
 
 if __name__ == "__main__":
     main()
-
