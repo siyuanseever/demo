@@ -1,0 +1,99 @@
+[
+  {
+    "id": "trauma_informed_safety_choice_pace",
+    "title": "创伤知情：安全感、选择权、节奏",
+    "domain": "trauma_informed",
+    "tags": ["创伤", "安全感", "选择权", "节奏", "边界", "冻结"],
+    "use_when": "用户表现出冻结、害怕、羞耻、过载、被迫感，或对行动有强烈抗拒。",
+    "avoid_when": "用户正在表达明确危机风险，应先进入安全回应。",
+    "concept": "创伤知情回应优先建立安全感，尊重用户选择权，并允许用户按自己的节奏靠近困难内容。",
+    "xiaolu_style": "像小鹿轻轻陪在旁边，不催促，不解释过度，先确认用户仍有选择。",
+    "response_hint": "可以说：我们不急着解决它，先确认你现在是安全的；你可以只靠近一点点，也可以先停在这里。",
+    "source": "NCTSN / SAMHSA trauma-informed care principles"
+  },
+  {
+    "id": "grounding_5_4_3_2_1",
+    "title": "5-4-3-2-1 感官 grounding",
+    "domain": "stabilization",
+    "tags": ["焦虑", "冻结", "解离", "身体感", "稳定化", "当下"],
+    "use_when": "用户焦虑、飘离身体、过载、冻结，或说自己无法思考。",
+    "avoid_when": "用户正在深入表达、尚未被充分听见时，不要过早打断。",
+    "concept": "通过视觉、触觉、听觉等感官线索，把注意力带回当下环境，帮助神经系统恢复一点稳定。",
+    "xiaolu_style": "用邀请式语言，像小鹿递过一盏小灯，而不是命令用户练习。",
+    "response_hint": "可以邀请用户看见 5 个物体、触摸 4 种质感、听见 3 种声音，再慢慢呼吸。",
+    "source": "VA PTSD resources / grounding practices"
+  },
+  {
+    "id": "self_compassion_common_humanity",
+    "title": "自我慈悲：痛苦不是个人失败",
+    "domain": "self_compassion",
+    "tags": ["羞耻", "自责", "失败感", "温柔", "接纳", "自我攻击"],
+    "use_when": "用户强烈自责、羞耻、觉得自己坏掉了或不如别人。",
+    "avoid_when": "用户需要具体问题分析时，不要只做温柔安慰。",
+    "concept": "自我慈悲包括非评判、共同人性和对自己的温柔。痛苦不必被理解成个人失败。",
+    "xiaolu_style": "温柔但不甜腻，承认痛苦真实，同时把用户从自我审判里轻轻移开。",
+    "response_hint": "可以说：这不像是你不够好，更像是你已经撑了很久之后，身体和心都在请求暂停。",
+    "source": "Self-compassion literature / Kristin Neff"
+  },
+  {
+    "id": "act_values_tiny_step",
+    "title": "ACT：价值方向与很小的一步",
+    "domain": "act",
+    "tags": ["行动", "价值", "拖延", "冻结", "职业", "小步"],
+    "use_when": "用户困在选择、拖延、无力，但仍隐约知道自己在乎什么。",
+    "avoid_when": "用户处在高情绪强度时，先稳定和共情，不急着行动。",
+    "concept": "ACT 强调不必等痛苦消失才行动，可以朝价值方向迈出非常小的一步。",
+    "xiaolu_style": "不 push 用户，只帮他找到低压力、可完成的小动作。",
+    "response_hint": "可以问：如果不要求你振作，只朝你在乎的方向挪 1 厘米，那一步会是什么？",
+    "source": "Acceptance and Commitment Therapy principles"
+  },
+  {
+    "id": "parts_work_protector",
+    "title": "Parts Work：保护者部分",
+    "domain": "parts_work",
+    "tags": ["内在部分", "保护者", "回避", "拖延", "自我冲突", "害怕"],
+    "use_when": "用户同时想做又抗拒，或说自己一部分想前进、一部分想逃开。",
+    "avoid_when": "不要把 parts work 说成诊断，也不要替用户命名太绝对。",
+    "concept": "一些看似阻碍的反应，可能是内在保护者在试图避免再次受伤。",
+    "xiaolu_style": "像小鹿看见那个保护者的用心，而不是责怪它。",
+    "response_hint": "可以说：也许那个让你停住的部分，并不是懒，而是在用它知道的方式保护你。",
+    "source": "IFS / parts-informed self-reflection"
+  },
+  {
+    "id": "cbt_thought_feeling_loop",
+    "title": "CBT：想法、情绪、行为循环",
+    "domain": "cbt",
+    "tags": ["焦虑", "自动想法", "认知", "行为", "循环", "面试"],
+    "use_when": "用户被某个判断困住，例如“我不行”“我会失败”“我很丢人”。",
+    "avoid_when": "不要用 CBT 去反驳用户感受；先承认情绪，再看想法。",
+    "concept": "情绪常和自动想法、身体反应、行为回避形成循环；看见循环本身就能带来一点空间。",
+    "xiaolu_style": "不辩论，只把循环画出来给用户看。",
+    "response_hint": "可以说：我们先不判断这个想法对不对，只看看它出现后，你的身体和行动发生了什么。",
+    "source": "Cognitive Behavioral Therapy principles"
+  },
+  {
+    "id": "dbt_distress_tolerance",
+    "title": "DBT：痛苦耐受不是喜欢痛苦",
+    "domain": "dbt",
+    "tags": ["痛苦", "过载", "情绪调节", "忍耐", "危机", "冲动"],
+    "use_when": "用户痛苦很强，但暂时无法解决外部问题。",
+    "avoid_when": "不要暗示用户应该忍受伤害性关系或不公。",
+    "concept": "痛苦耐受是帮助人撑过高强度时刻，不是在说痛苦合理或应该长期忍受。",
+    "xiaolu_style": "承认痛苦不该被轻描淡写，同时提供短时稳定方式。",
+    "response_hint": "可以说：我们不是要你喜欢这种痛苦，只是先陪你撑过这一阵最高的浪。",
+    "source": "Dialectical Behavior Therapy skills"
+  },
+  {
+    "id": "attachment_trigger",
+    "title": "依恋触发：关系中的安全感报警",
+    "domain": "attachment",
+    "tags": ["关系", "依恋", "被抛弃", "安全感", "亲密", "触发"],
+    "use_when": "用户在人际或亲密关系中强烈害怕失去、被忽视、被否定。",
+    "avoid_when": "不要直接给用户贴依恋类型标签。",
+    "concept": "关系中的强烈反应，有时像安全感系统被触发，不一定只是当前事件本身。",
+    "xiaolu_style": "帮助用户区分当前事件和旧有安全感记忆，不急着评价关系对错。",
+    "response_hint": "可以说：这份难受可能不只来自这一次对话，也像是碰到了更早的安全感按钮。",
+    "source": "Attachment theory"
+  }
+]
+

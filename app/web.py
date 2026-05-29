@@ -286,6 +286,7 @@ HTML = """<!doctype html>
       <div class="toolbar">
         <button data-view="sessions" class="active" type="button">Sessions</button>
         <button data-view="memories" type="button">Memories</button>
+        <button data-view="knowledge" type="button">Knowledge</button>
         <button data-view="mood" type="button">Mood</button>
         <button data-view="journals" type="button">Journals</button>
         <button data-view="messages" type="button">Messages</button>
@@ -558,6 +559,20 @@ HTML = """<!doctype html>
       `);
     }
 
+    function renderKnowledge(items) {
+      renderList(items, item => `
+        <article class="card">
+          <h3>${escapeHtml(item.title)}</h3>
+          <div class="meta">domain: ${escapeHtml(item.domain)} · source: ${escapeHtml(item.source)}</div>
+          <div>${(item.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+          <div class="content">${escapeHtml(item.concept)}</div>
+          <div class="meta">适用：${escapeHtml(item.use_when)}</div>
+          <div class="meta">小鹿表达：${escapeHtml(item.xiaolu_style)}</div>
+          <div class="content">回应提示：${escapeHtml(item.response_hint)}</div>
+        </article>
+      `);
+    }
+
     function moodLabel(score) {
       if (score > 0.5) return "偏积极";
       if (score < -0.5) return "偏低落";
@@ -647,6 +662,7 @@ HTML = """<!doctype html>
         const data = await get("/api/data?type=" + encodeURIComponent(view));
         if (view === "sessions") renderSessions(data.items);
         if (view === "memories") renderMemories(data.items);
+        if (view === "knowledge") renderKnowledge(data.items);
         if (view === "journals") renderJournals(data.items);
         if (view === "messages") renderMessages(data.items);
       } catch (error) {
@@ -776,6 +792,8 @@ class Handler(BaseHTTPRequestHandler):
             items = store.list_journals()
         elif data_type == "messages":
             items = store.list_messages()
+        elif data_type == "knowledge":
+            items = self.app.orchestrator.knowledge.list_cards()
         else:
             self.respond_json({"error": f"unknown data type: {data_type}"}, status=400)
             return

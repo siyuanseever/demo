@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
 from app.llm.base import LLMClient
+from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
 from app.memory.schema import MEMORY_CATEGORIES
 from app.memory.store import Store
 
@@ -38,6 +39,7 @@ class ConversationOrchestrator:
     def __init__(self, llm: LLMClient, store: Store) -> None:
         self.llm = llm
         self.store = store
+        self.knowledge = KnowledgeRetriever()
         self.logger = logging.getLogger(__name__)
 
     def start_session(self) -> str:
@@ -60,8 +62,23 @@ class ConversationOrchestrator:
 
         messages = self.store.get_session_messages(session_id)
         memories = self.store.recent_memories()
+        memory_keywords = []
+        for memory in memories:
+            keywords = memory["keywords"]
+            if isinstance(keywords, str):
+                try:
+                    keywords = json.loads(keywords)
+                except json.JSONDecodeError:
+                    keywords = []
+            memory_keywords.extend(keywords)
+        knowledge_cards = self.knowledge.retrieve(
+            user_text,
+            memory_keywords=memory_keywords,
+            limit=3,
+        )
         system_prompt = read_prompt("persona.md").format(
-            memories=render_memories(memories)
+            memories=render_memories(memories),
+            knowledge_cards=render_knowledge_cards(knowledge_cards),
         )
         llm_messages = [{"role": "system", "content": system_prompt}]
         llm_messages.extend(

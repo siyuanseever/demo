@@ -52,6 +52,7 @@ Web UI 顶部有两个页面：
 - `Sessions` 默认隐藏空 session。
 - `清理空 Sessions` 会删除没有 messages、也没有 journals 的空 session。
 - `Memories` 会按 category 分组显示。
+- `Knowledge` 会显示小鹿当前可参考的心理学知识卡。
 - `Journals` 会显示关联的 session id，并可跳转查看对应 session。
 - `Mood` 会基于 journal 生成心情轨迹、日历视图和周报原型。
 
