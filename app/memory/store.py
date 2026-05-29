@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from app.memory.schema import MEMORY_SUBCATEGORIES
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -352,6 +354,44 @@ class Store:
             except (TypeError, json.JSONDecodeError):
                 memory["keywords"] = []
         return memories
+
+    def memory_taxonomy_counts(self) -> list[dict[str, Any]]:
+        memories = self.list_memories(limit=10000)
+        counts: dict[tuple[str, str], int] = {}
+        active_counts: dict[tuple[str, str], int] = {}
+        for memory in memories:
+            key = (memory["category"], memory.get("subcategory") or "general")
+            counts[key] = counts.get(key, 0) + 1
+            if memory.get("status") == "active":
+                active_counts[key] = active_counts.get(key, 0) + 1
+
+        rows = []
+        for category, subcategories in MEMORY_SUBCATEGORIES.items():
+            for subcategory in subcategories:
+                key = (category, subcategory)
+                rows.append(
+                    {
+                        "category": category,
+                        "subcategory": subcategory,
+                        "count": counts.get(key, 0),
+                        "active_count": active_counts.get(key, 0),
+                    }
+                )
+
+        unknown = sorted(
+            key for key in counts if key[0] not in MEMORY_SUBCATEGORIES
+            or key[1] not in MEMORY_SUBCATEGORIES.get(key[0], ())
+        )
+        for category, subcategory in unknown:
+            rows.append(
+                {
+                    "category": category,
+                    "subcategory": subcategory,
+                    "count": counts[(category, subcategory)],
+                    "active_count": active_counts.get((category, subcategory), 0),
+                }
+            )
+        return rows
 
     def find_memory_candidates(
         self,

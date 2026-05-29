@@ -185,6 +185,20 @@ HTML = """<!doctype html>
       padding: 14px;
       box-shadow: 0 4px 16px rgba(70, 45, 20, 0.05);
     }
+    .card.clickable {
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .card.clickable:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 22px rgba(70, 45, 20, 0.09);
+    }
+    .count {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 8px 0 2px;
+    }
     .card h3 {
       margin: 0 0 8px;
       font-size: 16px;
@@ -262,6 +276,7 @@ HTML = """<!doctype html>
     let sessionId = null;
     let busy = false;
     let activeDataView = "sessions";
+    let memoryItems = [];
 
     function setBusy(value) {
       busy = value;
@@ -431,26 +446,49 @@ HTML = """<!doctype html>
     }
 
     function renderMemories(items) {
-      if (!items.length) {
-        dataList.className = "";
-        dataList.innerHTML = '<div class="empty">还没有保存的记忆。</div>';
-        return;
-      }
+      memoryItems = items;
+      renderMemoryTaxonomy();
+    }
+
+    async function renderMemoryTaxonomy() {
+      const taxonomy = await get("/api/memory_taxonomy");
       const groups = new Map();
-      for (const item of items) {
-        const key = item.category || "uncategorized";
+      for (const item of taxonomy.items) {
+        const key = item.category;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(item);
       }
       dataList.className = "stack";
-      dataList.innerHTML = [...groups.entries()].map(([category, memories]) => `
+      dataList.innerHTML = [...groups.entries()].map(([category, subcategories]) => `
         <section>
-          <h2 class="group-title">${escapeHtml(category)} · ${memories.length}</h2>
+          <h2 class="group-title">${escapeHtml(category)} · ${subcategories.reduce((sum, item) => sum + item.count, 0)}</h2>
           <div class="grid">
-            ${memories.map(item => `
+            ${subcategories.map(item => `
+              <article class="card clickable" onclick="window.showMemorySubcategory('${escapeHtml(item.category)}', '${escapeHtml(item.subcategory)}')">
+                <h3>${escapeHtml(item.subcategory)}</h3>
+                <div class="count">${item.count}</div>
+                <div class="meta">active: ${item.active_count}</div>
+                <div class="meta">category: ${escapeHtml(item.category)}</div>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+      `).join("");
+    }
+
+    window.showMemorySubcategory = function(category, subcategory) {
+      const memories = memoryItems.filter(item =>
+        item.category === category && (item.subcategory || "general") === subcategory
+      );
+      dataList.className = "stack";
+      dataList.innerHTML = `
+        <section>
+          <h2 class="group-title">${escapeHtml(category)} / ${escapeHtml(subcategory)} · ${memories.length}</h2>
+          <button type="button" onclick="renderMemoryTaxonomy()">返回小类总览</button>
+          <div class="grid">
+            ${memories.length ? memories.map(item => `
               <article class="card">
                 <h3>${escapeHtml(item.content)}</h3>
-                <div class="meta">subcategory: ${escapeHtml(item.subcategory || "general")}</div>
                 <div class="meta">status: ${escapeHtml(item.status || "active")} · importance: ${item.importance} · confidence: ${item.confidence}</div>
                 <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
                 <div class="meta">updated: ${escapeHtml(item.updated_at)}</div>
@@ -459,10 +497,10 @@ HTML = """<!doctype html>
                 ${item.merge_note ? `<div class="meta">merge note: ${escapeHtml(item.merge_note)}</div>` : ""}
                 <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
               </article>
-            `).join("")}
+            `).join("") : '<div class="empty">这个小类目前还没有记忆。</div>'}
           </div>
         </section>
-      `).join("");
+      `;
     }
 
     function renderJournals(items) {
@@ -603,6 +641,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/session_detail":
                 self.respond_session_detail()
+                return
+            if path == "/api/memory_taxonomy":
+                self.respond_json({"items": self.app.orchestrator.store.memory_taxonomy_counts()})
                 return
             self.send_error(404)
         except Exception as error:
