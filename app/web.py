@@ -2,10 +2,14 @@ import json
 import logging
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlparse
 
 from app.config import get_settings
 from app.main import build_orchestrator
+
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 HTML = """<!doctype html>
@@ -17,19 +21,25 @@ HTML = """<!doctype html>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f7f1e8;
-      --panel: #fffaf3;
-      --user: #d9ecff;
-      --deer: #fff;
-      --text: #2d2620;
-      --muted: #806f60;
-      --accent: #a66a3f;
-      --border: #eadac8;
+      --bg: #fff4ec;
+      --panel: rgba(255, 252, 246, 0.88);
+      --user: #dcefff;
+      --deer: #fffdf8;
+      --text: #3d2d27;
+      --muted: #91786b;
+      --accent: #d99074;
+      --accent-dark: #9f604b;
+      --border: rgba(226, 190, 166, 0.72);
+      --soft-pink: #ffe3e3;
+      --soft-green: #e5f2df;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: radial-gradient(circle at top, #fff7e9, var(--bg));
+      background:
+        linear-gradient(rgba(255, 247, 239, 0.74), rgba(255, 241, 230, 0.92)),
+        url("/static/healing-bg.webp") center top / cover fixed,
+        radial-gradient(circle at top, #fff9ec, var(--bg));
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
@@ -43,13 +53,28 @@ HTML = """<!doctype html>
       gap: 14px;
     }
     header {
-      background: rgba(255, 250, 243, 0.82);
+      background: rgba(255, 252, 246, 0.88);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: 28px;
       padding: 16px 18px;
-      box-shadow: 0 10px 28px rgba(120, 80, 40, 0.08);
+      box-shadow: 0 18px 42px rgba(155, 101, 75, 0.12);
+      backdrop-filter: blur(14px);
     }
-    h1 { margin: 0; font-size: 22px; }
+    .brand {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .deer-logo {
+      width: 62px;
+      height: 62px;
+      object-fit: cover;
+      border-radius: 24px;
+      background: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.86);
+      box-shadow: 0 10px 24px rgba(147, 91, 65, 0.16);
+    }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 0.02em; }
     .subtitle { margin-top: 6px; color: var(--muted); font-size: 14px; }
     nav {
       display: flex;
@@ -57,8 +82,8 @@ HTML = """<!doctype html>
       margin-top: 14px;
     }
     .tab {
-      background: #eadac8;
-      color: #4b3829;
+      background: rgba(255, 232, 219, 0.92);
+      color: #6f4a3e;
       padding: 8px 12px;
       border-radius: 999px;
     }
@@ -70,29 +95,45 @@ HTML = """<!doctype html>
     .hidden { display: none !important; }
     #messages {
       overflow-y: auto;
-      background: rgba(255, 250, 243, 0.64);
+      background: rgba(255, 252, 246, 0.64);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: 28px;
       padding: 18px;
+      backdrop-filter: blur(10px);
     }
     .row { display: flex; margin: 12px 0; }
     .row.user { justify-content: flex-end; }
+    .row.deer {
+      justify-content: flex-start;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 16px;
+      object-fit: cover;
+      background: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 18px rgba(140, 92, 72, 0.13);
+      flex: 0 0 auto;
+    }
     .bubble {
       max-width: min(680px, 86%);
-      padding: 12px 14px;
-      border-radius: 18px;
+      padding: 13px 15px;
+      border-radius: 22px;
       line-height: 1.65;
       white-space: pre-wrap;
-      box-shadow: 0 4px 16px rgba(70, 45, 20, 0.06);
+      box-shadow: 0 8px 22px rgba(94, 57, 37, 0.07);
     }
     .user .bubble {
       background: var(--user);
-      border-top-right-radius: 6px;
+      border-top-right-radius: 8px;
     }
     .deer .bubble {
-      background: var(--deer);
+      background: linear-gradient(180deg, #fffdf8, #fff7ef);
       border: 1px solid var(--border);
-      border-top-left-radius: 6px;
+      border-top-left-radius: 8px;
     }
     .name {
       font-size: 12px;
@@ -106,8 +147,10 @@ HTML = """<!doctype html>
       align-items: end;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: 28px;
       padding: 12px;
+      box-shadow: 0 16px 36px rgba(120, 80, 50, 0.09);
+      backdrop-filter: blur(14px);
     }
     textarea {
       width: 100%;
@@ -115,7 +158,7 @@ HTML = """<!doctype html>
       max-height: 160px;
       resize: vertical;
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: 20px;
       padding: 12px;
       font: inherit;
       background: white;
@@ -123,7 +166,7 @@ HTML = """<!doctype html>
     }
     button {
       border: 0;
-      border-radius: 14px;
+      border-radius: 18px;
       padding: 12px 16px;
       font: inherit;
       cursor: pointer;
@@ -131,8 +174,8 @@ HTML = """<!doctype html>
       color: white;
     }
     button.secondary {
-      background: #e9dac9;
-      color: #4b3829;
+      background: #f2decf;
+      color: #69483a;
     }
     button:disabled { opacity: 0.55; cursor: not-allowed; }
     .system {
@@ -144,10 +187,11 @@ HTML = """<!doctype html>
     }
     #dashboard {
       overflow-y: auto;
-      background: rgba(255, 250, 243, 0.64);
+      background: rgba(255, 252, 246, 0.68);
       border: 1px solid var(--border);
-      border-radius: 20px;
+      border-radius: 28px;
       padding: 18px;
+      backdrop-filter: blur(12px);
     }
     .toolbar {
       display: flex;
@@ -179,11 +223,11 @@ HTML = """<!doctype html>
       color: #5f3d26;
     }
     .card {
-      background: #fff;
+      background: rgba(255, 253, 248, 0.92);
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: 22px;
       padding: 14px;
-      box-shadow: 0 4px 16px rgba(70, 45, 20, 0.05);
+      box-shadow: 0 10px 26px rgba(105, 66, 42, 0.07);
     }
     .card.clickable {
       cursor: pointer;
@@ -218,8 +262,8 @@ HTML = """<!doctype html>
       display: inline-block;
       padding: 3px 8px;
       border-radius: 999px;
-      background: #f2e5d6;
-      color: #6f4a31;
+      background: #ffe7dc;
+      color: #8a5747;
       font-size: 12px;
       margin-right: 6px;
       margin-top: 6px;
@@ -285,7 +329,7 @@ HTML = """<!doctype html>
     }
     .hero-card {
       grid-column: 1 / -1;
-      background: linear-gradient(135deg, #fff7e9, #f4dfc6);
+      background: linear-gradient(135deg, rgba(255, 249, 236, 0.96), rgba(255, 224, 211, 0.92));
       border: 1px solid var(--border);
       border-radius: 20px;
       padding: 18px;
@@ -321,8 +365,13 @@ HTML = """<!doctype html>
 <body>
   <main class="app">
     <header>
-      <h1>小鹿 · 心理陪伴 Agent</h1>
-      <div class="subtitle">本地 demo。小鹿不是心理治疗师；如果出现现实危险，请优先联系现实支持。</div>
+      <div class="brand">
+        <img class="deer-logo" src="/static/deer-icon.webp" alt="小鹿头像" />
+        <div>
+          <h1>小鹿 · 心理陪伴 Agent</h1>
+          <div class="subtitle">一只温柔、善良、会说话的小鹿。这里是本地 demo，不替代专业心理帮助。</div>
+        </div>
+      </div>
       <nav>
         <button id="chatTab" class="tab active" type="button">对话</button>
         <button id="dataTab" class="tab" type="button">数据看板</button>
@@ -381,6 +430,13 @@ HTML = """<!doctype html>
     function addMessage(role, text, knowledgeCards = []) {
       const row = document.createElement("div");
       row.className = "row " + (role === "user" ? "user" : "deer");
+      if (role !== "user") {
+        const avatar = document.createElement("img");
+        avatar.className = "avatar";
+        avatar.src = "/static/deer-icon.webp";
+        avatar.alt = "小鹿";
+        row.appendChild(avatar);
+      }
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       const name = document.createElement("div");
@@ -908,6 +964,9 @@ class Handler(BaseHTTPRequestHandler):
             html = HTML.replace("__WEB_TIMEOUT_MS__", str(settings.web_timeout_ms))
             self.respond_html(html)
             return
+        if path.startswith("/static/"):
+            self.respond_static(path.removeprefix("/static/"))
+            return
         try:
             if path == "/api/data":
                 self.respond_data()
@@ -988,6 +1047,23 @@ class Handler(BaseHTTPRequestHandler):
         data = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def respond_static(self, name: str) -> None:
+        if "/" in name or "\\" in name:
+            self.send_error(404)
+            return
+        path = STATIC_DIR / name
+        if not path.exists() or not path.is_file():
+            self.send_error(404)
+            return
+        content_type = "image/webp" if path.suffix == ".webp" else "application/octet-stream"
+        data = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "public, max-age=86400")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
