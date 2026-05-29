@@ -8,12 +8,68 @@ from typing import Any
 from app.memory.schema import MEMORY_SUBCATEGORIES
 
 
+POSITIVE_MOOD_WORDS = {
+    "开心",
+    "平静",
+    "轻松",
+    "稳定",
+    "温暖",
+    "被理解",
+    "安心",
+    "希望",
+    "恢复",
+    "清晰",
+    "有力量",
+    "放松",
+}
+
+NEGATIVE_MOOD_WORDS = {
+    "焦虑",
+    "痛苦",
+    "崩溃",
+    "冻结",
+    "羞耻",
+    "疲惫",
+    "孤独",
+    "害怕",
+    "紧张",
+    "无力",
+    "混乱",
+    "难过",
+    "愤怒",
+    "压抑",
+}
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return dict(row)
+
+
+def parse_iso_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def mood_score_for_journal(journal: dict[str, Any]) -> int:
+    text_parts = [
+        journal.get("summary", ""),
+        journal.get("suggested_next_step", ""),
+        " ".join(journal.get("emotion_curve", [])),
+        " ".join(journal.get("keywords", [])),
+        " ".join(journal.get("insights", [])),
+    ]
+    text = " ".join(text_parts)
+    score = 0
+    for word in POSITIVE_MOOD_WORDS:
+        if word in text:
+            score += 1
+    for word in NEGATIVE_MOOD_WORDS:
+        if word in text:
+            score -= 1
+    return max(-3, min(3, score))
 
 
 class Store:
@@ -482,3 +538,82 @@ class Store:
                 """
             )
             return cursor.rowcount
+
+    def journal_analytics(self) -> dict[str, Any]:
+        journals = self.list_journals(limit=10000)
+        points = []
+        daily: dict[str, dict[str, Any]] = {}
+        weekly: dict[str, dict[str, Any]] = {}
+
+        for journal in reversed(journals):
+            created = parse_iso_datetime(journal["created_at"])
+            date_key = created.date().isoformat()
+            year, week, _ = created.isocalendar()
+            week_key = f"{year}-W{week:02d}"
+            score = mood_score_for_journal(journal)
+            item = {
+                "id": journal["id"],
+                "session_id": journal["session_id"],
+                "date": date_key,
+                "week": week_key,
+                "created_at": journal["created_at"],
+                "score": score,
+                "summary": journal["summary"],
+                "keywords": journal["keywords"],
+                "emotion_curve": journal["emotion_curve"],
+                "suggested_next_step": journal["suggested_next_step"],
+            }
+            points.append(item)
+
+            day = daily.setdefault(
+                date_key,
+                {"date": date_key, "scores": [], "keywords": {}, "summaries": []},
+            )
+            day["scores"].append(score)
+            day["summaries"].append(journal["summary"])
+            for keyword in journal["keywords"]:
+                day["keywords"][keyword] = day["keywords"].get(keyword, 0) + 1
+
+            week_row = weekly.setdefault(
+                week_key,
+                {"week": week_key, "scores": [], "keywords": {}, "summaries": []},
+            )
+            week_row["scores"].append(score)
+            week_row["summaries"].append(journal["summary"])
+            for keyword in journal["keywords"]:
+                week_row["keywords"][keyword] = week_row["keywords"].get(keyword, 0) + 1
+
+        daily_rows = []
+        for day in daily.values():
+            avg = sum(day["scores"]) / len(day["scores"])
+            keywords = sorted(day["keywords"].items(), key=lambda item: item[1], reverse=True)
+            daily_rows.append(
+                {
+                    "date": day["date"],
+                    "score": round(avg, 2),
+                    "count": len(day["scores"]),
+                    "keywords": [keyword for keyword, _ in keywords[:5]],
+                    "summary": day["summaries"][-1],
+                }
+            )
+
+        weekly_rows = []
+        for week in weekly.values():
+            avg = sum(week["scores"]) / len(week["scores"])
+            keywords = sorted(week["keywords"].items(), key=lambda item: item[1], reverse=True)
+            summaries = week["summaries"][-3:]
+            weekly_rows.append(
+                {
+                    "week": week["week"],
+                    "score": round(avg, 2),
+                    "count": len(week["scores"]),
+                    "keywords": [keyword for keyword, _ in keywords[:8]],
+                    "summary": " / ".join(summaries),
+                }
+            )
+
+        return {
+            "points": points,
+            "daily": sorted(daily_rows, key=lambda item: item["date"]),
+            "weekly": sorted(weekly_rows, key=lambda item: item["week"], reverse=True),
+        }

@@ -53,6 +53,9 @@ Web UI 顶部有两个页面：
 - `清理空 Sessions` 会删除没有 messages、也没有 journals 的空 session。
 - `Memories` 会按 category 分组显示。
 - `Journals` 会显示关联的 session id，并可跳转查看对应 session。
+- `Mood` 会基于 journal 生成心情轨迹、日历视图和周报原型。
+
+`Mood` 目前是轻量原型：它不调用模型，而是根据 journal 的 summary、keywords、emotion_curve 做启发式 mood score。后续可以升级为模型生成的周报和更准确的情绪标注。
 
 ## 5. 数据位置
 

@@ -229,6 +229,46 @@ HTML = """<!doctype html>
       text-align: center;
       padding: 42px 8px;
     }
+    .chart {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    .bars {
+      display: flex;
+      gap: 6px;
+      align-items: end;
+      height: 160px;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 4px 0;
+    }
+    .bar {
+      flex: 1;
+      min-width: 12px;
+      border-radius: 8px 8px 0 0;
+      background: #d9c6b4;
+      position: relative;
+    }
+    .bar.positive { background: #91c7a9; }
+    .bar.negative { background: #d79a8b; }
+    .bar.neutral { background: #d9c6b4; }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: 8px;
+    }
+    .day {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      background: #fff;
+      min-height: 82px;
+    }
+    .day.good { background: #e8f5ed; }
+    .day.bad { background: #f8e8e3; }
+    .day.neutral { background: #fffaf3; }
   </style>
 </head>
 <body>
@@ -246,6 +286,7 @@ HTML = """<!doctype html>
       <div class="toolbar">
         <button data-view="sessions" class="active" type="button">Sessions</button>
         <button data-view="memories" type="button">Memories</button>
+        <button data-view="mood" type="button">Mood</button>
         <button data-view="journals" type="button">Journals</button>
         <button data-view="messages" type="button">Messages</button>
         <button id="refreshData" type="button">刷新</button>
@@ -517,6 +558,70 @@ HTML = """<!doctype html>
       `);
     }
 
+    function moodLabel(score) {
+      if (score > 0.5) return "偏积极";
+      if (score < -0.5) return "偏低落";
+      return "中性/混合";
+    }
+
+    function moodClass(score) {
+      if (score > 0.5) return "positive";
+      if (score < -0.5) return "negative";
+      return "neutral";
+    }
+
+    function dayClass(score) {
+      if (score > 0.5) return "good";
+      if (score < -0.5) return "bad";
+      return "neutral";
+    }
+
+    function renderMood(data) {
+      const daily = data.daily || [];
+      const weekly = data.weekly || [];
+      if (!daily.length) {
+        dataList.className = "";
+        dataList.innerHTML = '<div class="empty">还没有 journal，结束几次会话后这里会出现心情轨迹。</div>';
+        return;
+      }
+      const bars = daily.slice(-21).map(day => {
+        const height = Math.max(12, Math.round((Math.abs(day.score) / 3) * 140));
+        return `<div class="bar ${moodClass(day.score)}" style="height:${height}px" title="${escapeHtml(day.date)} · ${day.score}"></div>`;
+      }).join("");
+      const calendar = daily.slice(-35).map(day => `
+        <article class="day ${dayClass(day.score)}">
+          <div class="meta">${escapeHtml(day.date)}</div>
+          <h3>${moodLabel(day.score)}</h3>
+          <div class="meta">score: ${day.score} · ${day.count} journals</div>
+          <div>${(day.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+        </article>
+      `).join("");
+      const weekCards = weekly.slice(0, 6).map(week => `
+        <article class="card">
+          <h3>${escapeHtml(week.week)} · ${moodLabel(week.score)}</h3>
+          <div class="meta">avg score: ${week.score} · ${week.count} journals</div>
+          <div>${(week.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+          <div class="content">${escapeHtml(week.summary)}</div>
+        </article>
+      `).join("");
+      dataList.className = "stack";
+      dataList.innerHTML = `
+        <section class="chart">
+          <h2 class="group-title">最近心情轨迹</h2>
+          <div class="meta">绿色偏积极，红色偏低落，灰色表示中性或混合。当前是基于 journal 关键词和摘要的启发式估计。</div>
+          <div class="bars">${bars}</div>
+        </section>
+        <section>
+          <h2 class="group-title">日历视图</h2>
+          <div class="calendar">${calendar}</div>
+        </section>
+        <section>
+          <h2 class="group-title">周报原型</h2>
+          <div class="grid">${weekCards}</div>
+        </section>
+      `;
+    }
+
     function renderMessages(items) {
       renderList(items, item => `
         <article class="card">
@@ -534,6 +639,11 @@ HTML = """<!doctype html>
       dataList.className = "";
       dataList.innerHTML = '<div class="empty">加载中...</div>';
       try {
+        if (view === "mood") {
+          const mood = await get("/api/mood_analytics");
+          renderMood(mood);
+          return;
+        }
         const data = await get("/api/data?type=" + encodeURIComponent(view));
         if (view === "sessions") renderSessions(data.items);
         if (view === "memories") renderMemories(data.items);
@@ -644,6 +754,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/memory_taxonomy":
                 self.respond_json({"items": self.app.orchestrator.store.memory_taxonomy_counts()})
+                return
+            if path == "/api/mood_analytics":
+                self.respond_json(self.app.orchestrator.store.journal_analytics())
                 return
             self.send_error(404)
         except Exception as error:
