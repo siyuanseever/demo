@@ -34,7 +34,7 @@ HTML = """<!doctype html>
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     .app {
-      width: min(920px, 100vw);
+      width: min(1120px, 100vw);
       height: 100vh;
       margin: 0 auto;
       display: grid;
@@ -51,6 +51,23 @@ HTML = """<!doctype html>
     }
     h1 { margin: 0; font-size: 22px; }
     .subtitle { margin-top: 6px; color: var(--muted); font-size: 14px; }
+    nav {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .tab {
+      background: #eadac8;
+      color: #4b3829;
+      padding: 8px 12px;
+      border-radius: 999px;
+    }
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .view { min-height: 0; overflow: hidden; }
+    .hidden { display: none !important; }
     #messages {
       overflow-y: auto;
       background: rgba(255, 250, 243, 0.64);
@@ -125,6 +142,70 @@ HTML = """<!doctype html>
       margin: 12px 0;
       white-space: pre-wrap;
     }
+    #dashboard {
+      overflow-y: auto;
+      background: rgba(255, 250, 243, 0.64);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 18px;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .toolbar button {
+      background: #e9dac9;
+      color: #4b3829;
+      padding: 9px 12px;
+    }
+    .toolbar button.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 4px 16px rgba(70, 45, 20, 0.05);
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+    .content {
+      margin-top: 10px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #f2e5d6;
+      color: #6f4a31;
+      font-size: 12px;
+      margin-right: 6px;
+      margin-top: 6px;
+    }
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 42px 8px;
+    }
   </style>
 </head>
 <body>
@@ -132,8 +213,22 @@ HTML = """<!doctype html>
     <header>
       <h1>小鹿 · 心理陪伴 Agent</h1>
       <div class="subtitle">本地 demo。小鹿不是心理治疗师；如果出现现实危险，请优先联系现实支持。</div>
+      <nav>
+        <button id="chatTab" class="tab active" type="button">对话</button>
+        <button id="dataTab" class="tab" type="button">数据看板</button>
+      </nav>
     </header>
-    <section id="messages"></section>
+    <section id="messages" class="view"></section>
+    <section id="dashboard" class="view hidden">
+      <div class="toolbar">
+        <button data-view="sessions" class="active" type="button">Sessions</button>
+        <button data-view="memories" type="button">Memories</button>
+        <button data-view="journals" type="button">Journals</button>
+        <button data-view="messages" type="button">Messages</button>
+        <button id="refreshData" type="button">刷新</button>
+      </div>
+      <div id="dataList" class="grid"></div>
+    </section>
     <form id="form">
       <textarea id="input" placeholder="把此刻想说的话写在这里。Shift+Enter 换行，Enter 发送。"></textarea>
       <button id="send" type="submit">发送</button>
@@ -146,9 +241,16 @@ HTML = """<!doctype html>
     const form = document.querySelector("#form");
     const send = document.querySelector("#send");
     const end = document.querySelector("#end");
+    const chatTab = document.querySelector("#chatTab");
+    const dataTab = document.querySelector("#dataTab");
+    const dashboard = document.querySelector("#dashboard");
+    const dataList = document.querySelector("#dataList");
+    const refreshData = document.querySelector("#refreshData");
+    const dataButtons = [...document.querySelectorAll("[data-view]")];
 
     let sessionId = null;
     let busy = false;
+    let activeDataView = "sessions";
 
     function setBusy(value) {
       busy = value;
@@ -209,6 +311,13 @@ HTML = """<!doctype html>
       return data;
     }
 
+    async function get(path) {
+      const response = await fetch(path);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "请求失败");
+      return data;
+    }
+
     async function start() {
       const data = await post("/api/session");
       sessionId = data.session_id;
@@ -251,8 +360,9 @@ HTML = """<!doctype html>
         if (data.memories.length) {
           addSystem("新增记忆：\\n" + data.memories.map(m => "- [" + m.category + "] " + m.content).join("\\n"));
         } else {
-          addSystem("这次没有新增长期记忆。");
+        addSystem("这次没有新增长期记忆。");
         }
+        await loadData(activeDataView);
         await start();
       } catch (error) {
         addSystem(error.message);
@@ -261,6 +371,125 @@ HTML = """<!doctype html>
         input.focus();
       }
     });
+
+    function switchMainView(view) {
+      const showData = view === "data";
+      dashboard.classList.toggle("hidden", !showData);
+      messages.classList.toggle("hidden", showData);
+      form.classList.toggle("hidden", showData);
+      chatTab.classList.toggle("active", !showData);
+      dataTab.classList.toggle("active", showData);
+      if (showData) loadData(activeDataView);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function shortId(id) {
+      return String(id || "").slice(0, 8);
+    }
+
+    function renderList(items, renderer) {
+      if (!items.length) {
+        dataList.className = "";
+        dataList.innerHTML = '<div class="empty">还没有保存的数据。</div>';
+        return;
+      }
+      dataList.className = "grid";
+      dataList.innerHTML = items.map(renderer).join("");
+    }
+
+    function renderSessions(items) {
+      renderList(items, item => `
+        <article class="card">
+          <h3>Session ${escapeHtml(shortId(item.id))}</h3>
+          <div class="meta">id: ${escapeHtml(item.id)}</div>
+          <div class="meta">created: ${escapeHtml(item.created_at)}</div>
+          <div class="meta">ended: ${escapeHtml(item.ended_at || "未结束")}</div>
+          <div class="content">
+            <span class="pill">${item.message_count} messages</span>
+            <span class="pill">${item.journal_count} journals</span>
+          </div>
+          <button type="button" onclick="window.loadSession('${escapeHtml(item.id)}')">查看详情</button>
+        </article>
+      `);
+    }
+
+    function renderMemories(items) {
+      renderList(items, item => `
+        <article class="card">
+          <h3>${escapeHtml(item.category)}</h3>
+          <div class="meta">importance: ${item.importance} · confidence: ${item.confidence}</div>
+          <div class="meta">source: ${escapeHtml(shortId(item.source_session_id))}</div>
+          <div class="content">${escapeHtml(item.content)}</div>
+          <div class="meta">证据：${escapeHtml(item.evidence)}</div>
+        </article>
+      `);
+    }
+
+    function renderJournals(items) {
+      renderList(items, item => `
+        <article class="card">
+          <h3>Journal ${escapeHtml(shortId(item.session_id))}</h3>
+          <div class="meta">created: ${escapeHtml(item.created_at)}</div>
+          <div class="content">${escapeHtml(item.summary)}</div>
+          <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+          <div class="meta">下一步：${escapeHtml(item.suggested_next_step)}</div>
+        </article>
+      `);
+    }
+
+    function renderMessages(items) {
+      renderList(items, item => `
+        <article class="card">
+          <h3>${item.role === "user" ? "你" : "小鹿"}</h3>
+          <div class="meta">session: ${escapeHtml(shortId(item.session_id))} · ${escapeHtml(item.created_at)}</div>
+          <div class="meta">model: ${escapeHtml(item.model || "-")}</div>
+          <div class="content">${escapeHtml(item.content)}</div>
+        </article>
+      `);
+    }
+
+    async function loadData(view) {
+      activeDataView = view;
+      dataButtons.forEach(button => button.classList.toggle("active", button.dataset.view === view));
+      dataList.className = "";
+      dataList.innerHTML = '<div class="empty">加载中...</div>';
+      try {
+        const data = await get("/api/data?type=" + encodeURIComponent(view));
+        if (view === "sessions") renderSessions(data.items);
+        if (view === "memories") renderMemories(data.items);
+        if (view === "journals") renderJournals(data.items);
+        if (view === "messages") renderMessages(data.items);
+      } catch (error) {
+        dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
+      }
+    }
+
+    window.loadSession = async function(sessionId) {
+      dataButtons.forEach(button => button.classList.remove("active"));
+      dataList.className = "";
+      dataList.innerHTML = '<div class="empty">加载 session 详情...</div>';
+      try {
+        const data = await get("/api/session_detail?id=" + encodeURIComponent(sessionId));
+        dataList.className = "grid";
+        dataList.innerHTML = [
+          `<article class="card"><h3>Messages</h3><div class="content">${data.messages.map(m => `<b>${m.role === "user" ? "你" : "小鹿"}</b>\\n${escapeHtml(m.content)}`).join("\\n\\n")}</div></article>`,
+          `<article class="card"><h3>Journals</h3><div class="content">${data.journals.map(j => escapeHtml(j.summary)).join("\\n\\n") || "无"}</div></article>`
+        ].join("");
+      } catch (error) {
+        dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
+      }
+    }
+
+    chatTab.addEventListener("click", () => switchMainView("chat"));
+    dataTab.addEventListener("click", () => switchMainView("data"));
+    refreshData.addEventListener("click", () => loadData(activeDataView));
+    dataButtons.forEach(button => button.addEventListener("click", () => loadData(button.dataset.view)));
 
     start().catch(error => addSystem(error.message));
   </script>
@@ -277,14 +506,6 @@ class WebApp:
 class Handler(BaseHTTPRequestHandler):
     app: WebApp
     logger = logging.getLogger(__name__)
-
-    def do_GET(self) -> None:
-        if urlparse(self.path).path != "/":
-            self.send_error(404)
-            return
-        settings = get_settings()
-        html = HTML.replace("__WEB_TIMEOUT_MS__", str(settings.web_timeout_ms))
-        self.respond_html(html)
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
@@ -319,6 +540,58 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length).decode("utf-8")
         return json.loads(body or "{}")
+
+    def do_GET(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/":
+            settings = get_settings()
+            html = HTML.replace("__WEB_TIMEOUT_MS__", str(settings.web_timeout_ms))
+            self.respond_html(html)
+            return
+        try:
+            if path == "/api/data":
+                self.respond_data()
+                return
+            if path == "/api/session_detail":
+                self.respond_session_detail()
+                return
+            self.send_error(404)
+        except Exception as error:
+            self.logger.exception("http get error path=%s", path)
+            self.respond_json({"error": str(error)}, status=500)
+
+    def respond_data(self) -> None:
+        query = urlparse(self.path).query
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        data_type = params.get("type", "sessions")
+        store = self.app.orchestrator.store
+        if data_type == "sessions":
+            items = store.list_sessions()
+        elif data_type == "memories":
+            items = store.list_memories()
+        elif data_type == "journals":
+            items = store.list_journals()
+        elif data_type == "messages":
+            items = store.list_messages()
+        else:
+            self.respond_json({"error": f"unknown data type: {data_type}"}, status=400)
+            return
+        self.respond_json({"items": items})
+
+    def respond_session_detail(self) -> None:
+        query = urlparse(self.path).query
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        session_id = params.get("id")
+        if not session_id:
+            self.respond_json({"error": "missing session id"}, status=400)
+            return
+        store = self.app.orchestrator.store
+        self.respond_json(
+            {
+                "messages": store.list_messages(session_id=session_id),
+                "journals": store.list_journals(session_id=session_id),
+            }
+        )
 
     def respond_html(self, html: str) -> None:
         data = html.encode("utf-8")

@@ -10,6 +10,10 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return dict(row)
+
+
 class Store:
     def __init__(self, path: str) -> None:
         self.path = path
@@ -184,3 +188,110 @@ class Store:
                     utc_now(),
                 ),
             )
+
+    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT
+                    s.id,
+                    s.created_at,
+                    s.ended_at,
+                    COUNT(DISTINCT m.id) AS message_count,
+                    COUNT(DISTINCT j.id) AS journal_count
+                FROM sessions s
+                LEFT JOIN messages m ON m.session_id = s.id
+                LEFT JOIN journals j ON j.session_id = s.id
+                GROUP BY s.id
+                ORDER BY s.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [row_to_dict(row) for row in cursor.fetchall()]
+
+    def list_messages(
+        self,
+        *,
+        session_id: str | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            if session_id:
+                cursor = conn.execute(
+                    """
+                    SELECT id, session_id, role, content, model, created_at
+                    FROM messages
+                    WHERE session_id = ?
+                    ORDER BY created_at ASC
+                    LIMIT ?
+                    """,
+                    (session_id, limit),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT id, session_id, role, content, model, created_at
+                    FROM messages
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            return [row_to_dict(row) for row in cursor.fetchall()]
+
+    def list_memories(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT
+                    id, user_id, category, content, evidence, confidence,
+                    importance, source_session_id, created_at, updated_at
+                FROM memories
+                ORDER BY importance DESC, updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [row_to_dict(row) for row in cursor.fetchall()]
+
+    def list_journals(
+        self,
+        *,
+        session_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            if session_id:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        id, session_id, summary, emotion_curve, keywords,
+                        insights, suggested_next_step, created_at
+                    FROM journals
+                    WHERE session_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (session_id, limit),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        id, session_id, summary, emotion_curve, keywords,
+                        insights, suggested_next_step, created_at
+                    FROM journals
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            journals = [row_to_dict(row) for row in cursor.fetchall()]
+        for journal in journals:
+            for key in ("emotion_curve", "keywords", "insights"):
+                try:
+                    journal[key] = json.loads(journal[key])
+                except (TypeError, json.JSONDecodeError):
+                    journal[key] = []
+        return journals

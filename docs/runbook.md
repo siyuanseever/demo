@@ -42,6 +42,11 @@ python3 -m app.main
 - 输入 `/end` 结束会话，并生成 journal 与最多 3 条长期记忆。
 - 输入 `/quit` 直接退出，不生成总结。
 
+Web UI 顶部有两个页面：
+
+- `对话`：继续和小鹿聊天。
+- `数据看板`：查看已保存的 sessions、messages、memories、journals。
+
 ## 5. 数据位置
 
 默认数据库在：
