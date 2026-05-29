@@ -178,6 +178,7 @@
   },
   "active": "bf08a9078406e2e4",
   "lastOpenFiles": [
+    "app/prompts/memory_merge.md",
     "app/__pycache__/ping_deepseek.cpython-312.pyc",
     "app/ping_deepseek.py",
     "logs/app.log",
@@ -188,7 +189,6 @@
     "app/logging_setup.py",
     "app/__pycache__/web.cpython-312.pyc",
     "app/web.py",
-    "data/app.db",
     "app/evals/rubric.md",
     "docs/memory_taxonomy.md",
     "docs/product_principles.md",

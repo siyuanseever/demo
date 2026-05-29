@@ -72,6 +72,25 @@ class Store:
                 );
                 """
             )
+            self._ensure_column(conn, "memories", "subcategory", "TEXT NOT NULL DEFAULT 'general'")
+            self._ensure_column(conn, "memories", "keywords", "TEXT NOT NULL DEFAULT '[]'")
+            self._ensure_column(conn, "memories", "status", "TEXT NOT NULL DEFAULT 'active'")
+            self._ensure_column(conn, "memories", "merged_into_id", "TEXT")
+            self._ensure_column(conn, "memories", "merge_note", "TEXT NOT NULL DEFAULT ''")
+
+    def _ensure_column(
+        self,
+        conn: sqlite3.Connection,
+        table: str,
+        column: str,
+        definition: str,
+    ) -> None:
+        existing = {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def create_session(self) -> str:
         session_id = str(uuid.uuid4())
@@ -132,8 +151,11 @@ class Store:
         with self.connect() as conn:
             cursor = conn.execute(
                 """
-                SELECT category, content, evidence, confidence, importance, updated_at
+                SELECT
+                    id, category, subcategory, keywords, content, evidence,
+                    confidence, importance, status, updated_at
                 FROM memories
+                WHERE status = 'active'
                 ORDER BY importance DESC, updated_at DESC
                 LIMIT ?
                 """,
@@ -141,31 +163,93 @@ class Store:
             )
             return list(cursor.fetchall())
 
-    def add_memories(self, session_id: str, memories: list[dict[str, Any]]) -> None:
+    def add_memory(self, session_id: str, memory: dict[str, Any]) -> str:
+        memory_id = str(uuid.uuid4())
+        now = utc_now()
         with self.connect() as conn:
-            for memory in memories[:3]:
-                now = utc_now()
-                conn.execute(
-                    """
-                    INSERT INTO memories (
-                        id, user_id, category, content, evidence, confidence, importance,
-                        source_session_id, created_at, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        str(uuid.uuid4()),
-                        "default",
-                        memory["category"],
-                        memory["content"],
-                        memory["evidence"],
-                        float(memory.get("confidence", 0.5)),
-                        int(memory.get("importance", 3)),
-                        session_id,
-                        now,
-                        now,
-                    ),
+            conn.execute(
+                """
+                INSERT INTO memories (
+                    id, user_id, category, subcategory, keywords, content, evidence,
+                    confidence, importance, status, source_session_id, created_at, updated_at
                 )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    memory_id,
+                    "default",
+                    memory["category"],
+                    memory.get("subcategory", "general"),
+                    json.dumps(memory.get("keywords", []), ensure_ascii=False),
+                    memory["content"],
+                    memory["evidence"],
+                    float(memory.get("confidence", 0.5)),
+                    int(memory.get("importance", 3)),
+                    memory.get("status", "active"),
+                    session_id,
+                    now,
+                    now,
+                ),
+            )
+        return memory_id
+
+    def add_memories(self, session_id: str, memories: list[dict[str, Any]]) -> None:
+        for memory in memories[:3]:
+            self.add_memory(session_id, memory)
+
+    def update_memory(
+        self,
+        memory_id: str,
+        updates: dict[str, Any],
+        *,
+        merge_note: str = "",
+    ) -> None:
+        fields = []
+        values = []
+        for key in (
+            "category",
+            "subcategory",
+            "content",
+            "evidence",
+            "confidence",
+            "importance",
+            "status",
+        ):
+            if key in updates:
+                fields.append(f"{key} = ?")
+                values.append(updates[key])
+        if "keywords" in updates:
+            fields.append("keywords = ?")
+            values.append(json.dumps(updates["keywords"], ensure_ascii=False))
+        if merge_note:
+            fields.append("merge_note = ?")
+            values.append(merge_note)
+        fields.append("updated_at = ?")
+        values.append(utc_now())
+        values.append(memory_id)
+        with self.connect() as conn:
+            conn.execute(
+                f"UPDATE memories SET {', '.join(fields)} WHERE id = ?",
+                values,
+            )
+
+    def mark_memory(
+        self,
+        memory_id: str,
+        *,
+        status: str,
+        merge_note: str = "",
+        merged_into_id: str | None = None,
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE memories
+                SET status = ?, merge_note = ?, merged_into_id = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (status, merge_note, merged_into_id, utc_now(), memory_id),
+            )
 
     def add_journal(self, session_id: str, journal: dict[str, Any]) -> None:
         with self.connect() as conn:
@@ -252,15 +336,60 @@ class Store:
             cursor = conn.execute(
                 """
                 SELECT
-                    id, user_id, category, content, evidence, confidence,
-                    importance, source_session_id, created_at, updated_at
+                    id, user_id, category, subcategory, keywords, status,
+                    content, evidence, confidence, importance, source_session_id,
+                    merged_into_id, merge_note, created_at, updated_at
                 FROM memories
-                ORDER BY importance DESC, updated_at DESC
+                ORDER BY category ASC, importance DESC, updated_at DESC
                 LIMIT ?
                 """,
                 (limit,),
             )
-            return [row_to_dict(row) for row in cursor.fetchall()]
+            memories = [row_to_dict(row) for row in cursor.fetchall()]
+        for memory in memories:
+            try:
+                memory["keywords"] = json.loads(memory["keywords"])
+            except (TypeError, json.JSONDecodeError):
+                memory["keywords"] = []
+        return memories
+
+    def find_memory_candidates(
+        self,
+        memory: dict[str, Any],
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        keywords = set(memory.get("keywords", []))
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT
+                    id, category, subcategory, keywords, status, content, evidence,
+                    confidence, importance, source_session_id, updated_at
+                FROM memories
+                WHERE status = 'active'
+                  AND category = ?
+                ORDER BY updated_at DESC
+                LIMIT 30
+                """,
+                (memory["category"],),
+            )
+            candidates = [row_to_dict(row) for row in cursor.fetchall()]
+        for candidate in candidates:
+            try:
+                candidate["keywords"] = json.loads(candidate["keywords"])
+            except (TypeError, json.JSONDecodeError):
+                candidate["keywords"] = []
+            overlap = keywords.intersection(candidate["keywords"])
+            candidate["_score"] = (
+                2 * int(candidate["subcategory"] == memory.get("subcategory"))
+                + len(overlap)
+                + int(memory.get("content", "")[:12] in candidate["content"])
+            )
+        candidates.sort(
+            key=lambda item: (item["_score"], item["importance"], item["updated_at"]),
+            reverse=True,
+        )
+        return candidates[:limit]
 
     def list_journals(
         self,

@@ -369,7 +369,7 @@ HTML = """<!doctype html>
         const data = await post("/api/end", { session_id: sessionId });
         addSystem("会话总结：\\n" + data.journal.summary);
         if (data.memories.length) {
-          addSystem("新增记忆：\\n" + data.memories.map(m => "- [" + m.category + "] " + m.content).join("\\n"));
+          addSystem("记忆处理：\\n" + data.memories.map(m => "- " + (m.action || "create") + " [" + m.category + "/" + (m.subcategory || "general") + "] " + m.content).join("\\n"));
         } else {
         addSystem("这次没有新增长期记忆。");
         }
@@ -450,10 +450,13 @@ HTML = """<!doctype html>
             ${memories.map(item => `
               <article class="card">
                 <h3>${escapeHtml(item.content)}</h3>
-                <div class="meta">importance: ${item.importance} · confidence: ${item.confidence}</div>
+                <div class="meta">subcategory: ${escapeHtml(item.subcategory || "general")}</div>
+                <div class="meta">status: ${escapeHtml(item.status || "active")} · importance: ${item.importance} · confidence: ${item.confidence}</div>
                 <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
                 <div class="meta">updated: ${escapeHtml(item.updated_at)}</div>
+                <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
                 <div class="content">证据：${escapeHtml(item.evidence)}</div>
+                ${item.merge_note ? `<div class="meta">merge note: ${escapeHtml(item.merge_note)}</div>` : ""}
                 <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
               </article>
             `).join("")}

@@ -5,4 +5,4 @@ __pycache__/
 .pytest_cache/
 
 logs/app.log
-.obsidian/workspace.json
+.obsidian/

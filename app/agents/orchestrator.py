@@ -21,8 +21,15 @@ def render_memories(memories: list) -> str:
         return "暂无长期记忆。"
     lines = []
     for memory in memories:
+        keywords = memory["keywords"]
+        if isinstance(keywords, str):
+            try:
+                keywords = json.loads(keywords)
+            except json.JSONDecodeError:
+                keywords = []
         lines.append(
-            f"- [{memory['category']}] {memory['content']}（证据：{memory['evidence']}）"
+            f"- [{memory['category']}/{memory['subcategory']}] {memory['content']}"
+            f"（关键词：{'、'.join(keywords)}；证据：{memory['evidence']}）"
         )
     return "\n".join(lines)
 
@@ -85,17 +92,17 @@ class ConversationOrchestrator:
             f"{row['role']}: {row['content']}" for row in messages
         )
         journal = self._write_journal(transcript)
-        memories = self._extract_memories(transcript)
+        candidates = self._extract_memories(transcript)
+        memory_results = self._merge_memories(session_id, candidates)
         self.store.add_journal(session_id, journal)
-        self.store.add_memories(session_id, memories)
         self.store.end_session(session_id)
         self.logger.info(
-            "close_session done session=%s elapsed=%.2fs memories=%s",
+            "close_session done session=%s elapsed=%.2fs memory_results=%s",
             session_id,
             time.monotonic() - started_at,
-            len(memories),
+            len(memory_results),
         )
-        return {"journal": journal, "memories": memories}
+        return {"journal": journal, "memories": memory_results}
 
     def _write_journal(self, transcript: str) -> dict:
         prompt = read_prompt("journal.md")
@@ -128,5 +135,83 @@ class ConversationOrchestrator:
         valid = []
         for memory in memories[:3]:
             if memory.get("category") in MEMORY_CATEGORIES and memory.get("content"):
+                memory.setdefault("subcategory", "general")
+                memory.setdefault("keywords", [])
+                if not isinstance(memory["keywords"], list):
+                    memory["keywords"] = []
                 valid.append(memory)
         return valid
+
+    def _merge_memories(
+        self,
+        session_id: str,
+        candidates: list[dict],
+    ) -> list[dict]:
+        results = []
+        for candidate in candidates[:3]:
+            existing = self.store.find_memory_candidates(candidate)
+            decision = self._decide_memory_merge(candidate, existing)
+            action = decision.get("action", "create")
+            memory = decision.get("memory") or candidate
+            reason = decision.get("reason", "")
+            target_id = decision.get("target_memory_id", "")
+
+            if action == "ignore":
+                results.append({**candidate, "action": "ignore", "reason": reason})
+                continue
+            if action == "create" or not target_id:
+                memory_id = self.store.add_memory(session_id, memory)
+                results.append({**memory, "id": memory_id, "action": "create", "reason": reason})
+                continue
+            if action in {"merge", "update"}:
+                self.store.update_memory(target_id, memory, merge_note=reason)
+                results.append({**memory, "id": target_id, "action": action, "reason": reason})
+                continue
+            if action == "contradict":
+                self.store.mark_memory(target_id, status="contradicted", merge_note=reason)
+                memory_id = self.store.add_memory(session_id, {**memory, "status": "active"})
+                results.append({**memory, "id": memory_id, "action": "contradict", "reason": reason})
+                continue
+            memory_id = self.store.add_memory(session_id, memory)
+            results.append({**memory, "id": memory_id, "action": "create", "reason": reason})
+        return results
+
+    def _decide_memory_merge(
+        self,
+        candidate: dict,
+        existing: list[dict],
+    ) -> dict:
+        if not existing:
+            return {
+                "action": "create",
+                "target_memory_id": "",
+                "memory": candidate,
+                "reason": "没有找到同类旧记忆。",
+            }
+        prompt = read_prompt("memory_merge.md")
+        payload = {
+            "candidate_memory": candidate,
+            "existing_memories": existing,
+        }
+        response = self.llm.chat(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+            temperature=0.2,
+            max_tokens=700,
+            response_format={"type": "json_object"},
+        )
+        decision = json.loads(response.content)
+        if decision.get("action") not in {
+            "create",
+            "merge",
+            "update",
+            "contradict",
+            "ignore",
+        }:
+            decision["action"] = "create"
+        decision.setdefault("target_memory_id", "")
+        decision.setdefault("memory", candidate)
+        decision.setdefault("reason", "")
+        return decision
