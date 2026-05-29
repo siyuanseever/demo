@@ -47,6 +47,13 @@ Web UI 顶部有两个页面：
 - `对话`：继续和小鹿聊天。
 - `数据看板`：查看已保存的 sessions、messages、memories、journals。
 
+数据看板里：
+
+- `Sessions` 默认隐藏空 session。
+- `清理空 Sessions` 会删除没有 messages、也没有 journals 的空 session。
+- `Memories` 会按 category 分组显示。
+- `Journals` 会显示关联的 session id，并可跳转查看对应 session。
+
 ## 5. 数据位置
 
 默认数据库在：

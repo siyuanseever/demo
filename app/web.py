@@ -169,6 +169,15 @@ HTML = """<!doctype html>
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 12px;
     }
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+    .group-title {
+      margin: 10px 0 4px;
+      font-size: 18px;
+      color: #5f3d26;
+    }
     .card {
       background: #fff;
       border: 1px solid var(--border);
@@ -226,6 +235,7 @@ HTML = """<!doctype html>
         <button data-view="journals" type="button">Journals</button>
         <button data-view="messages" type="button">Messages</button>
         <button id="refreshData" type="button">刷新</button>
+        <button id="cleanupSessions" type="button">清理空 Sessions</button>
       </div>
       <div id="dataList" class="grid"></div>
     </section>
@@ -246,6 +256,7 @@ HTML = """<!doctype html>
     const dashboard = document.querySelector("#dashboard");
     const dataList = document.querySelector("#dataList");
     const refreshData = document.querySelector("#refreshData");
+    const cleanupSessions = document.querySelector("#cleanupSessions");
     const dataButtons = [...document.querySelectorAll("[data-view]")];
 
     let sessionId = null;
@@ -420,25 +431,47 @@ HTML = """<!doctype html>
     }
 
     function renderMemories(items) {
-      renderList(items, item => `
-        <article class="card">
-          <h3>${escapeHtml(item.category)}</h3>
-          <div class="meta">importance: ${item.importance} · confidence: ${item.confidence}</div>
-          <div class="meta">source: ${escapeHtml(shortId(item.source_session_id))}</div>
-          <div class="content">${escapeHtml(item.content)}</div>
-          <div class="meta">证据：${escapeHtml(item.evidence)}</div>
-        </article>
-      `);
+      if (!items.length) {
+        dataList.className = "";
+        dataList.innerHTML = '<div class="empty">还没有保存的记忆。</div>';
+        return;
+      }
+      const groups = new Map();
+      for (const item of items) {
+        const key = item.category || "uncategorized";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+      dataList.className = "stack";
+      dataList.innerHTML = [...groups.entries()].map(([category, memories]) => `
+        <section>
+          <h2 class="group-title">${escapeHtml(category)} · ${memories.length}</h2>
+          <div class="grid">
+            ${memories.map(item => `
+              <article class="card">
+                <h3>${escapeHtml(item.content)}</h3>
+                <div class="meta">importance: ${item.importance} · confidence: ${item.confidence}</div>
+                <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
+                <div class="meta">updated: ${escapeHtml(item.updated_at)}</div>
+                <div class="content">证据：${escapeHtml(item.evidence)}</div>
+                <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+      `).join("");
     }
 
     function renderJournals(items) {
       renderList(items, item => `
         <article class="card">
           <h3>Journal ${escapeHtml(shortId(item.session_id))}</h3>
+          <div class="meta">session: ${escapeHtml(item.session_id)}</div>
           <div class="meta">created: ${escapeHtml(item.created_at)}</div>
           <div class="content">${escapeHtml(item.summary)}</div>
           <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
           <div class="meta">下一步：${escapeHtml(item.suggested_next_step)}</div>
+          <button type="button" onclick="window.loadSession('${escapeHtml(item.session_id)}')">查看关联 Session</button>
         </article>
       `);
     }
@@ -489,6 +522,15 @@ HTML = """<!doctype html>
     chatTab.addEventListener("click", () => switchMainView("chat"));
     dataTab.addEventListener("click", () => switchMainView("data"));
     refreshData.addEventListener("click", () => loadData(activeDataView));
+    cleanupSessions.addEventListener("click", async () => {
+      try {
+        const data = await post("/api/cleanup_empty_sessions", {});
+        dataList.innerHTML = '<div class="empty">已清理 ' + data.deleted + ' 个空 session。</div>';
+        await loadData("sessions");
+      } catch (error) {
+        dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
+      }
+    });
     dataButtons.forEach(button => button.addEventListener("click", () => loadData(button.dataset.view)));
 
     start().catch(error => addSystem(error.message));
@@ -524,6 +566,10 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/end":
                 result = self.app.orchestrator.close_session(payload["session_id"])
                 self.respond_json(result)
+                return
+            if path == "/api/cleanup_empty_sessions":
+                deleted = self.app.orchestrator.store.delete_empty_sessions()
+                self.respond_json({"deleted": deleted})
                 return
             self.send_error(404)
         except Exception as error:

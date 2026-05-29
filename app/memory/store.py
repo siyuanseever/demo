@@ -189,10 +189,16 @@ class Store:
                 ),
             )
 
-    def list_sessions(self, limit: int = 50) -> list[dict[str, Any]]:
+    def list_sessions(
+        self,
+        limit: int = 50,
+        *,
+        include_empty: bool = False,
+    ) -> list[dict[str, Any]]:
+        having = "" if include_empty else "HAVING message_count > 0 OR journal_count > 0"
         with self.connect() as conn:
             cursor = conn.execute(
-                """
+                f"""
                 SELECT
                     s.id,
                     s.created_at,
@@ -203,6 +209,7 @@ class Store:
                 LEFT JOIN messages m ON m.session_id = s.id
                 LEFT JOIN journals j ON j.session_id = s.id
                 GROUP BY s.id
+                {having}
                 ORDER BY s.created_at DESC
                 LIMIT ?
                 """,
@@ -295,3 +302,14 @@ class Store:
                 except (TypeError, json.JSONDecodeError):
                     journal[key] = []
         return journals
+
+    def delete_empty_sessions(self) -> int:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM sessions
+                WHERE id NOT IN (SELECT DISTINCT session_id FROM messages)
+                  AND id NOT IN (SELECT DISTINCT session_id FROM journals)
+                """
+            )
+            return cursor.rowcount
