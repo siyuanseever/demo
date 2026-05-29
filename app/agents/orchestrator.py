@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
+from app.characters import get_character
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
 from app.memory.schema import MEMORY_CATEGORIES
@@ -35,6 +36,28 @@ def render_memories(memories: list) -> str:
     return "\n".join(lines)
 
 
+def message_character_name(row) -> str:
+    metadata = {}
+    try:
+        metadata = json.loads(row["metadata"] or "{}")
+    except (KeyError, TypeError, json.JSONDecodeError):
+        metadata = {}
+    return get_character(metadata.get("character_id")).name
+
+
+def render_conversation_history(messages: list) -> str:
+    if not messages:
+        return "暂无历史对话。"
+    lines = []
+    for row in messages[-12:]:
+        if row["role"] == "user":
+            speaker = "用户"
+        else:
+            speaker = message_character_name(row)
+        lines.append(f"{speaker}：{row['content']}")
+    return "\n".join(lines)
+
+
 class ConversationOrchestrator:
     def __init__(self, llm: LLMClient, store: Store) -> None:
         self.llm = llm
@@ -47,21 +70,38 @@ class ConversationOrchestrator:
         self.logger.info("session start id=%s", session_id)
         return session_id
 
-    def reply(self, session_id: str, user_text: str) -> str:
-        return self.reply_detail(session_id, user_text)["reply"]
+    def reply(self, session_id: str, user_text: str, character_id: str | None = None) -> str:
+        return self.reply_detail(session_id, user_text, character_id=character_id)["reply"]
 
-    def reply_detail(self, session_id: str, user_text: str) -> dict:
+    def reply_detail(
+        self,
+        session_id: str,
+        user_text: str,
+        character_id: str | None = None,
+    ) -> dict:
         started_at = time.monotonic()
+        character = get_character(character_id)
         self.logger.info(
-            "reply start session=%s user_chars=%s",
+            "reply start session=%s character=%s user_chars=%s",
             session_id,
+            character.id,
             len(user_text),
         )
         self.store.add_message(session_id, "user", user_text)
         if detect_crisis(user_text):
-            self.store.add_message(session_id, "assistant", CRISIS_RESPONSE, model="safety")
+            self.store.add_message(
+                session_id,
+                "assistant",
+                CRISIS_RESPONSE,
+                model="safety",
+                metadata={"character_id": character.id},
+            )
             self.logger.info("reply safety session=%s", session_id)
-            return {"reply": CRISIS_RESPONSE, "knowledge_cards": []}
+            return {
+                "reply": CRISIS_RESPONSE,
+                "knowledge_cards": [],
+                "character": character.to_public_dict(),
+            }
 
         messages = self.store.get_session_messages(session_id)
         memories = self.store.recent_memories()
@@ -80,13 +120,14 @@ class ConversationOrchestrator:
             limit=3,
         )
         system_prompt = read_prompt("persona.md").format(
+            character_profile=character.prompt,
+            current_character_name=character.name,
+            conversation_history=render_conversation_history(messages[:-1]),
             memories=render_memories(memories),
             knowledge_cards=render_knowledge_cards(knowledge_cards),
         )
         llm_messages = [{"role": "system", "content": system_prompt}]
-        llm_messages.extend(
-            {"role": row["role"], "content": row["content"]} for row in messages[-12:]
-        )
+        llm_messages.append({"role": "user", "content": user_text})
 
         response = self.llm.chat(llm_messages, temperature=0.75, max_tokens=700)
         self.store.add_message(
@@ -94,6 +135,7 @@ class ConversationOrchestrator:
             "assistant",
             response.content,
             model=response.model,
+            metadata={"character_id": character.id},
         )
         self.logger.info(
             "reply done session=%s elapsed=%.2fs model=%s reply_chars=%s",
@@ -102,7 +144,11 @@ class ConversationOrchestrator:
             response.model,
             len(response.content),
         )
-        return {"reply": response.content, "knowledge_cards": knowledge_cards}
+        return {
+            "reply": response.content,
+            "knowledge_cards": knowledge_cards,
+            "character": character.to_public_dict(),
+        }
 
     def close_session(self, session_id: str) -> dict:
         started_at = time.monotonic()

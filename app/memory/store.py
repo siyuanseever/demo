@@ -49,6 +49,18 @@ def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return dict(row)
 
 
+def message_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    item = dict(row)
+    metadata_raw = item.pop("metadata", "{}") or "{}"
+    try:
+        metadata = json.loads(metadata_raw)
+    except json.JSONDecodeError:
+        metadata = {}
+    item["metadata"] = metadata
+    item["character_id"] = metadata.get("character_id", "")
+    return item
+
+
 def parse_iso_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -198,7 +210,7 @@ class Store:
         with self.connect() as conn:
             cursor = conn.execute(
                 """
-                SELECT role, content, model, created_at
+                SELECT role, content, model, metadata, created_at
                 FROM messages
                 WHERE session_id = ?
                 ORDER BY created_at ASC
@@ -373,7 +385,7 @@ class Store:
             if session_id:
                 cursor = conn.execute(
                     """
-                    SELECT id, session_id, role, content, model, created_at
+                    SELECT id, session_id, role, content, model, metadata, created_at
                     FROM messages
                     WHERE session_id = ?
                     ORDER BY created_at ASC
@@ -384,14 +396,14 @@ class Store:
             else:
                 cursor = conn.execute(
                     """
-                    SELECT id, session_id, role, content, model, created_at
+                    SELECT id, session_id, role, content, model, metadata, created_at
                     FROM messages
                     ORDER BY created_at DESC
                     LIMIT ?
                     """,
                     (limit,),
                 )
-            return [row_to_dict(row) for row in cursor.fetchall()]
+            return [message_row_to_dict(row) for row in cursor.fetchall()]
 
     def list_memories(self, limit: int = 200) -> list[dict[str, Any]]:
         with self.connect() as conn:

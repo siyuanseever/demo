@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+from app.characters import list_characters
 from app.config import get_settings
 from app.main import build_orchestrator
 
@@ -50,37 +51,77 @@ HTML = """<!doctype html>
       margin: 0 auto;
       display: grid;
       grid-template-rows: auto 1fr auto;
-      padding: 18px;
-      gap: 14px;
+      padding: 12px 14px;
+      gap: 10px;
     }
     header {
       background: rgba(255, 252, 246, 0.88);
       border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 16px 18px;
-      box-shadow: 0 18px 42px rgba(155, 101, 75, 0.12);
+      border-radius: 24px;
+      padding: 10px 12px;
+      box-shadow: 0 12px 30px rgba(155, 101, 75, 0.1);
       backdrop-filter: blur(14px);
     }
     .brand {
       display: flex;
-      gap: 14px;
+      gap: 10px;
       align-items: center;
     }
     .deer-logo {
-      width: 62px;
-      height: 62px;
+      width: 44px;
+      height: 44px;
       object-fit: cover;
-      border-radius: 24px;
+      border-radius: 17px;
       background: #fff;
       border: 2px solid rgba(255, 255, 255, 0.86);
       box-shadow: 0 10px 24px rgba(147, 91, 65, 0.16);
     }
-    h1 { margin: 0; font-size: 24px; letter-spacing: 0.02em; }
-    .subtitle { margin-top: 6px; color: var(--muted); font-size: 14px; }
+    h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
+    .subtitle { margin-top: 3px; color: var(--muted); font-size: 12px; }
     nav {
       display: flex;
       gap: 10px;
-      margin-top: 14px;
+      margin-top: 8px;
+    }
+    .character-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .character-button {
+      display: grid;
+      grid-template-columns: auto;
+      justify-items: center;
+      gap: 4px;
+      min-width: 0;
+      padding: 6px 4px;
+      border-radius: 16px;
+      background: rgba(255, 248, 239, 0.78);
+      color: #6f4a3e;
+      border: 1px solid rgba(226, 190, 166, 0.72);
+      text-align: center;
+    }
+    .character-button.active {
+      background: linear-gradient(135deg, #fff0d6, #ffe0de);
+      color: #5a352a;
+      box-shadow: 0 8px 20px rgba(147, 91, 65, 0.13);
+    }
+    .character-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 14px;
+      object-fit: cover;
+      background: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+    }
+    .character-name {
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .character-voice {
+      display: none;
     }
     .tab {
       background: rgba(255, 232, 219, 0.92);
@@ -98,11 +139,11 @@ HTML = """<!doctype html>
       overflow-y: auto;
       background: rgba(255, 252, 246, 0.64);
       border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 18px;
+      border-radius: 22px;
+      padding: 14px;
       backdrop-filter: blur(10px);
     }
-    .row { display: flex; margin: 12px 0; }
+    .row { display: flex; margin: 9px 0; }
     .row.user { justify-content: flex-end; }
     .row.deer {
       justify-content: flex-start;
@@ -119,11 +160,16 @@ HTML = """<!doctype html>
       box-shadow: 0 8px 18px rgba(140, 92, 72, 0.13);
       flex: 0 0 auto;
     }
+    .emoji-avatar {
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+    }
     .bubble {
       max-width: min(680px, 86%);
-      padding: 13px 15px;
-      border-radius: 22px;
-      line-height: 1.65;
+      padding: 10px 13px;
+      border-radius: 19px;
+      line-height: 1.55;
       white-space: pre-wrap;
       box-shadow: 0 8px 22px rgba(94, 57, 37, 0.07);
     }
@@ -144,31 +190,31 @@ HTML = """<!doctype html>
     form {
       display: grid;
       grid-template-columns: 1fr auto auto;
-      gap: 10px;
+      gap: 8px;
       align-items: end;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 12px;
+      border-radius: 22px;
+      padding: 9px;
       box-shadow: 0 16px 36px rgba(120, 80, 50, 0.09);
       backdrop-filter: blur(14px);
     }
     textarea {
       width: 100%;
-      min-height: 52px;
-      max-height: 160px;
+      min-height: 44px;
+      max-height: 120px;
       resize: vertical;
       border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 12px;
+      border-radius: 16px;
+      padding: 10px;
       font: inherit;
       background: white;
       color: var(--text);
     }
     button {
       border: 0;
-      border-radius: 18px;
-      padding: 12px 16px;
+      border-radius: 16px;
+      padding: 10px 13px;
       font: inherit;
       cursor: pointer;
       background: var(--accent);
@@ -369,24 +415,24 @@ HTML = """<!doctype html>
         width: 100vw;
         min-height: 100dvh;
         height: 100dvh;
-        padding: 10px;
-        gap: 10px;
+        padding: 8px;
+        gap: 8px;
       }
       header {
-        border-radius: 22px;
-        padding: 12px;
+        border-radius: 20px;
+        padding: 9px;
       }
       .brand {
         gap: 10px;
         align-items: flex-start;
       }
       .deer-logo {
-        width: 48px;
-        height: 48px;
-        border-radius: 18px;
+        width: 40px;
+        height: 40px;
+        border-radius: 15px;
       }
       h1 {
-        font-size: 18px;
+        font-size: 17px;
         line-height: 1.25;
       }
       .subtitle {
@@ -400,13 +446,31 @@ HTML = """<!doctype html>
         width: 100%;
         padding: 9px 10px;
       }
+      .character-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+      }
+      .character-button {
+        padding: 5px 4px;
+      }
+      .character-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 12px;
+      }
+      .character-name {
+        font-size: 11px;
+      }
+      .character-voice {
+        display: none;
+      }
       #messages,
       #dashboard {
         border-radius: 22px;
         padding: 12px;
       }
       .row {
-        margin: 10px 0;
+        margin: 8px 0;
       }
       .avatar {
         width: 34px;
@@ -415,9 +479,9 @@ HTML = """<!doctype html>
       }
       .bubble {
         max-width: 88%;
-        padding: 11px 12px;
+        padding: 9px 11px;
         border-radius: 18px;
-        line-height: 1.6;
+        line-height: 1.5;
         font-size: 15px;
       }
       form {
@@ -427,8 +491,8 @@ HTML = """<!doctype html>
       }
       textarea {
         grid-column: 1 / -1;
-        min-height: 74px;
-        max-height: 140px;
+        min-height: 58px;
+        max-height: 110px;
         font-size: 16px;
       }
       #send,
@@ -465,16 +529,17 @@ HTML = """<!doctype html>
   <main class="app">
     <header>
       <div class="brand">
-        <img class="deer-logo" src="/static/deer-icon.webp" alt="小鹿头像" />
+        <img id="brandAvatar" class="deer-logo" src="/static/mianmian-sheep.webp" alt="绵绵羊头像" />
         <div>
-          <h1>小鹿 · 心理陪伴 Agent</h1>
-          <div class="subtitle">一只温柔、善良、会说话的小鹿。这里是本地 demo，不替代专业心理帮助。</div>
+          <h1 id="brandTitle">绵绵羊 · 心理陪伴 Agent</h1>
+          <div id="brandSubtitle" class="subtitle">温柔、柔软、安静，像一团可以靠近的云。</div>
         </div>
       </div>
       <nav>
         <button id="chatTab" class="tab active" type="button">对话</button>
         <button id="dataTab" class="tab" type="button">数据看板</button>
       </nav>
+      <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
     </header>
     <section id="messages" class="view"></section>
     <section id="dashboard" class="view hidden">
@@ -506,6 +571,10 @@ HTML = """<!doctype html>
     const end = document.querySelector("#end");
     const chatTab = document.querySelector("#chatTab");
     const dataTab = document.querySelector("#dataTab");
+    const brandAvatar = document.querySelector("#brandAvatar");
+    const brandTitle = document.querySelector("#brandTitle");
+    const brandSubtitle = document.querySelector("#brandSubtitle");
+    const characterStrip = document.querySelector("#characterStrip");
     const dashboard = document.querySelector("#dashboard");
     const dataList = document.querySelector("#dataList");
     const detailPanel = document.querySelector("#detailPanel");
@@ -517,6 +586,48 @@ HTML = """<!doctype html>
     let busy = false;
     let activeDataView = "sessions";
     let memoryItems = [];
+    const CHARACTERS = __CHARACTERS_JSON__;
+    let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
+
+    function currentCharacter() {
+      const character = CHARACTERS.find(item => item.id === activeCharacterId);
+      if (character) return character;
+      activeCharacterId = CHARACTERS[0].id;
+      localStorage.setItem("xiaolu.character", activeCharacterId);
+      return CHARACTERS[0];
+    }
+
+    function characterById(characterId) {
+      return CHARACTERS.find(item => item.id === characterId) || CHARACTERS[0];
+    }
+
+    function renderCharacters() {
+      characterStrip.innerHTML = CHARACTERS.map(character => `
+        <button class="character-button ${character.id === activeCharacterId ? "active" : ""}" type="button" data-character="${escapeHtml(character.id)}" title="${escapeHtml(character.tagline)}">
+          <img class="character-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+          <span class="character-name">${escapeHtml(character.name)}</span>
+          <span class="character-voice">${escapeHtml(character.voice)}</span>
+        </button>
+      `).join("");
+      characterStrip.querySelectorAll("[data-character]").forEach(button => {
+        button.addEventListener("click", () => selectCharacter(button.dataset.character));
+      });
+    }
+
+    function selectCharacter(characterId) {
+      activeCharacterId = characterId;
+      localStorage.setItem("xiaolu.character", activeCharacterId);
+      updateCharacterBrand();
+      renderCharacters();
+    }
+
+    function updateCharacterBrand() {
+      const character = currentCharacter();
+      brandAvatar.src = character.avatar_path;
+      brandAvatar.alt = character.name + "头像";
+      brandTitle.textContent = character.name + " · 心理陪伴 Agent";
+      brandSubtitle.textContent = character.tagline;
+    }
 
     function setBusy(value) {
       busy = value;
@@ -526,21 +637,29 @@ HTML = """<!doctype html>
       send.textContent = value ? "等待中..." : "发送";
     }
 
-    function addMessage(role, text, knowledgeCards = []) {
+    function addMessage(role, text, knowledgeCards = [], characterId = null) {
+      const character = characterId ? characterById(characterId) : CHARACTERS[0];
       const row = document.createElement("div");
       row.className = "row " + (role === "user" ? "user" : "deer");
       if (role !== "user") {
-        const avatar = document.createElement("img");
-        avatar.className = "avatar";
-        avatar.src = "/static/deer-icon.webp";
-        avatar.alt = "小鹿";
+        let avatar;
+        if (character.avatar_path) {
+          avatar = document.createElement("img");
+          avatar.src = character.avatar_path;
+        } else {
+          avatar = document.createElement("div");
+          avatar.className = "avatar emoji-avatar";
+          avatar.textContent = character.emoji;
+        }
+        avatar.classList.add("avatar");
+        avatar.alt = character.name;
         row.appendChild(avatar);
       }
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       const name = document.createElement("div");
       name.className = "name";
-      name.textContent = role === "user" ? "你" : "小鹿";
+      name.textContent = role === "user" ? "你" : character.name;
       const body = document.createElement("div");
       body.textContent = text;
       bubble.appendChild(name);
@@ -665,11 +784,12 @@ HTML = """<!doctype html>
       if (!text) return;
       input.value = "";
       addMessage("user", text);
-      addSystem("小鹿正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
+      const sendingCharacterId = activeCharacterId;
+      addSystem(currentCharacter().name + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
       setBusy(true);
       try {
-        const data = await post("/api/chat", { session_id: sessionId, text });
-        addMessage("deer", data.reply, data.knowledge_cards || []);
+        const data = await post("/api/chat", { session_id: sessionId, text, character_id: sendingCharacterId });
+        addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || sendingCharacterId);
       } catch (error) {
         addSystem(error.message);
       } finally {
@@ -727,6 +847,11 @@ HTML = """<!doctype html>
       return String(id || "").slice(0, 8);
     }
 
+    function speakerName(message) {
+      if (message.role === "user") return "你";
+      return characterById(message.character_id).name;
+    }
+
     function renderList(items, renderer) {
       if (!items.length) {
         dataList.className = "";
@@ -749,6 +874,7 @@ HTML = """<!doctype html>
             <span class="pill">${item.journal_count} journals</span>
           </div>
           <button type="button" onclick="window.loadSession('${escapeHtml(item.id)}')">查看详情</button>
+          <button type="button" onclick="window.continueSession('${escapeHtml(item.id)}')">继续对话</button>
         </article>
       `);
     }
@@ -941,7 +1067,7 @@ HTML = """<!doctype html>
     function renderMessages(items) {
       renderList(items, item => `
         <article class="card">
-          <h3>${item.role === "user" ? "你" : "小鹿"}</h3>
+          <h3>${escapeHtml(speakerName(item))}</h3>
           <div class="meta">session: ${escapeHtml(shortId(item.session_id))} · ${escapeHtml(item.created_at)}</div>
           <div class="meta">model: ${escapeHtml(item.model || "-")}</div>
           <div class="content">${escapeHtml(item.content)}</div>
@@ -980,9 +1106,31 @@ HTML = """<!doctype html>
         const data = await get("/api/session_detail?id=" + encodeURIComponent(sessionId));
         dataList.className = "grid";
         dataList.innerHTML = [
-          `<article class="card"><h3>Messages</h3><div class="content">${data.messages.map(m => `<b>${m.role === "user" ? "你" : "小鹿"}</b>\\n${escapeHtml(m.content)}`).join("\\n\\n")}</div></article>`,
+          `<article class="card"><h3>Messages</h3><div class="content">${data.messages.map(m => `<b>${escapeHtml(speakerName(m))}</b>\\n${escapeHtml(m.content)}`).join("\\n\\n")}</div></article>`,
           `<article class="card"><h3>Journals</h3><div class="content">${data.journals.map(j => escapeHtml(j.summary)).join("\\n\\n") || "无"}</div></article>`
         ].join("");
+      } catch (error) {
+        dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
+      }
+    }
+
+    window.continueSession = async function(targetSessionId) {
+      if (busy) return;
+      try {
+        const data = await get("/api/session_detail?id=" + encodeURIComponent(targetSessionId));
+        sessionId = targetSessionId;
+        messages.innerHTML = "";
+        for (const message of data.messages) {
+          addMessage(
+            message.role === "user" ? "user" : "deer",
+            message.content,
+            [],
+            message.character_id || null
+          );
+        }
+        switchMainView("chat");
+        addSystem("已继续 Session " + shortId(targetSessionId) + "。新消息会追加到这个会话里。");
+        input.focus();
       } catch (error) {
         dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
       }
@@ -1002,6 +1150,8 @@ HTML = """<!doctype html>
     });
     dataButtons.forEach(button => button.addEventListener("click", () => loadData(button.dataset.view)));
 
+    updateCharacterBrand();
+    renderCharacters();
     start().catch(error => addSystem(error.message));
   </script>
 </body>
@@ -1029,7 +1179,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             payload = self.read_json()
             if path == "/api/chat":
-                result = self.app.orchestrator.reply_detail(payload["session_id"], payload["text"])
+                result = self.app.orchestrator.reply_detail(
+                    payload["session_id"],
+                    payload["text"],
+                    character_id=payload.get("character_id"),
+                )
                 self.respond_json(result)
                 return
             if path == "/api/end":
@@ -1060,7 +1214,11 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             settings = get_settings()
-            html = HTML.replace("__WEB_TIMEOUT_MS__", str(settings.web_timeout_ms))
+            html = (
+                HTML
+                .replace("__WEB_TIMEOUT_MS__", str(settings.web_timeout_ms))
+                .replace("__CHARACTERS_JSON__", json.dumps(list_characters(), ensure_ascii=False))
+            )
             self.respond_html(html)
             return
         if path.startswith("/static/"):
