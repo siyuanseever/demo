@@ -14,6 +14,8 @@ class Settings:
     llm_provider: str
     log_path: str
     web_timeout_ms: int
+    web_host: str
+    web_port: int
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -42,4 +44,6 @@ def get_settings() -> Settings:
         llm_provider=os.getenv("LLM_PROVIDER", "deepseek"),
         log_path=os.getenv("APP_LOG_PATH", "logs/app.log"),
         web_timeout_ms=int(os.getenv("WEB_TIMEOUT_MS", "20000")),
+        web_host=os.getenv("WEB_HOST", "127.0.0.1"),
+        web_port=int(os.getenv("WEB_PORT", "8765")),
     )

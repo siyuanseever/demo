@@ -1,5 +1,6 @@
 import json
 import logging
+import socket
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -359,6 +360,104 @@ HTML = """<!doctype html>
       justify-content: space-between;
       gap: 10px;
       align-items: start;
+    }
+    @media (max-width: 720px) {
+      body {
+        background-attachment: scroll;
+      }
+      .app {
+        width: 100vw;
+        min-height: 100dvh;
+        height: 100dvh;
+        padding: 10px;
+        gap: 10px;
+      }
+      header {
+        border-radius: 22px;
+        padding: 12px;
+      }
+      .brand {
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .deer-logo {
+        width: 48px;
+        height: 48px;
+        border-radius: 18px;
+      }
+      h1 {
+        font-size: 18px;
+        line-height: 1.25;
+      }
+      .subtitle {
+        font-size: 12px;
+      }
+      nav {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .tab {
+        width: 100%;
+        padding: 9px 10px;
+      }
+      #messages,
+      #dashboard {
+        border-radius: 22px;
+        padding: 12px;
+      }
+      .row {
+        margin: 10px 0;
+      }
+      .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 13px;
+      }
+      .bubble {
+        max-width: 88%;
+        padding: 11px 12px;
+        border-radius: 18px;
+        line-height: 1.6;
+        font-size: 15px;
+      }
+      form {
+        grid-template-columns: 1fr 1fr;
+        border-radius: 22px;
+        padding: 10px;
+      }
+      textarea {
+        grid-column: 1 / -1;
+        min-height: 74px;
+        max-height: 140px;
+        font-size: 16px;
+      }
+      #send,
+      #end {
+        width: 100%;
+        padding: 11px 10px;
+      }
+      .toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .toolbar button {
+        flex: 0 0 auto;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .calendar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .detail-panel {
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: auto;
+        max-height: 70vh;
+      }
     }
   </style>
 </head>
@@ -1081,12 +1180,28 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    settings = get_settings()
     Handler.app = WebApp()
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-    print("小鹿 Web UI 已启动：http://127.0.0.1:8765")
-    print("后台日志：logs/app.log")
+    server = ThreadingHTTPServer((settings.web_host, settings.web_port), Handler)
+    local_url = f"http://127.0.0.1:{settings.web_port}"
+    bound_url = f"http://{settings.web_host}:{settings.web_port}"
+    print(f"小鹿 Web UI 已启动：{local_url}")
+    if settings.web_host in {"0.0.0.0", ""}:
+        print(f"局域网访问：在手机浏览器打开 http://{get_lan_ip()}:{settings.web_port}")
+    elif settings.web_host != "127.0.0.1":
+        print(f"绑定地址：{bound_url}")
+    print(f"后台日志：{settings.log_path}")
     print("按 Ctrl+C 停止。")
     server.serve_forever()
+
+
+def get_lan_ip() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return "你的Mac局域网IP"
 
 
 if __name__ == "__main__":
