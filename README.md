@@ -17,14 +17,17 @@
 
 ## 🖼️ 截图
 
+### 对话界面
+![对话界面](docs/screenshots/Chat.png)
+
 ### 数据看板 - 记忆视图
 ![记忆看板](docs/screenshots/Memory.png)
 
+### 数据看板 - 知识卡视图
+![知识卡看板](docs/screenshots/Knowledge.png)
+
 ### 数据看板 - 心情视图
 ![心情看板](docs/screenshots/Mood.png)
-
-### 对话界面
-![对话界面](docs/screenshots/Chat.png)
 
 ***
 

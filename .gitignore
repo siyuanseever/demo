@@ -7,3 +7,4 @@ __pycache__/
 logs/app.log
 .obsidian/
 .obsidian/workspace.json
+docs/.DS_Store
