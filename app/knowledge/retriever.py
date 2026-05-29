@@ -4,15 +4,30 @@ from typing import Any
 
 
 CARD_PATH = Path(__file__).resolve().parent / "cards.json"
+CONTENT_CARD_PATH = Path(__file__).resolve().parent / "content_cards.json"
 
 
 class KnowledgeRetriever:
     def __init__(self, path: Path = CARD_PATH) -> None:
         self.path = path
         self.cards = json.loads(path.read_text(encoding="utf-8"))
+        self.content_cards = json.loads(CONTENT_CARD_PATH.read_text(encoding="utf-8"))
 
     def list_cards(self) -> list[dict[str, Any]]:
         return self.cards
+
+    def list_content_cards(self) -> list[dict[str, Any]]:
+        return self.content_cards
+
+    def get_card(self, card_id: str) -> dict[str, Any] | None:
+        return next((card for card in self.cards if card["id"] == card_id), None)
+
+    def related_content_for_knowledge(self, card_id: str) -> list[dict[str, Any]]:
+        return [
+            card
+            for card in self.content_cards
+            if card_id in card.get("related_knowledge_ids", [])
+        ]
 
     def retrieve(
         self,
@@ -67,4 +82,3 @@ def render_knowledge_cards(cards: list[dict[str, Any]]) -> str:
             )
         )
     return "\n".join(lines)
-

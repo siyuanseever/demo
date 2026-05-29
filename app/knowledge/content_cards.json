@@ -1,0 +1,111 @@
+[
+  {
+    "id": "book_complex_ptsd_pete_walker",
+    "type": "book",
+    "title": "Complex PTSD: From Surviving to Thriving",
+    "creator": "Pete Walker",
+    "tags": ["CPTSD", "情绪闪回", "内在批评者", "羞耻", "创伤恢复"],
+    "fit_for": "适合想理解长期创伤、情绪闪回、内在批评和冻结反应的用户。",
+    "xiaolu_note": "这本书更像一张创伤恢复地图。小鹿可以把其中的概念拆成更温和的小块，而不是一次性推给用户。",
+    "related_knowledge_ids": ["trauma_informed_safety_choice_pace", "self_compassion_common_humanity"],
+    "source_label": "Pete Walker, Complex PTSD",
+    "source_url": "https://pete-walker.com/complex_ptsd_book.html"
+  },
+  {
+    "id": "book_nonviolent_communication",
+    "type": "book",
+    "title": "Nonviolent Communication",
+    "creator": "Marshall B. Rosenberg",
+    "tags": ["沟通", "感受", "需要", "请求", "关系"],
+    "fit_for": "适合想表达感受、看见需要、减少关系冲突的用户。",
+    "xiaolu_note": "小鹿可以用它帮助用户把“我是不是太敏感”翻译成“我有什么感受和需要”。",
+    "related_knowledge_ids": ["attachment_trigger"],
+    "source_label": "Center for Nonviolent Communication",
+    "source_url": "https://www.cnvc.org/"
+  },
+  {
+    "id": "book_self_compassion_neff",
+    "type": "book",
+    "title": "Self-Compassion",
+    "creator": "Kristin Neff",
+    "tags": ["自我慈悲", "羞耻", "自责", "共同人性", "温柔"],
+    "fit_for": "适合常常自责、羞耻、觉得自己不够好的用户。",
+    "xiaolu_note": "这本书适合作为小鹿温柔语言的底层风格来源：不是鸡汤，而是减少自我攻击。",
+    "related_knowledge_ids": ["self_compassion_common_humanity"],
+    "source_label": "self-compassion.org",
+    "source_url": "https://self-compassion.org/"
+  },
+  {
+    "id": "book_no_bad_parts",
+    "type": "book",
+    "title": "No Bad Parts",
+    "creator": "Richard C. Schwartz",
+    "tags": ["IFS", "内在部分", "保护者", "受伤部分", "自我冲突"],
+    "fit_for": "适合描述自己有很多矛盾部分、既想前进又想逃开的用户。",
+    "xiaolu_note": "小鹿可以用 parts work 帮用户少一点责怪自己，多一点理解那些保护自己的部分。",
+    "related_knowledge_ids": ["parts_work_protector"],
+    "source_label": "IFS Institute / Richard Schwartz",
+    "source_url": "https://ifs-institute.com/"
+  },
+  {
+    "id": "book_body_keeps_score",
+    "type": "book",
+    "title": "The Body Keeps the Score",
+    "creator": "Bessel van der Kolk",
+    "tags": ["身体", "创伤", "神经系统", "躯体反应", "冻结"],
+    "fit_for": "适合想理解为什么痛苦会留在身体里、为什么身体会先于理性反应的用户。",
+    "xiaolu_note": "这本书更适合理解创伤与身体，不建议把它直接当作自助操作手册。",
+    "related_knowledge_ids": ["grounding_5_4_3_2_1", "trauma_informed_safety_choice_pace"],
+    "source_label": "Bessel van der Kolk / Penguin Random House",
+    "source_url": "https://www.besselvanderkolk.com/resources/the-body-keeps-the-score"
+  },
+  {
+    "id": "practice_54321_grounding",
+    "type": "practice",
+    "title": "5-4-3-2-1 感官落地练习",
+    "creator": "小鹿练习卡",
+    "tags": ["焦虑", "冻结", "身体感", "当下", "稳定化"],
+    "fit_for": "适合焦虑、过载、飘离身体、无法开始行动的时候。",
+    "xiaolu_note": "找 5 个看见的东西、4 个触摸到的质感、3 个听见的声音、2 个闻到的气味、1 个此刻身体还可以承受的小动作。",
+    "related_knowledge_ids": ["grounding_5_4_3_2_1"],
+    "source_label": "Grounding practice",
+    "source_url": "https://www.ptsd.va.gov/"
+  },
+  {
+    "id": "practice_needs_translation",
+    "type": "practice",
+    "title": "把责备翻译成需要",
+    "creator": "小鹿练习卡",
+    "tags": ["非暴力沟通", "关系", "需要", "表达", "边界"],
+    "fit_for": "适合想表达不满、委屈、愤怒，但又害怕冲突的时候。",
+    "xiaolu_note": "把“你怎么总是这样”改写为：我观察到什么、我感到什么、我需要什么、我希望提出什么具体请求。",
+    "related_knowledge_ids": ["attachment_trigger"],
+    "source_label": "NVC-inspired reflection",
+    "source_url": "https://www.cnvc.org/"
+  },
+  {
+    "id": "music_weightless",
+    "type": "music",
+    "title": "Weightless",
+    "creator": "Marconi Union",
+    "tags": ["放松", "睡前", "焦虑", "环境音乐", "身体"],
+    "fit_for": "适合需要降低刺激、进入睡前或安静状态的时候。",
+    "xiaolu_note": "音乐推荐只作为氛围支持，不替代情绪表达。小鹿可以建议用户把音量调低，观察身体是否稍微松一点。",
+    "related_knowledge_ids": ["grounding_5_4_3_2_1"],
+    "source_label": "Marconi Union",
+    "source_url": "https://www.marconiunion.com/"
+  },
+  {
+    "id": "film_inside_out",
+    "type": "film",
+    "title": "Inside Out",
+    "creator": "Pixar",
+    "tags": ["情绪", "悲伤", "接纳", "内在世界", "温柔"],
+    "fit_for": "适合想用轻一点的方式理解情绪功能的人。",
+    "xiaolu_note": "它适合作为情绪教育素材：悲伤不是坏东西，它有时帮助人连接和被看见。",
+    "related_knowledge_ids": ["self_compassion_common_humanity"],
+    "source_label": "Pixar / Inside Out",
+    "source_url": "https://www.pixar.com/feature-films/inside-out"
+  }
+]
+

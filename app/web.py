@@ -283,6 +283,39 @@ HTML = """<!doctype html>
       color: #6f4a31;
       font-size: 12px;
     }
+    .hero-card {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #fff7e9, #f4dfc6);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 18px;
+    }
+    .content-type {
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .detail-panel {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: min(460px, calc(100vw - 36px));
+      max-height: 78vh;
+      overflow-y: auto;
+      background: #fffaf3;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 18px 46px rgba(70, 45, 20, 0.18);
+      z-index: 10;
+    }
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: start;
+    }
   </style>
 </head>
 <body>
@@ -301,6 +334,7 @@ HTML = """<!doctype html>
         <button data-view="sessions" class="active" type="button">Sessions</button>
         <button data-view="memories" type="button">Memories</button>
         <button data-view="knowledge" type="button">Knowledge</button>
+        <button data-view="content" type="button">Content</button>
         <button data-view="mood" type="button">Mood</button>
         <button data-view="journals" type="button">Journals</button>
         <button data-view="messages" type="button">Messages</button>
@@ -309,6 +343,7 @@ HTML = """<!doctype html>
       </div>
       <div id="dataList" class="grid"></div>
     </section>
+    <aside id="detailPanel" class="detail-panel hidden"></aside>
     <form id="form">
       <textarea id="input" placeholder="把此刻想说的话写在这里。Shift+Enter 换行，Enter 发送。"></textarea>
       <button id="send" type="submit">发送</button>
@@ -325,6 +360,7 @@ HTML = """<!doctype html>
     const dataTab = document.querySelector("#dataTab");
     const dashboard = document.querySelector("#dashboard");
     const dataList = document.querySelector("#dataList");
+    const detailPanel = document.querySelector("#detailPanel");
     const refreshData = document.querySelector("#refreshData");
     const cleanupSessions = document.querySelector("#cleanupSessions");
     const dataButtons = [...document.querySelectorAll("[data-view]")];
@@ -366,6 +402,7 @@ HTML = """<!doctype html>
           tag.className = "used-card";
           tag.textContent = card.title;
           tag.title = card.concept || "";
+          tag.onclick = () => showKnowledgeDetail(card.id);
           cards.appendChild(tag);
         }
         bubble.appendChild(cards);
@@ -415,6 +452,50 @@ HTML = """<!doctype html>
       if (!response.ok) throw new Error(data.error || "请求失败");
       return data;
     }
+
+    function closeDetail() {
+      detailPanel.classList.add("hidden");
+      detailPanel.innerHTML = "";
+    }
+
+    function renderContentMini(cards) {
+      if (!cards.length) {
+        return '<div class="meta">还没有关联内容卡。</div>';
+      }
+      return cards.map(item => `
+        <article class="card">
+          <div class="content-type">${escapeHtml(item.type)}</div>
+          <h3>${escapeHtml(item.title)}</h3>
+          <div class="meta">${escapeHtml(item.creator)}</div>
+          <div class="content">${escapeHtml(item.fit_for)}</div>
+          <div class="meta">小鹿用法：${escapeHtml(item.xiaolu_note)}</div>
+          ${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noreferrer">打开来源</a>` : ""}
+        </article>
+      `).join("");
+    }
+
+    async function showKnowledgeDetail(cardId) {
+      const data = await get("/api/knowledge_detail?id=" + encodeURIComponent(cardId));
+      detailPanel.classList.remove("hidden");
+      detailPanel.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <div class="content-type">knowledge</div>
+            <h2 class="group-title">${escapeHtml(data.card.title)}</h2>
+          </div>
+          <button type="button" onclick="closeDetail()">关闭</button>
+        </div>
+        <div class="meta">domain: ${escapeHtml(data.card.domain)} · source: ${escapeHtml(data.card.source)}</div>
+        <div>${(data.card.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+        <div class="content">${escapeHtml(data.card.concept)}</div>
+        <div class="meta">适用：${escapeHtml(data.card.use_when)}</div>
+        <div class="meta">小鹿表达：${escapeHtml(data.card.xiaolu_style)}</div>
+        <h3>相关内容</h3>
+        <div class="stack">${renderContentMini(data.related_content || [])}</div>
+      `;
+    }
+
+    window.closeDetail = closeDetail;
 
     async function start() {
       const data = await post("/api/session");
@@ -591,7 +672,7 @@ HTML = """<!doctype html>
 
     function renderKnowledge(items) {
       renderList(items, item => `
-        <article class="card">
+        <article class="card clickable" onclick="showKnowledgeDetail('${escapeHtml(item.id)}')">
           <h3>${escapeHtml(item.title)}</h3>
           <div class="meta">domain: ${escapeHtml(item.domain)} · source: ${escapeHtml(item.source)}</div>
           <div>${(item.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
@@ -601,6 +682,41 @@ HTML = """<!doctype html>
           <div class="content">回应提示：${escapeHtml(item.response_hint)}</div>
         </article>
       `);
+    }
+
+    function renderContentLibrary(items) {
+      const types = ["book", "practice", "music", "film"];
+      const grouped = new Map(types.map(type => [type, []]));
+      for (const item of items) {
+        if (!grouped.has(item.type)) grouped.set(item.type, []);
+        grouped.get(item.type).push(item);
+      }
+      dataList.className = "stack";
+      dataList.innerHTML = `
+        <section class="hero-card">
+          <h2 class="group-title">Content Library</h2>
+          <div class="meta">小鹿可以引用的内容素材库：书籍、练习、音乐和电影。当前是 demo 级素材，后续可以继续扩展来源、评分和个性化推荐。</div>
+        </section>
+        ${[...grouped.entries()].map(([type, cards]) => `
+          <section>
+            <h2 class="group-title">${escapeHtml(type)} · ${cards.length}</h2>
+            <div class="grid">
+              ${cards.map(item => `
+                <article class="card">
+                  <div class="content-type">${escapeHtml(item.type)}</div>
+                  <h3>${escapeHtml(item.title)}</h3>
+                  <div class="meta">${escapeHtml(item.creator)}</div>
+                  <div>${(item.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+                  <div class="content">${escapeHtml(item.fit_for)}</div>
+                  <div class="meta">小鹿用法：${escapeHtml(item.xiaolu_note)}</div>
+                  <div class="meta">来源：${escapeHtml(item.source_label)}</div>
+                  ${item.source_url ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noreferrer">打开来源</a>` : ""}
+                </article>
+              `).join("")}
+            </div>
+          </section>
+        `).join("")}
+      `;
     }
 
     function moodLabel(score) {
@@ -693,6 +809,7 @@ HTML = """<!doctype html>
         if (view === "sessions") renderSessions(data.items);
         if (view === "memories") renderMemories(data.items);
         if (view === "knowledge") renderKnowledge(data.items);
+        if (view === "content") renderContentLibrary(data.items);
         if (view === "journals") renderJournals(data.items);
         if (view === "messages") renderMessages(data.items);
       } catch (error) {
@@ -804,6 +921,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/mood_analytics":
                 self.respond_json(self.app.orchestrator.store.journal_analytics())
                 return
+            if path == "/api/knowledge_detail":
+                self.respond_knowledge_detail()
+                return
             self.send_error(404)
         except Exception as error:
             self.logger.exception("http get error path=%s", path)
@@ -824,10 +944,30 @@ class Handler(BaseHTTPRequestHandler):
             items = store.list_messages()
         elif data_type == "knowledge":
             items = self.app.orchestrator.knowledge.list_cards()
+        elif data_type == "content":
+            items = self.app.orchestrator.knowledge.list_content_cards()
         else:
             self.respond_json({"error": f"unknown data type: {data_type}"}, status=400)
             return
         self.respond_json({"items": items})
+
+    def respond_knowledge_detail(self) -> None:
+        query = urlparse(self.path).query
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        card_id = params.get("id")
+        if not card_id:
+            self.respond_json({"error": "missing knowledge card id"}, status=400)
+            return
+        card = self.app.orchestrator.knowledge.get_card(card_id)
+        if not card:
+            self.respond_json({"error": f"unknown knowledge card: {card_id}"}, status=404)
+            return
+        self.respond_json(
+            {
+                "card": card,
+                "related_content": self.app.orchestrator.knowledge.related_content_for_knowledge(card_id),
+            }
+        )
 
     def respond_session_detail(self) -> None:
         query = urlparse(self.path).query

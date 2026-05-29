@@ -53,12 +53,15 @@ Web UI 顶部有两个页面：
 - `清理空 Sessions` 会删除没有 messages、也没有 journals 的空 session。
 - `Memories` 会按 category 分组显示。
 - `Knowledge` 会显示小鹿当前可参考的心理学知识卡。
+- `Content` 会显示内容素材库，包括书籍、练习、音乐和电影推荐卡。
 - `Journals` 会显示关联的 session id，并可跳转查看对应 session。
 - `Mood` 会基于 journal 生成心情轨迹、日历视图和周报原型。
 
 `Mood` 优先使用 journal 里由模型输出的 `mood_score` 和 `dominant_emotion`；旧数据没有这些字段时，会回退到关键词启发式估计。
 
 聊天时，如果小鹿参考了知识卡，回复气泡下方会显示“本轮参考知识卡”。
+
+知识卡现在可以点击：聊天气泡里的知识卡、`Knowledge` 页面里的知识卡都会打开详情面板，并显示关联的书籍、练习、音乐或电影内容卡。
 
 ## 5. 数据位置
 
