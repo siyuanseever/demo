@@ -8,3 +8,8 @@ logs/app.log
 .obsidian/
 .obsidian/workspace.json
 docs/.DS_Store
+
+# 敏感文件，不提交到 Git
+prompt.md
+context.md
+prompt.py
