@@ -66,6 +66,8 @@ class FakeClient:
                     {
                         "summary": "这是 fake 模型生成的会话总结，用于确认前后端链路正常。",
                         "emotion_curve": ["测试", "等待", "确认"],
+                        "mood_score": 1,
+                        "dominant_emotion": "稳定",
                         "keywords": ["测试", "小鹿", "链路"],
                         "insights": ["当前优先目标是确认系统可稳定响应。"],
                         "suggested_next_step": "再发送一条真实问题，观察响应时间和日志。",

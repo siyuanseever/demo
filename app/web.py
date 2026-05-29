@@ -269,6 +269,20 @@ HTML = """<!doctype html>
     .day.good { background: #e8f5ed; }
     .day.bad { background: #f8e8e3; }
     .day.neutral { background: #fffaf3; }
+    .used-cards {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border);
+    }
+    .used-card {
+      display: inline-block;
+      margin: 4px 6px 0 0;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #f2e5d6;
+      color: #6f4a31;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
@@ -328,7 +342,7 @@ HTML = """<!doctype html>
       send.textContent = value ? "等待中..." : "发送";
     }
 
-    function addMessage(role, text) {
+    function addMessage(role, text, knowledgeCards = []) {
       const row = document.createElement("div");
       row.className = "row " + (role === "user" ? "user" : "deer");
       const bubble = document.createElement("div");
@@ -340,6 +354,22 @@ HTML = """<!doctype html>
       body.textContent = text;
       bubble.appendChild(name);
       bubble.appendChild(body);
+      if (knowledgeCards.length) {
+        const cards = document.createElement("div");
+        cards.className = "used-cards";
+        const label = document.createElement("div");
+        label.className = "meta";
+        label.textContent = "本轮参考知识卡";
+        cards.appendChild(label);
+        for (const card of knowledgeCards) {
+          const tag = document.createElement("span");
+          tag.className = "used-card";
+          tag.textContent = card.title;
+          tag.title = card.concept || "";
+          cards.appendChild(tag);
+        }
+        bubble.appendChild(cards);
+      }
       row.appendChild(bubble);
       messages.appendChild(row);
       messages.scrollTop = messages.scrollHeight;
@@ -403,7 +433,7 @@ HTML = """<!doctype html>
       setBusy(true);
       try {
         const data = await post("/api/chat", { session_id: sessionId, text });
-        addMessage("deer", data.reply);
+        addMessage("deer", data.reply, data.knowledge_cards || []);
       } catch (error) {
         addSystem(error.message);
       } finally {
@@ -607,14 +637,14 @@ HTML = """<!doctype html>
         <article class="day ${dayClass(day.score)}">
           <div class="meta">${escapeHtml(day.date)}</div>
           <h3>${moodLabel(day.score)}</h3>
-          <div class="meta">score: ${day.score} · ${day.count} journals</div>
+          <div class="meta">score: ${day.score} · ${escapeHtml(day.dominant_emotion || "未标注")} · ${day.count} journals</div>
           <div>${(day.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
         </article>
       `).join("");
       const weekCards = weekly.slice(0, 6).map(week => `
         <article class="card">
           <h3>${escapeHtml(week.week)} · ${moodLabel(week.score)}</h3>
-          <div class="meta">avg score: ${week.score} · ${week.count} journals</div>
+          <div class="meta">avg score: ${week.score} · ${escapeHtml(week.dominant_emotion || "未标注")} · ${week.count} journals</div>
           <div>${(week.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
           <div class="content">${escapeHtml(week.summary)}</div>
         </article>
@@ -727,8 +757,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             payload = self.read_json()
             if path == "/api/chat":
-                reply = self.app.orchestrator.reply(payload["session_id"], payload["text"])
-                self.respond_json({"reply": reply})
+                result = self.app.orchestrator.reply_detail(payload["session_id"], payload["text"])
+                self.respond_json(result)
                 return
             if path == "/api/end":
                 result = self.app.orchestrator.close_session(payload["session_id"])

@@ -135,6 +135,8 @@ class Store:
             self._ensure_column(conn, "memories", "status", "TEXT NOT NULL DEFAULT 'active'")
             self._ensure_column(conn, "memories", "merged_into_id", "TEXT")
             self._ensure_column(conn, "memories", "merge_note", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "journals", "mood_score", "INTEGER")
+            self._ensure_column(conn, "journals", "dominant_emotion", "TEXT NOT NULL DEFAULT ''")
 
     def _ensure_column(
         self,
@@ -315,9 +317,9 @@ class Store:
                 """
                 INSERT INTO journals (
                     id, session_id, summary, emotion_curve, keywords,
-                    insights, suggested_next_step, created_at
+                    insights, suggested_next_step, mood_score, dominant_emotion, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
@@ -327,6 +329,8 @@ class Store:
                     json.dumps(journal.get("keywords", []), ensure_ascii=False),
                     json.dumps(journal.get("insights", []), ensure_ascii=False),
                     journal.get("suggested_next_step", ""),
+                    journal.get("mood_score"),
+                    journal.get("dominant_emotion", ""),
                     utc_now(),
                 ),
             )
@@ -499,7 +503,7 @@ class Store:
                     """
                     SELECT
                         id, session_id, summary, emotion_curve, keywords,
-                        insights, suggested_next_step, created_at
+                        insights, suggested_next_step, mood_score, dominant_emotion, created_at
                     FROM journals
                     WHERE session_id = ?
                     ORDER BY created_at DESC
@@ -512,7 +516,7 @@ class Store:
                     """
                     SELECT
                         id, session_id, summary, emotion_curve, keywords,
-                        insights, suggested_next_step, created_at
+                        insights, suggested_next_step, mood_score, dominant_emotion, created_at
                     FROM journals
                     ORDER BY created_at DESC
                     LIMIT ?
@@ -550,7 +554,9 @@ class Store:
             date_key = created.date().isoformat()
             year, week, _ = created.isocalendar()
             week_key = f"{year}-W{week:02d}"
-            score = mood_score_for_journal(journal)
+            score = journal.get("mood_score")
+            if score is None:
+                score = mood_score_for_journal(journal)
             item = {
                 "id": journal["id"],
                 "session_id": journal["session_id"],
@@ -558,6 +564,7 @@ class Store:
                 "week": week_key,
                 "created_at": journal["created_at"],
                 "score": score,
+                "dominant_emotion": journal.get("dominant_emotion") or "未标注",
                 "summary": journal["summary"],
                 "keywords": journal["keywords"],
                 "emotion_curve": journal["emotion_curve"],
@@ -567,32 +574,37 @@ class Store:
 
             day = daily.setdefault(
                 date_key,
-                {"date": date_key, "scores": [], "keywords": {}, "summaries": []},
+                {"date": date_key, "scores": [], "keywords": {}, "summaries": [], "emotions": {}},
             )
             day["scores"].append(score)
             day["summaries"].append(journal["summary"])
             for keyword in journal["keywords"]:
                 day["keywords"][keyword] = day["keywords"].get(keyword, 0) + 1
+            emotion = journal.get("dominant_emotion") or "未标注"
+            day["emotions"][emotion] = day["emotions"].get(emotion, 0) + 1
 
             week_row = weekly.setdefault(
                 week_key,
-                {"week": week_key, "scores": [], "keywords": {}, "summaries": []},
+                {"week": week_key, "scores": [], "keywords": {}, "summaries": [], "emotions": {}},
             )
             week_row["scores"].append(score)
             week_row["summaries"].append(journal["summary"])
             for keyword in journal["keywords"]:
                 week_row["keywords"][keyword] = week_row["keywords"].get(keyword, 0) + 1
+            week_row["emotions"][emotion] = week_row["emotions"].get(emotion, 0) + 1
 
         daily_rows = []
         for day in daily.values():
             avg = sum(day["scores"]) / len(day["scores"])
             keywords = sorted(day["keywords"].items(), key=lambda item: item[1], reverse=True)
+            emotions = sorted(day["emotions"].items(), key=lambda item: item[1], reverse=True)
             daily_rows.append(
                 {
                     "date": day["date"],
                     "score": round(avg, 2),
                     "count": len(day["scores"]),
                     "keywords": [keyword for keyword, _ in keywords[:5]],
+                    "dominant_emotion": emotions[0][0] if emotions else "未标注",
                     "summary": day["summaries"][-1],
                 }
             )
@@ -601,6 +613,7 @@ class Store:
         for week in weekly.values():
             avg = sum(week["scores"]) / len(week["scores"])
             keywords = sorted(week["keywords"].items(), key=lambda item: item[1], reverse=True)
+            emotions = sorted(week["emotions"].items(), key=lambda item: item[1], reverse=True)
             summaries = week["summaries"][-3:]
             weekly_rows.append(
                 {
@@ -608,6 +621,7 @@ class Store:
                     "score": round(avg, 2),
                     "count": len(week["scores"]),
                     "keywords": [keyword for keyword, _ in keywords[:8]],
+                    "dominant_emotion": emotions[0][0] if emotions else "未标注",
                     "summary": " / ".join(summaries),
                 }
             )

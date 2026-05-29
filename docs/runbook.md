@@ -56,7 +56,9 @@ Web UI 顶部有两个页面：
 - `Journals` 会显示关联的 session id，并可跳转查看对应 session。
 - `Mood` 会基于 journal 生成心情轨迹、日历视图和周报原型。
 
-`Mood` 目前是轻量原型：它不调用模型，而是根据 journal 的 summary、keywords、emotion_curve 做启发式 mood score。后续可以升级为模型生成的周报和更准确的情绪标注。
+`Mood` 优先使用 journal 里由模型输出的 `mood_score` 和 `dominant_emotion`；旧数据没有这些字段时，会回退到关键词启发式估计。
+
+聊天时，如果小鹿参考了知识卡，回复气泡下方会显示“本轮参考知识卡”。
 
 ## 5. 数据位置
 

@@ -48,6 +48,9 @@ class ConversationOrchestrator:
         return session_id
 
     def reply(self, session_id: str, user_text: str) -> str:
+        return self.reply_detail(session_id, user_text)["reply"]
+
+    def reply_detail(self, session_id: str, user_text: str) -> dict:
         started_at = time.monotonic()
         self.logger.info(
             "reply start session=%s user_chars=%s",
@@ -58,7 +61,7 @@ class ConversationOrchestrator:
         if detect_crisis(user_text):
             self.store.add_message(session_id, "assistant", CRISIS_RESPONSE, model="safety")
             self.logger.info("reply safety session=%s", session_id)
-            return CRISIS_RESPONSE
+            return {"reply": CRISIS_RESPONSE, "knowledge_cards": []}
 
         messages = self.store.get_session_messages(session_id)
         memories = self.store.recent_memories()
@@ -99,7 +102,7 @@ class ConversationOrchestrator:
             response.model,
             len(response.content),
         )
-        return response.content
+        return {"reply": response.content, "knowledge_cards": knowledge_cards}
 
     def close_session(self, session_id: str) -> dict:
         started_at = time.monotonic()
