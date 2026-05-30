@@ -89,6 +89,23 @@ HTML = """<!doctype html>
       gap: 8px;
       margin-top: 8px;
     }
+    .mode-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .mode-button {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255, 248, 239, 0.78);
+      color: #6f4a3e;
+      border: 1px solid rgba(226, 190, 166, 0.72);
+    }
+    .mode-button.active {
+      background: var(--accent);
+      color: #fff;
+    }
     .character-button {
       display: grid;
       grid-template-columns: auto;
@@ -106,6 +123,9 @@ HTML = """<!doctype html>
       background: linear-gradient(135deg, #fff0d6, #ffe0de);
       color: #5a352a;
       box-shadow: 0 8px 20px rgba(147, 91, 65, 0.13);
+    }
+    .character-strip.auto-mode .character-button {
+      opacity: 0.82;
     }
     .character-avatar {
       width: 36px;
@@ -539,6 +559,10 @@ HTML = """<!doctype html>
         <button id="chatTab" class="tab active" type="button">对话</button>
         <button id="dataTab" class="tab" type="button">数据看板</button>
       </nav>
+      <div class="mode-row" aria-label="选择回复模式">
+        <button id="manualMode" class="mode-button active" type="button">手动选择</button>
+        <button id="groupMode" class="mode-button" type="button">群聊自动</button>
+      </div>
       <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
     </header>
     <section id="messages" class="view"></section>
@@ -571,6 +595,8 @@ HTML = """<!doctype html>
     const end = document.querySelector("#end");
     const chatTab = document.querySelector("#chatTab");
     const dataTab = document.querySelector("#dataTab");
+    const manualMode = document.querySelector("#manualMode");
+    const groupMode = document.querySelector("#groupMode");
     const brandAvatar = document.querySelector("#brandAvatar");
     const brandTitle = document.querySelector("#brandTitle");
     const brandSubtitle = document.querySelector("#brandSubtitle");
@@ -588,6 +614,7 @@ HTML = """<!doctype html>
     let memoryItems = [];
     const CHARACTERS = __CHARACTERS_JSON__;
     let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
+    let replyMode = localStorage.getItem("xiaolu.replyMode") || "manual";
 
     function currentCharacter() {
       const character = CHARACTERS.find(item => item.id === activeCharacterId);
@@ -603,7 +630,7 @@ HTML = """<!doctype html>
 
     function renderCharacters() {
       characterStrip.innerHTML = CHARACTERS.map(character => `
-        <button class="character-button ${character.id === activeCharacterId ? "active" : ""}" type="button" data-character="${escapeHtml(character.id)}" title="${escapeHtml(character.tagline)}">
+        <button class="character-button ${replyMode === "manual" && character.id === activeCharacterId ? "active" : ""}" type="button" data-character="${escapeHtml(character.id)}" title="${escapeHtml(character.tagline)}">
           <img class="character-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
           <span class="character-name">${escapeHtml(character.name)}</span>
           <span class="character-voice">${escapeHtml(character.voice)}</span>
@@ -612,12 +639,22 @@ HTML = """<!doctype html>
       characterStrip.querySelectorAll("[data-character]").forEach(button => {
         button.addEventListener("click", () => selectCharacter(button.dataset.character));
       });
+      characterStrip.classList.toggle("auto-mode", replyMode === "auto");
     }
 
     function selectCharacter(characterId) {
+      setReplyMode("manual");
       activeCharacterId = characterId;
       localStorage.setItem("xiaolu.character", activeCharacterId);
       updateCharacterBrand();
+      renderCharacters();
+    }
+
+    function setReplyMode(mode) {
+      replyMode = mode;
+      localStorage.setItem("xiaolu.replyMode", replyMode);
+      manualMode.classList.toggle("active", replyMode === "manual");
+      groupMode.classList.toggle("active", replyMode === "auto");
       renderCharacters();
     }
 
@@ -784,12 +821,16 @@ HTML = """<!doctype html>
       if (!text) return;
       input.value = "";
       addMessage("user", text);
-      const sendingCharacterId = activeCharacterId;
-      addSystem(currentCharacter().name + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
+      const sendingCharacterId = replyMode === "auto" ? "auto" : activeCharacterId;
+      const thinkingName = replyMode === "auto" ? "小动物们" : currentCharacter().name;
+      addSystem(thinkingName + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
       setBusy(true);
       try {
         const data = await post("/api/chat", { session_id: sessionId, text, character_id: sendingCharacterId });
-        addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || sendingCharacterId);
+        if (replyMode === "auto" && data.character?.name) {
+          addSystem("群聊自动选择：" + data.character.name);
+        }
+        addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
       } catch (error) {
         addSystem(error.message);
       } finally {
@@ -1138,6 +1179,8 @@ HTML = """<!doctype html>
 
     chatTab.addEventListener("click", () => switchMainView("chat"));
     dataTab.addEventListener("click", () => switchMainView("data"));
+    manualMode.addEventListener("click", () => setReplyMode("manual"));
+    groupMode.addEventListener("click", () => setReplyMode("auto"));
     refreshData.addEventListener("click", () => loadData(activeDataView));
     cleanupSessions.addEventListener("click", async () => {
       try {
@@ -1151,7 +1194,7 @@ HTML = """<!doctype html>
     dataButtons.forEach(button => button.addEventListener("click", () => loadData(button.dataset.view)));
 
     updateCharacterBrand();
-    renderCharacters();
+    setReplyMode(replyMode);
     start().catch(error => addSystem(error.message));
   </script>
 </body>

@@ -125,5 +125,52 @@ def get_character(character_id: str | None) -> CharacterProfile:
     return CHARACTERS.get(character_id or "", CHARACTERS[DEFAULT_CHARACTER_ID])
 
 
+def auto_select_character(text: str) -> CharacterProfile:
+    lowered = text.lower()
+    scores = {
+        "sensen_deer": 1,
+        "gugu_bear": 0,
+        "huahua_fox": 0,
+        "youyou_rabbit": 0,
+        "shanshan_butterfly": 0,
+        "gangan_tiger": 0,
+    }
+    keyword_rules = {
+        "youyou_rabbit": [
+            "难过", "伤心", "痛苦", "想哭", "崩溃", "孤独", "没人懂", "抑郁", "悲伤",
+            "低落", "绝望", "自责", "羞耻", "委屈",
+        ],
+        "gugu_bear": [
+            "撑不住", "不稳定", "慌", "焦虑", "害怕", "没安全感", "怎么办", "乱",
+            "失控", "睡不着", "累", "疲惫",
+        ],
+        "huahua_fox": [
+            "为什么", "分析", "看清", "逻辑", "模式", "关系", "矛盾", "困惑",
+            "复盘", "理解", "到底", "原因",
+        ],
+        "gangan_tiger": [
+            "边界", "拒绝", "不公平", "生气", "愤怒", "勇气", "保护", "反击",
+            "欺负", "压迫", "正义", "离开",
+        ],
+        "shanshan_butterfly": [
+            "开心", "高兴", "期待", "想行动", "试试", "开始", "希望", "轻松",
+            "好起来", "出门", "玩", "庆祝",
+        ],
+        "sensen_deer": [
+            "陪我", "温柔", "慢慢", "感受", "不知道", "说不清", "整理", "安静",
+        ],
+    }
+    for character_id, keywords in keyword_rules.items():
+        for keyword in keywords:
+            if keyword in lowered or keyword in text:
+                scores[character_id] += 2
+    if "？" in text or "?" in text:
+        scores["huahua_fox"] += 1
+    if "！" in text or "!" in text:
+        scores["gangan_tiger"] += 1
+    selected_id = max(scores, key=lambda key: scores[key])
+    return CHARACTERS[selected_id]
+
+
 def list_characters() -> list[dict]:
     return [profile.to_public_dict() for profile in CHARACTERS.values()]

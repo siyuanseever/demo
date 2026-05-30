@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
-from app.characters import get_character
+from app.characters import auto_select_character, get_character
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
 from app.memory.schema import MEMORY_CATEGORIES
@@ -80,7 +80,11 @@ class ConversationOrchestrator:
         character_id: str | None = None,
     ) -> dict:
         started_at = time.monotonic()
-        character = get_character(character_id)
+        character = (
+            auto_select_character(user_text)
+            if character_id == "auto"
+            else get_character(character_id)
+        )
         self.logger.info(
             "reply start session=%s character=%s user_chars=%s",
             session_id,
