@@ -46,21 +46,33 @@ HTML = """<!doctype html>
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     .app {
-      width: min(1120px, 100vw);
+      width: min(1280px, 100vw);
       height: 100vh;
       margin: 0 auto;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 210px minmax(0, 1fr) 230px;
+      grid-template-rows: 1fr auto;
       padding: 12px 14px;
       gap: 10px;
     }
-    header {
+    .control-panel,
+    .animal-panel {
       background: rgba(255, 252, 246, 0.88);
       border: 1px solid var(--border);
       border-radius: 24px;
       padding: 10px 12px;
       box-shadow: 0 12px 30px rgba(155, 101, 75, 0.1);
       backdrop-filter: blur(14px);
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .control-panel {
+      grid-column: 1;
+      grid-row: 1 / -1;
+    }
+    .animal-panel {
+      grid-column: 3;
+      grid-row: 1 / -1;
     }
     .brand {
       display: flex;
@@ -84,8 +96,8 @@ HTML = """<!doctype html>
       margin-top: 8px;
     }
     .character-strip {
-      display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      display: none;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       margin-top: 8px;
     }
@@ -105,6 +117,36 @@ HTML = """<!doctype html>
     .mode-button.active {
       background: var(--accent);
       color: #fff;
+    }
+    .cozy-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .cozy-card {
+      border: 1px solid rgba(226, 190, 166, 0.6);
+      border-radius: 18px;
+      padding: 10px;
+      background: rgba(255, 248, 239, 0.76);
+      color: #6f4a3e;
+      text-align: left;
+      box-shadow: 0 8px 18px rgba(120, 80, 50, 0.06);
+    }
+    .cozy-card.clickable {
+      cursor: pointer;
+    }
+    .cozy-card.clickable:hover {
+      background: rgba(255, 238, 224, 0.9);
+    }
+    .cozy-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .cozy-text {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
     }
     .character-button {
       display: grid;
@@ -156,6 +198,8 @@ HTML = """<!doctype html>
     .view { min-height: 0; overflow: hidden; }
     .hidden { display: none !important; }
     #messages {
+      grid-column: 2;
+      grid-row: 1;
       overflow-y: auto;
       background: rgba(255, 252, 246, 0.64);
       border: 1px solid var(--border);
@@ -193,21 +237,51 @@ HTML = """<!doctype html>
       white-space: pre-wrap;
       box-shadow: 0 8px 22px rgba(94, 57, 37, 0.07);
     }
+    .message-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .message-face {
+      font-size: 15px;
+      line-height: 1;
+    }
+    .message-body {
+      overflow: hidden;
+      transition: max-height 0.15s ease;
+    }
+    .message-body.collapsed {
+      max-height: 1.65em;
+    }
+    .message-body.expanded {
+      max-height: 520px;
+    }
+    .expand-message {
+      margin-top: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(242, 222, 207, 0.82);
+      color: #69483a;
+      font-size: 12px;
+    }
     .user .bubble {
       background: var(--user);
       border-top-right-radius: 8px;
     }
-    .deer .bubble {
-      background: linear-gradient(180deg, #fffdf8, #fff7ef);
-      border: 1px solid var(--border);
-      border-top-left-radius: 8px;
-    }
+      .deer .bubble {
+        background: linear-gradient(180deg, #fffdf8, #fff7ef);
+        border: 1px solid var(--border);
+        border-top-left-radius: 8px;
+      }
     .name {
       font-size: 12px;
       color: var(--muted);
       margin-bottom: 4px;
     }
     form {
+      grid-column: 2;
+      grid-row: 2;
       display: grid;
       grid-template-columns: 1fr auto auto;
       gap: 8px;
@@ -253,6 +327,8 @@ HTML = """<!doctype html>
       white-space: pre-wrap;
     }
     #dashboard {
+      grid-column: 2 / -1;
+      grid-row: 1 / -1;
       overflow-y: auto;
       background: rgba(255, 252, 246, 0.68);
       border: 1px solid var(--border);
@@ -427,6 +503,51 @@ HTML = """<!doctype html>
       gap: 10px;
       align-items: start;
     }
+    .panel-title {
+      margin: 0 0 8px;
+      font-size: 15px;
+      color: #5f3d26;
+    }
+    .animal-states {
+      display: grid;
+      gap: 8px;
+    }
+    .animal-state {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border-radius: 18px;
+      background: rgba(255, 248, 239, 0.78);
+      border: 1px solid rgba(226, 190, 166, 0.56);
+      cursor: pointer;
+      text-align: left;
+      color: var(--text);
+    }
+    .animal-state.active {
+      background: linear-gradient(135deg, #fff0d6, #ffe0de);
+      box-shadow: 0 8px 18px rgba(147, 91, 65, 0.1);
+    }
+    .animal-panel.auto-mode .animal-state {
+      opacity: 0.84;
+    }
+    .state-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 15px;
+      object-fit: cover;
+      background: #fff;
+    }
+    .state-name {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .state-line {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
     @media (max-width: 720px) {
       body {
         background-attachment: scroll;
@@ -435,12 +556,32 @@ HTML = """<!doctype html>
         width: 100vw;
         min-height: 100dvh;
         height: 100dvh;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
         padding: 8px;
         gap: 8px;
       }
-      header {
+      .control-panel {
+        grid-column: 1;
+        grid-row: 1;
         border-radius: 20px;
         padding: 9px;
+        overflow: visible;
+      }
+      .animal-panel {
+        display: none;
+      }
+      #messages {
+        grid-column: 1;
+        grid-row: 2;
+      }
+      #dashboard {
+        grid-column: 1;
+        grid-row: 2 / -1;
+      }
+      form {
+        grid-column: 1;
+        grid-row: 3;
       }
       .brand {
         gap: 10px;
@@ -467,7 +608,8 @@ HTML = """<!doctype html>
         padding: 9px 10px;
       }
       .character-strip {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 6px;
       }
       .character-button {
@@ -547,11 +689,11 @@ HTML = """<!doctype html>
 </head>
 <body>
   <main class="app">
-    <header>
+    <aside id="controlsPanel" class="control-panel">
       <div class="brand">
         <img id="brandAvatar" class="deer-logo" src="/static/mianmian-sheep.webp" alt="绵绵羊头像" />
         <div>
-          <h1 id="brandTitle">绵绵羊 · 心理陪伴 Agent</h1>
+          <h1 id="brandTitle">绵绵羊</h1>
           <div id="brandSubtitle" class="subtitle">温柔、柔软、安静，像一团可以靠近的云。</div>
         </div>
       </div>
@@ -563,9 +705,31 @@ HTML = """<!doctype html>
         <button id="manualMode" class="mode-button active" type="button">手动选择</button>
         <button id="groupMode" class="mode-button" type="button">群聊自动</button>
       </div>
+      <div class="cozy-list" aria-label="今日小卡片">
+        <article class="cozy-card">
+          <div class="cozy-title">🌤️ 今日天气</div>
+          <div class="cozy-text">适合慢慢说话，也适合把心放松一点。</div>
+        </article>
+        <button id="moodShortcut" class="cozy-card clickable" type="button">
+          <div class="cozy-title">💗 我的心情</div>
+          <div class="cozy-text">看看最近的心情轨迹和日历。</div>
+        </button>
+        <button id="journalShortcut" class="cozy-card clickable" type="button">
+          <div class="cozy-title">📔 过往日记</div>
+          <div class="cozy-text">回头看看之前被记录下来的自己。</div>
+        </button>
+        <article class="cozy-card">
+          <div class="cozy-title">🍯 小动物值班</div>
+          <div class="cozy-text">右侧可以直接选择谁来陪你。</div>
+        </article>
+      </div>
       <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
-    </header>
+    </aside>
     <section id="messages" class="view"></section>
+    <aside id="animalPanel" class="animal-panel">
+      <h2 class="panel-title">状态</h2>
+      <div id="animalStates" class="animal-states"></div>
+    </aside>
     <section id="dashboard" class="view hidden">
       <div class="toolbar">
         <button data-view="sessions" class="active" type="button">Sessions</button>
@@ -597,10 +761,15 @@ HTML = """<!doctype html>
     const dataTab = document.querySelector("#dataTab");
     const manualMode = document.querySelector("#manualMode");
     const groupMode = document.querySelector("#groupMode");
+    const moodShortcut = document.querySelector("#moodShortcut");
+    const journalShortcut = document.querySelector("#journalShortcut");
     const brandAvatar = document.querySelector("#brandAvatar");
     const brandTitle = document.querySelector("#brandTitle");
     const brandSubtitle = document.querySelector("#brandSubtitle");
     const characterStrip = document.querySelector("#characterStrip");
+    const controlsPanel = document.querySelector("#controlsPanel");
+    const animalPanel = document.querySelector("#animalPanel");
+    const animalStates = document.querySelector("#animalStates");
     const dashboard = document.querySelector("#dashboard");
     const dataList = document.querySelector("#dataList");
     const detailPanel = document.querySelector("#detailPanel");
@@ -615,6 +784,15 @@ HTML = """<!doctype html>
     const CHARACTERS = __CHARACTERS_JSON__;
     let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
     let replyMode = localStorage.getItem("xiaolu.replyMode") || "manual";
+    const defaultAnimalState = {
+      sensen_deer: { mood: "柔软", need: "想听你慢慢说", face: "☁️" },
+      gugu_bear: { mood: "稳稳的", need: "正在守着节奏", face: "🪨" },
+      huahua_fox: { mood: "清醒", need: "在观察线索", face: "🔎" },
+      youyou_rabbit: { mood: "低低的", need: "愿意陪你难过", face: "🌧️" },
+      shanshan_butterfly: { mood: "亮亮的", need: "想带来一点空气", face: "✨" },
+      gangan_tiger: { mood: "坚定", need: "准备保护边界", face: "🔥" }
+    };
+    let animalState = JSON.parse(JSON.stringify(defaultAnimalState));
 
     function currentCharacter() {
       const character = CHARACTERS.find(item => item.id === activeCharacterId);
@@ -640,6 +818,8 @@ HTML = """<!doctype html>
         button.addEventListener("click", () => selectCharacter(button.dataset.character));
       });
       characterStrip.classList.toggle("auto-mode", replyMode === "auto");
+      animalPanel.classList.toggle("auto-mode", replyMode === "auto");
+      renderAnimalStates(activeCharacterId);
     }
 
     function selectCharacter(characterId) {
@@ -662,8 +842,54 @@ HTML = """<!doctype html>
       const character = currentCharacter();
       brandAvatar.src = character.avatar_path;
       brandAvatar.alt = character.name + "头像";
-      brandTitle.textContent = character.name + " · 心理陪伴 Agent";
+      brandTitle.textContent = character.name;
       brandSubtitle.textContent = character.tagline;
+    }
+
+    function stateForText(text, characterId) {
+      const content = text || "";
+      if (content.includes("难过") || content.includes("想哭") || content.includes("痛苦")) {
+        return { mood: "很共情", need: "轻轻靠近你的难过", face: "🥺" };
+      }
+      if (content.includes("焦虑") || content.includes("慌") || content.includes("撑不住")) {
+        return { mood: "稳住中", need: "帮你慢慢落地", face: "🫶" };
+      }
+      if (content.includes("生气") || content.includes("不公平") || content.includes("边界")) {
+        return { mood: "认真起来", need: "保护你的边界", face: "🛡️" };
+      }
+      if (content.includes("开心") || content.includes("希望") || content.includes("试试")) {
+        return { mood: "亮了一点", need: "想陪你往前飞", face: "🌟" };
+      }
+      return {
+        mood: defaultAnimalState[characterId]?.mood || "在听",
+        need: defaultAnimalState[characterId]?.need || "正在陪你",
+        face: defaultAnimalState[characterId]?.face || "🍃"
+      };
+    }
+
+    function renderAnimalStates(activeId = activeCharacterId) {
+      animalStates.innerHTML = CHARACTERS.map(character => {
+        const state = animalState[character.id] || defaultAnimalState[character.id] || {};
+        const active = character.id === activeId || (replyMode === "manual" && character.id === activeCharacterId);
+        return `
+            <button class="animal-state ${active ? "active" : ""}" type="button" data-state-character="${escapeHtml(character.id)}">
+            <img class="state-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+            <div>
+              <div class="state-name">${escapeHtml(state.face || "🍃")} ${escapeHtml(character.name)}</div>
+              <div class="state-line">${escapeHtml(state.mood || "在听")}</div>
+              <div class="state-line">${escapeHtml(state.need || character.voice)}</div>
+            </div>
+            </button>
+        `;
+      }).join("");
+      animalStates.querySelectorAll("[data-state-character]").forEach(button => {
+        button.addEventListener("click", () => selectCharacter(button.dataset.stateCharacter));
+      });
+    }
+
+    function updateAnimalState(characterId, text) {
+      animalState[characterId] = stateForText(text, characterId);
+      renderAnimalStates(characterId);
     }
 
     function setBusy(value) {
@@ -694,13 +920,40 @@ HTML = """<!doctype html>
       }
       const bubble = document.createElement("div");
       bubble.className = "bubble";
+      if (role !== "user" && character.bubble_color) {
+        bubble.style.background = character.bubble_color;
+      }
+      const head = document.createElement("div");
+      head.className = "message-head";
+      const face = document.createElement("span");
+      face.className = "message-face";
+      face.textContent = role === "user" ? "🫧" : (animalState[character.id]?.face || character.emoji || "🍃");
       const name = document.createElement("div");
       name.className = "name";
       name.textContent = role === "user" ? "你" : character.name;
+      head.appendChild(face);
+      head.appendChild(name);
       const body = document.createElement("div");
+      body.className = "message-body";
       body.textContent = text;
-      bubble.appendChild(name);
+      bubble.appendChild(head);
       bubble.appendChild(body);
+      const shouldCollapse = text.length > 80 || text.includes("\\n");
+      if (shouldCollapse) {
+        body.classList.add("collapsed");
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "expand-message";
+        toggle.textContent = "展开";
+        toggle.addEventListener("click", () => {
+          const expanded = body.classList.toggle("expanded");
+          body.classList.toggle("collapsed", !expanded);
+          toggle.textContent = expanded ? "收起" : "展开";
+        });
+        bubble.appendChild(toggle);
+      } else {
+        body.classList.add("expanded");
+      }
       if (knowledgeCards.length) {
         const cards = document.createElement("div");
         cards.className = "used-cards";
@@ -830,6 +1083,9 @@ HTML = """<!doctype html>
         if (replyMode === "auto" && data.character?.name) {
           addSystem("群聊自动选择：" + data.character.name);
         }
+        if (data.character?.id) {
+          updateAnimalState(data.character.id, text + "\\n" + data.reply);
+        }
         addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
       } catch (error) {
         addSystem(error.message);
@@ -871,6 +1127,8 @@ HTML = """<!doctype html>
       const showData = view === "data";
       dashboard.classList.toggle("hidden", !showData);
       messages.classList.toggle("hidden", showData);
+      controlsPanel.classList.remove("hidden");
+      animalPanel.classList.toggle("hidden", showData);
       form.classList.toggle("hidden", showData);
       chatTab.classList.toggle("active", !showData);
       dataTab.classList.toggle("active", showData);
@@ -1170,8 +1428,9 @@ HTML = """<!doctype html>
           );
         }
         switchMainView("chat");
-        addSystem("已继续 Session " + shortId(targetSessionId) + "。新消息会追加到这个会话里。");
-        input.focus();
+      addSystem("已继续 Session " + shortId(targetSessionId) + "。新消息会追加到这个会话里。");
+      renderAnimalStates(activeCharacterId);
+      input.focus();
       } catch (error) {
         dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
       }
@@ -1179,6 +1438,14 @@ HTML = """<!doctype html>
 
     chatTab.addEventListener("click", () => switchMainView("chat"));
     dataTab.addEventListener("click", () => switchMainView("data"));
+    moodShortcut.addEventListener("click", () => {
+      activeDataView = "mood";
+      switchMainView("data");
+    });
+    journalShortcut.addEventListener("click", () => {
+      activeDataView = "journals";
+      switchMainView("data");
+    });
     manualMode.addEventListener("click", () => setReplyMode("manual"));
     groupMode.addEventListener("click", () => setReplyMode("auto"));
     refreshData.addEventListener("click", () => loadData(activeDataView));
@@ -1195,6 +1462,7 @@ HTML = """<!doctype html>
 
     updateCharacterBrand();
     setReplyMode(replyMode);
+    renderAnimalStates(activeCharacterId);
     start().catch(error => addSystem(error.message));
   </script>
 </body>
