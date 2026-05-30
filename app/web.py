@@ -255,7 +255,8 @@ HTML = """<!doctype html>
       max-height: 1.65em;
     }
     .message-body.expanded {
-      max-height: 520px;
+      max-height: none;
+      overflow: visible;
     }
     .expand-message {
       margin-top: 6px;
@@ -266,8 +267,14 @@ HTML = """<!doctype html>
       font-size: 12px;
     }
     .user .bubble {
-      background: var(--user);
+      background: rgba(255, 255, 255, 0.46);
+      color: rgba(61, 45, 39, 0.62);
+      border: 1px solid rgba(226, 190, 166, 0.34);
       border-top-right-radius: 8px;
+      box-shadow: 0 5px 14px rgba(94, 57, 37, 0.035);
+    }
+    .user .name {
+      color: rgba(145, 120, 107, 0.7);
     }
       .deer .bubble {
         background: linear-gradient(180deg, #fffdf8, #fff7ef);
@@ -538,6 +545,25 @@ HTML = """<!doctype html>
       border-radius: 15px;
       object-fit: cover;
       background: #fff;
+    }
+    .state-avatar-wrap {
+      position: relative;
+      width: 38px;
+      height: 38px;
+    }
+    .state-face-badge {
+      position: absolute;
+      right: -4px;
+      bottom: -5px;
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.96);
+      border: 1px solid rgba(226, 190, 166, 0.7);
+      font-size: 13px;
+      box-shadow: 0 4px 10px rgba(120, 80, 50, 0.12);
     }
     .state-name {
       font-size: 13px;
@@ -848,16 +874,19 @@ HTML = """<!doctype html>
 
     function stateForText(text, characterId) {
       const content = text || "";
-      if (content.includes("难过") || content.includes("想哭") || content.includes("痛苦")) {
+      if (content.includes("难过") || content.includes("想哭") || content.includes("痛苦") || content.includes("心疼") || content.includes("抱抱")) {
         return { mood: "很共情", need: "轻轻靠近你的难过", face: "🥺" };
       }
-      if (content.includes("焦虑") || content.includes("慌") || content.includes("撑不住")) {
+      if (content.includes("焦虑") || content.includes("慌") || content.includes("撑不住") || content.includes("慢慢") || content.includes("稳")) {
         return { mood: "稳住中", need: "帮你慢慢落地", face: "🫶" };
       }
-      if (content.includes("生气") || content.includes("不公平") || content.includes("边界")) {
+      if (content.includes("生气") || content.includes("不公平") || content.includes("边界") || content.includes("保护") || content.includes("勇敢")) {
         return { mood: "认真起来", need: "保护你的边界", face: "🛡️" };
       }
-      if (content.includes("开心") || content.includes("希望") || content.includes("试试")) {
+      if (content.includes("看见") || content.includes("模式") || content.includes("理解") || content.includes("线索") || content.includes("清楚")) {
+        return { mood: "在思考", need: "帮你看清线索", face: "🧐" };
+      }
+      if (content.includes("开心") || content.includes("希望") || content.includes("试试") || content.includes("轻一点") || content.includes("亮")) {
         return { mood: "亮了一点", need: "想陪你往前飞", face: "🌟" };
       }
       return {
@@ -873,9 +902,12 @@ HTML = """<!doctype html>
         const active = character.id === activeId || (replyMode === "manual" && character.id === activeCharacterId);
         return `
             <button class="animal-state ${active ? "active" : ""}" type="button" data-state-character="${escapeHtml(character.id)}">
-            <img class="state-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+            <div class="state-avatar-wrap">
+              <img class="state-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+              <span class="state-face-badge">${escapeHtml(state.face || "🍃")}</span>
+            </div>
             <div>
-              <div class="state-name">${escapeHtml(state.face || "🍃")} ${escapeHtml(character.name)}</div>
+              <div class="state-name">${escapeHtml(character.name)}</div>
               <div class="state-line">${escapeHtml(state.mood || "在听")}</div>
               <div class="state-line">${escapeHtml(state.need || character.voice)}</div>
             </div>
@@ -1084,7 +1116,7 @@ HTML = """<!doctype html>
           addSystem("群聊自动选择：" + data.character.name);
         }
         if (data.character?.id) {
-          updateAnimalState(data.character.id, text + "\\n" + data.reply);
+          updateAnimalState(data.character.id, data.reply);
         }
         addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
       } catch (error) {
