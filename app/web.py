@@ -101,20 +101,42 @@ HTML = """<!doctype html>
       gap: 8px;
       margin-top: 8px;
     }
-    .mode-row {
+    .group-toggle {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
       gap: 8px;
-      margin-top: 8px;
-    }
-    .mode-button {
-      flex: 1;
-      padding: 7px 10px;
-      border-radius: 999px;
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 9px 10px;
+      border-radius: 18px;
       background: rgba(255, 248, 239, 0.78);
       color: #6f4a3e;
-      border: 1px solid rgba(226, 190, 166, 0.72);
+      border: 1px solid rgba(226, 190, 166, 0.56);
+      text-align: left;
     }
-    .mode-button.active {
+    .group-toggle.active {
+      background: linear-gradient(135deg, #fff0d6, #ffe0de);
+      box-shadow: 0 8px 18px rgba(147, 91, 65, 0.1);
+    }
+    .toggle-label {
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .toggle-note {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .toggle-pill {
+      flex: 0 0 auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(242, 222, 207, 0.9);
+      color: #69483a;
+      font-size: 12px;
+    }
+    .group-toggle.active .toggle-pill {
       background: var(--accent);
       color: #fff;
     }
@@ -727,10 +749,6 @@ HTML = """<!doctype html>
         <button id="chatTab" class="tab active" type="button">对话</button>
         <button id="dataTab" class="tab" type="button">数据看板</button>
       </nav>
-      <div class="mode-row" aria-label="选择回复模式">
-        <button id="manualMode" class="mode-button active" type="button">手动选择</button>
-        <button id="groupMode" class="mode-button" type="button">群聊自动</button>
-      </div>
       <div class="cozy-list" aria-label="今日小卡片">
         <article class="cozy-card">
           <div class="cozy-title">🌤️ 今日天气</div>
@@ -754,6 +772,13 @@ HTML = """<!doctype html>
     <section id="messages" class="view"></section>
     <aside id="animalPanel" class="animal-panel">
       <h2 class="panel-title">状态</h2>
+      <button id="groupToggle" class="group-toggle" type="button" aria-pressed="false">
+        <span>
+          <span class="toggle-label">群聊自动</span>
+          <span class="toggle-note">让小动物们自动推选谁来回应</span>
+        </span>
+        <span id="groupTogglePill" class="toggle-pill">关</span>
+      </button>
       <div id="animalStates" class="animal-states"></div>
     </aside>
     <section id="dashboard" class="view hidden">
@@ -785,8 +810,8 @@ HTML = """<!doctype html>
     const end = document.querySelector("#end");
     const chatTab = document.querySelector("#chatTab");
     const dataTab = document.querySelector("#dataTab");
-    const manualMode = document.querySelector("#manualMode");
-    const groupMode = document.querySelector("#groupMode");
+    const groupToggle = document.querySelector("#groupToggle");
+    const groupTogglePill = document.querySelector("#groupTogglePill");
     const moodShortcut = document.querySelector("#moodShortcut");
     const journalShortcut = document.querySelector("#journalShortcut");
     const brandAvatar = document.querySelector("#brandAvatar");
@@ -859,8 +884,9 @@ HTML = """<!doctype html>
     function setReplyMode(mode) {
       replyMode = mode;
       localStorage.setItem("xiaolu.replyMode", replyMode);
-      manualMode.classList.toggle("active", replyMode === "manual");
-      groupMode.classList.toggle("active", replyMode === "auto");
+      groupToggle.classList.toggle("active", replyMode === "auto");
+      groupToggle.setAttribute("aria-pressed", replyMode === "auto" ? "true" : "false");
+      groupTogglePill.textContent = replyMode === "auto" ? "开" : "关";
       renderCharacters();
     }
 
@@ -1478,8 +1504,9 @@ HTML = """<!doctype html>
       activeDataView = "journals";
       switchMainView("data");
     });
-    manualMode.addEventListener("click", () => setReplyMode("manual"));
-    groupMode.addEventListener("click", () => setReplyMode("auto"));
+    groupToggle.addEventListener("click", () => {
+      setReplyMode(replyMode === "auto" ? "manual" : "auto");
+    });
     refreshData.addEventListener("click", () => loadData(activeDataView));
     cleanupSessions.addEventListener("click", async () => {
       try {
