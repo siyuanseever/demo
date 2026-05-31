@@ -40,7 +40,7 @@ HTML = """<!doctype html>
       margin: 0;
       background:
         linear-gradient(rgba(255, 239, 244, 0.1), rgba(255, 233, 231, 0.18)),
-        url("/static/night-forest-bg.webp") center center / cover no-repeat fixed,
+        url("/static/night-forest-bg-warm.png") center center / cover no-repeat fixed,
         linear-gradient(180deg, #2c294f 0%, #ffe1dd 100%);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
