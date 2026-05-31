@@ -236,6 +236,21 @@ HTML = """<!doctype html>
       font-size: 13px;
       font-weight: 800;
     }
+    .sidebar-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      color: #5f3d26;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .sidebar-section-title::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: rgba(226, 190, 166, 0.58);
+    }
     .cozy-list {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -267,13 +282,13 @@ HTML = """<!doctype html>
     }
     .selected-animal-top {
       display: grid;
-      grid-template-columns: 54px 1fr;
+      grid-template-columns: 74px 1fr;
       gap: 10px;
       align-items: center;
     }
     .selected-animal-avatar {
-      width: 54px;
-      height: 54px;
+      width: 74px;
+      height: 92px;
       border-radius: 20px;
       object-fit: cover;
       background: #fff;
@@ -309,6 +324,28 @@ HTML = """<!doctype html>
       background: rgba(242, 222, 207, 0.78);
       color: #69483a;
       font-size: 12px;
+    }
+    .settings-list {
+      display: grid;
+      gap: 7px;
+      margin-top: 8px;
+    }
+    .settings-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: 16px;
+      background: rgba(255, 248, 239, 0.7);
+      color: #6f4a3e;
+      border: 1px solid rgba(226, 190, 166, 0.48);
+      text-align: left;
+      font-size: 12px;
+    }
+    .settings-arrow {
+      color: rgba(145, 120, 107, 0.82);
     }
     .cozy-title {
       font-size: 12px;
@@ -693,7 +730,7 @@ HTML = """<!doctype html>
     }
     .animal-state {
       display: grid;
-      grid-template-columns: 62px 1fr;
+      grid-template-columns: 86px 1fr;
       gap: 10px;
       align-items: center;
       padding: 9px;
@@ -712,18 +749,18 @@ HTML = """<!doctype html>
       opacity: 0.84;
     }
     .state-avatar {
-      width: 58px;
-      height: 58px;
-      border-radius: 22px;
+      width: 82px;
+      height: 100px;
+      border-radius: 20px;
       object-fit: cover;
       background: #fff;
-      border: 2px solid rgba(255, 255, 255, 0.86);
-      box-shadow: 0 8px 18px rgba(140, 92, 72, 0.12);
+      border: 2px solid rgba(255, 253, 248, 0.92);
+      box-shadow: 0 9px 20px rgba(140, 92, 72, 0.14);
     }
     .state-avatar-wrap {
       position: relative;
-      width: 58px;
-      height: 58px;
+      width: 82px;
+      height: 100px;
     }
     .state-face-badge {
       position: absolute;
@@ -960,8 +997,20 @@ HTML = """<!doctype html>
           <div class="cozy-text">回到对话</div>
         </button>
       </div>
+      <div class="sidebar-section-title">当前角色</div>
       <section id="selectedAnimalCard" class="selected-animal-card" aria-label="当前小动物"></section>
       <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
+      <div class="sidebar-section-title">设置</div>
+      <div class="settings-list" aria-label="设置入口">
+        <button class="settings-item" type="button">
+          <span>角色设置</span>
+          <span class="settings-arrow">›</span>
+        </button>
+        <button class="settings-item" type="button">
+          <span>系统设置</span>
+          <span class="settings-arrow">›</span>
+        </button>
+      </div>
     </aside>
     <section id="messages" class="view"></section>
     <aside id="animalPanel" class="animal-panel">
@@ -1133,7 +1182,7 @@ HTML = """<!doctype html>
       const meterColor = energyColor(energy);
       selectedAnimalCard.innerHTML = `
         <div class="selected-animal-top">
-          <img class="selected-animal-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
+          <img class="selected-animal-avatar" src="${escapeHtml(character.status_avatar_path || character.avatar_path)}" alt="${escapeHtml(character.name)}当前状态图" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
           <div>
             <div class="selected-animal-name">${escapeHtml(character.name)} ${escapeHtml(state.face || "🍃")}</div>
             <div class="selected-animal-mood">${escapeHtml(state.mood || "在听")} · ${energy}%</div>
@@ -1179,7 +1228,7 @@ HTML = """<!doctype html>
         return `
             <button class="animal-state ${active ? "active" : ""}" type="button" data-state-character="${escapeHtml(character.id)}">
             <div class="state-avatar-wrap">
-              <img class="state-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
+              <img class="state-avatar" src="${escapeHtml(character.status_avatar_path || character.avatar_path)}" alt="${escapeHtml(character.name)}状态图" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
               <span class="state-face-badge">${escapeHtml(state.face || "🍃")}</span>
             </div>
             <div>
@@ -1222,10 +1271,13 @@ HTML = """<!doctype html>
         if (character.avatar_path) {
           avatar = document.createElement("img");
           avatar.src = character.avatar_path;
+          avatar.style.background = character.bubble_color || "#fff";
+          avatar.style.borderColor = character.bubble_color || "rgba(255, 255, 255, 0.9)";
         } else {
           avatar = document.createElement("div");
           avatar.className = "avatar emoji-avatar";
           avatar.textContent = character.emoji;
+          avatar.style.background = character.bubble_color || "#fff";
         }
         avatar.classList.add("avatar");
         avatar.alt = character.name;
