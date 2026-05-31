@@ -282,17 +282,17 @@ HTML = """<!doctype html>
     }
     .selected-animal-top {
       display: grid;
-      grid-template-columns: 74px 1fr;
-      gap: 10px;
-      align-items: center;
+      grid-template-columns: 1fr;
+      gap: 9px;
     }
     .selected-animal-avatar {
-      width: 74px;
-      height: 92px;
-      border-radius: 20px;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      border-radius: 18px;
       object-fit: cover;
-      background: #fff;
-      border: 2px solid rgba(255, 255, 255, 0.9);
+      background: transparent;
+      border: 0;
       box-shadow: 0 8px 18px rgba(140, 92, 72, 0.13);
     }
     .selected-animal-name {
@@ -750,17 +750,17 @@ HTML = """<!doctype html>
     }
     .state-avatar {
       width: 82px;
-      height: 100px;
+      height: 82px;
       border-radius: 20px;
       object-fit: cover;
-      background: #fff;
-      border: 2px solid rgba(255, 253, 248, 0.92);
+      background: transparent;
+      border: 0;
       box-shadow: 0 9px 20px rgba(140, 92, 72, 0.14);
     }
     .state-avatar-wrap {
       position: relative;
       width: 82px;
-      height: 100px;
+      height: 82px;
     }
     .state-face-badge {
       position: absolute;
@@ -981,7 +981,7 @@ HTML = """<!doctype html>
       <div class="quick-title">今日快捷</div>
       <div class="cozy-list" aria-label="今日小卡片">
         <article class="cozy-card">
-          <div class="cozy-title">🌤️ 今日天气</div>
+          <div class="cozy-title">🌤️ 天气</div>
           <div class="cozy-text">慢慢说话</div>
         </article>
         <button id="journalShortcut" class="cozy-card clickable" type="button">
@@ -1182,7 +1182,7 @@ HTML = """<!doctype html>
       const meterColor = energyColor(energy);
       selectedAnimalCard.innerHTML = `
         <div class="selected-animal-top">
-          <img class="selected-animal-avatar" src="${escapeHtml(character.status_avatar_path || character.avatar_path)}" alt="${escapeHtml(character.name)}当前状态图" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
+          <img class="selected-animal-avatar" src="${escapeHtml(character.status_avatar_path || character.avatar_path)}" alt="${escapeHtml(character.name)}小窝图" />
           <div>
             <div class="selected-animal-name">${escapeHtml(character.name)} ${escapeHtml(state.face || "🍃")}</div>
             <div class="selected-animal-mood">${escapeHtml(state.mood || "在听")} · ${energy}%</div>
@@ -1228,7 +1228,7 @@ HTML = """<!doctype html>
         return `
             <button class="animal-state ${active ? "active" : ""}" type="button" data-state-character="${escapeHtml(character.id)}">
             <div class="state-avatar-wrap">
-              <img class="state-avatar" src="${escapeHtml(character.status_avatar_path || character.avatar_path)}" alt="${escapeHtml(character.name)}状态图" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
+              <img class="state-avatar" src="${escapeHtml(character.showcase_avatar_path || character.avatar_path)}" alt="${escapeHtml(character.name)}状态全身图" />
               <span class="state-face-badge">${escapeHtml(state.face || "🍃")}</span>
             </div>
             <div>
@@ -1449,7 +1449,10 @@ HTML = """<!doctype html>
           addSystem("群聊自动选择：" + data.character.name);
         }
         if (data.character?.id) {
+          activeCharacterId = data.character.id;
+          localStorage.setItem("xiaolu.character", activeCharacterId);
           updateAnimalState(data.character.id, data.reply);
+          renderSelectedAnimalCard();
         }
         addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
       } catch (error) {
@@ -1994,7 +1997,11 @@ class Handler(BaseHTTPRequestHandler):
         if not path.exists() or not path.is_file():
             self.send_error(404)
             return
-        content_type = "image/webp" if path.suffix == ".webp" else "application/octet-stream"
+        content_types = {
+            ".png": "image/png",
+            ".webp": "image/webp",
+        }
+        content_type = content_types.get(path.suffix, "application/octet-stream")
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", content_type)

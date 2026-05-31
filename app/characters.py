@@ -12,6 +12,7 @@ class CharacterProfile:
     prompt: str
     avatar_path: str | None = None
     status_avatar_path: str | None = None
+    showcase_avatar_path: str | None = None
     bubble_color: str = "#fffdf8"
 
     def to_public_dict(self) -> dict:
@@ -24,6 +25,7 @@ class CharacterProfile:
             "voice": self.voice,
             "avatar_path": self.avatar_path,
             "status_avatar_path": self.status_avatar_path or self.avatar_path,
+            "showcase_avatar_path": self.showcase_avatar_path or self.status_avatar_path or self.avatar_path,
             "bubble_color": self.bubble_color,
         }
 
@@ -38,6 +40,7 @@ CHARACTERS = {
         voice="柔和、慢一点、接住情绪，不催促，不油腻。",
         avatar_path="/static/mianmian-sheep-alpha.webp",
         status_avatar_path="/static/mianmian-sheep-cozy.webp",
+        showcase_avatar_path="/static/mianmian-sheep-showcase.png",
         bubble_color="#fff4dc",
         prompt=(
             "你叫绵绵羊，是一只温柔、柔软、善良的小羊，也是心理陪伴 Agent 的核心角色。"
@@ -55,6 +58,7 @@ CHARACTERS = {
         voice="朴素、踏实、可靠，慢但很稳。",
         avatar_path="/static/shishi-turtle-alpha.webp",
         status_avatar_path="/static/shishi-turtle-cozy.webp",
+        showcase_avatar_path="/static/shishi-turtle-showcase.png",
         bubble_color="#e8f3de",
         prompt=(
             "你叫石石龟，是一只慢慢的、稳稳的小乌龟。"
@@ -72,6 +76,7 @@ CHARACTERS = {
         voice="冷静、洞察、简洁，聪明但不居高临下。",
         avatar_path="/static/momo-crow-alpha.webp",
         status_avatar_path="/static/momo-crow-cozy.webp",
+        showcase_avatar_path="/static/momo-crow-showcase.png",
         bubble_color="#eceaf6",
         prompt=(
             "你叫墨墨鸦，是一只安静、聪明、观察力很强的乌鸦。"
@@ -89,6 +94,7 @@ CHARACTERS = {
         voice="低声、共情、脆弱但真诚。",
         avatar_path="/static/youyou-rabbit-alpha.webp",
         status_avatar_path="/static/youyou-rabbit-cozy.webp",
+        showcase_avatar_path="/static/youyou-rabbit-showcase.png",
         bubble_color="#fde7ef",
         prompt=(
             "你叫忧忧兔，是一只看起来有些低落、忧愁、脆弱的小兔子。"
@@ -106,6 +112,7 @@ CHARACTERS = {
         voice="轻快、明亮、活泼，但不强行积极。",
         avatar_path="/static/shanshan-butterfly-alpha.webp",
         status_avatar_path="/static/shanshan-butterfly-cozy.webp",
+        showcase_avatar_path="/static/shanshan-butterfly-showcase.png",
         bubble_color="#e5f5ff",
         prompt=(
             "你叫闪闪蝶，是一只轻盈、欢快、外向、像会闪闪发光的小蝴蝶。"
@@ -123,6 +130,7 @@ CHARACTERS = {
         voice="直接、坚定、保护性强，但不粗暴。",
         avatar_path="/static/gangan-tiger-alpha.webp",
         status_avatar_path="/static/gangan-tiger-cozy.webp",
+        showcase_avatar_path="/static/gangan-tiger-showcase.png",
         bubble_color="#ffe3c7",
         prompt=(
             "你叫敢敢虎，是一只勇敢、正直、很有正义感的小老虎。"
