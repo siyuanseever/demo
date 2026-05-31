@@ -149,6 +149,22 @@ HTML = """<!doctype html>
       gap: 10px;
       align-items: center;
     }
+    .panel-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .panel-heading h1 {
+      font-size: 18px;
+    }
+    .panel-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #9bc684;
+      box-shadow: 0 0 0 4px rgba(155, 198, 132, 0.2);
+    }
     .deer-logo {
       width: 44px;
       height: 44px;
@@ -164,7 +180,8 @@ HTML = """<!doctype html>
       display: none;
     }
     nav {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-top: 8px;
     }
@@ -213,10 +230,17 @@ HTML = """<!doctype html>
       background: var(--accent);
       color: #fff;
     }
+    .quick-title {
+      margin-top: 12px;
+      color: #5f3d26;
+      font-size: 13px;
+      font-weight: 800;
+    }
     .cozy-list {
       display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 8px;
     }
     .cozy-card {
       border: 1px solid rgba(226, 190, 166, 0.6);
@@ -224,7 +248,7 @@ HTML = """<!doctype html>
       padding: 10px;
       background: rgba(255, 248, 239, 0.76);
       color: #6f4a3e;
-      text-align: left;
+      text-align: center;
       box-shadow: 0 8px 18px rgba(120, 80, 50, 0.06);
     }
     .cozy-card.clickable {
@@ -287,13 +311,13 @@ HTML = """<!doctype html>
       font-size: 12px;
     }
     .cozy-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
     .cozy-text {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.45;
     }
     .character-button {
@@ -909,41 +933,39 @@ HTML = """<!doctype html>
       <div class="app-scene-note">今晚可以慢慢说。</div>
     </header>
     <aside id="controlsPanel" class="control-panel">
-      <div class="brand">
-        <img id="brandAvatar" class="deer-logo" src="/static/mianmian-sheep-alpha.webp" alt="绵绵羊头像" />
-        <div>
-          <h1 id="brandTitle">绵绵羊</h1>
-          <div id="brandSubtitle" class="subtitle">温柔、柔软、安静，像一团可以靠近的云。</div>
-        </div>
+      <div class="panel-heading">
+        <h1>控制面板</h1>
+        <span class="panel-dot" aria-hidden="true"></span>
       </div>
       <nav>
         <button id="chatTab" class="tab active" type="button">对话</button>
-        <button id="dataTab" class="tab" type="button">数据看板</button>
+        <button id="dataTab" class="tab" type="button">看板</button>
       </nav>
+      <div class="quick-title">今日快捷</div>
       <div class="cozy-list" aria-label="今日小卡片">
         <article class="cozy-card">
           <div class="cozy-title">🌤️ 今日天气</div>
-          <div class="cozy-text">适合慢慢说话，也适合把心放松一点。</div>
+          <div class="cozy-text">慢慢说话</div>
         </article>
-        <button id="moodShortcut" class="cozy-card clickable" type="button">
-          <div class="cozy-title">💗 我的心情</div>
-          <div class="cozy-text">看看最近的心情轨迹和日历。</div>
-        </button>
         <button id="journalShortcut" class="cozy-card clickable" type="button">
-          <div class="cozy-title">📔 过往日记</div>
-          <div class="cozy-text">回头看看之前被记录下来的自己。</div>
+          <div class="cozy-title">📔 日记</div>
+          <div class="cozy-text">过往记录</div>
         </button>
-        <article class="cozy-card">
-          <div class="cozy-title">🍯 小动物值班</div>
-          <div class="cozy-text">右侧可以直接选择谁来陪你。</div>
-        </article>
+        <button id="moodShortcut" class="cozy-card clickable" type="button">
+          <div class="cozy-title">🌙 月历</div>
+          <div class="cozy-text">心情轨迹</div>
+        </button>
+        <button id="chatShortcut" class="cozy-card clickable" type="button">
+          <div class="cozy-title">💬 聊天</div>
+          <div class="cozy-text">回到对话</div>
+        </button>
       </div>
       <section id="selectedAnimalCard" class="selected-animal-card" aria-label="当前小动物"></section>
       <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
     </aside>
     <section id="messages" class="view"></section>
     <aside id="animalPanel" class="animal-panel">
-      <h2 class="panel-title">状态</h2>
+      <h2 class="panel-title">小动物状态</h2>
       <button id="groupToggle" class="group-toggle" type="button" aria-pressed="false">
         <span>
           <span class="toggle-label">群聊自动</span>
@@ -986,9 +1008,7 @@ HTML = """<!doctype html>
     const groupTogglePill = document.querySelector("#groupTogglePill");
     const moodShortcut = document.querySelector("#moodShortcut");
     const journalShortcut = document.querySelector("#journalShortcut");
-    const brandAvatar = document.querySelector("#brandAvatar");
-    const brandTitle = document.querySelector("#brandTitle");
-    const brandSubtitle = document.querySelector("#brandSubtitle");
+    const chatShortcut = document.querySelector("#chatShortcut");
     const selectedAnimalCard = document.querySelector("#selectedAnimalCard");
     const characterStrip = document.querySelector("#characterStrip");
     const controlsPanel = document.querySelector("#controlsPanel");
@@ -1065,13 +1085,6 @@ HTML = """<!doctype html>
     }
 
     function updateCharacterBrand() {
-      const character = currentCharacter();
-      brandAvatar.src = character.avatar_path;
-      brandAvatar.alt = character.name + "头像";
-      brandAvatar.style.background = character.bubble_color;
-      brandAvatar.style.borderColor = character.bubble_color;
-      brandTitle.textContent = character.name;
-      brandSubtitle.textContent = character.tagline;
       renderSelectedAnimalCard();
     }
 
@@ -1746,6 +1759,7 @@ HTML = """<!doctype html>
       activeDataView = "journals";
       switchMainView("data");
     });
+    chatShortcut.addEventListener("click", () => switchMainView("chat"));
     groupToggle.addEventListener("click", () => {
       setReplyMode(replyMode === "auto" ? "manual" : "auto");
     });
