@@ -34,7 +34,7 @@ CHARACTERS = {
         emoji="🐑",
         tagline="温柔、柔软、安静，像一团可以靠近的云。",
         voice="柔和、慢一点、接住情绪，不催促，不油腻。",
-        avatar_path="/static/mianmian-sheep.webp",
+        avatar_path="/static/mianmian-sheep-alpha.webp",
         bubble_color="#fff4dc",
         prompt=(
             "你叫绵绵羊，是一只温柔、柔软、善良的小羊，也是心理陪伴 Agent 的核心角色。"
@@ -50,7 +50,7 @@ CHARACTERS = {
         emoji="🐢",
         tagline="慢慢的、稳稳的，像一块可以依靠的小石头。",
         voice="朴素、踏实、可靠，慢但很稳。",
-        avatar_path="/static/shishi-turtle.webp",
+        avatar_path="/static/shishi-turtle-alpha.webp",
         bubble_color="#e8f3de",
         prompt=(
             "你叫石石龟，是一只慢慢的、稳稳的小乌龟。"
@@ -66,7 +66,7 @@ CHARACTERS = {
         emoji="🐦‍⬛",
         tagline="安静、聪明、观察力强，能看见事情背后的结构。",
         voice="冷静、洞察、简洁，聪明但不居高临下。",
-        avatar_path="/static/momo-crow.webp",
+        avatar_path="/static/momo-crow-alpha.webp",
         bubble_color="#eceaf6",
         prompt=(
             "你叫墨墨鸦，是一只安静、聪明、观察力很强的乌鸦。"
@@ -82,7 +82,7 @@ CHARACTERS = {
         emoji="🐰",
         tagline="忧郁、柔软、敏感，能深深共情痛苦。",
         voice="低声、共情、脆弱但真诚。",
-        avatar_path="/static/youyou-rabbit.webp",
+        avatar_path="/static/youyou-rabbit-alpha.webp",
         bubble_color="#fde7ef",
         prompt=(
             "你叫忧忧兔，是一只看起来有些低落、忧愁、脆弱的小兔子。"
@@ -98,7 +98,7 @@ CHARACTERS = {
         emoji="🦋",
         tagline="轻盈、外向、明亮，带一点跳脱的积极能量。",
         voice="轻快、明亮、活泼，但不强行积极。",
-        avatar_path="/static/shanshan-butterfly.webp",
+        avatar_path="/static/shanshan-butterfly-alpha.webp",
         bubble_color="#e5f5ff",
         prompt=(
             "你叫闪闪蝶，是一只轻盈、欢快、外向、像会闪闪发光的小蝴蝶。"
@@ -114,7 +114,7 @@ CHARACTERS = {
         emoji="🐯",
         tagline="勇敢、正直、有正义感，帮你找回一点力量。",
         voice="直接、坚定、保护性强，但不粗暴。",
-        avatar_path="/static/gangan-tiger.webp",
+        avatar_path="/static/gangan-tiger-alpha.webp",
         bubble_color="#ffe3c7",
         prompt=(
             "你叫敢敢虎，是一只勇敢、正直、很有正义感的小老虎。"

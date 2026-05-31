@@ -160,6 +160,9 @@ HTML = """<!doctype html>
     }
     h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
     .subtitle { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .brand .subtitle {
+      display: none;
+    }
     nav {
       display: flex;
       gap: 10px;
@@ -732,7 +735,7 @@ HTML = """<!doctype html>
     .state-meter-fill {
       height: 100%;
       border-radius: inherit;
-      background: linear-gradient(90deg, #d88475, #e9c66d, #80bd7e);
+      background: #80bd7e;
     }
     .state-percent {
       margin-top: 3px;
@@ -907,7 +910,7 @@ HTML = """<!doctype html>
     </header>
     <aside id="controlsPanel" class="control-panel">
       <div class="brand">
-        <img id="brandAvatar" class="deer-logo" src="/static/mianmian-sheep.webp" alt="绵绵羊头像" />
+        <img id="brandAvatar" class="deer-logo" src="/static/mianmian-sheep-alpha.webp" alt="绵绵羊头像" />
         <div>
           <h1 id="brandTitle">绵绵羊</h1>
           <div id="brandSubtitle" class="subtitle">温柔、柔软、安静，像一团可以靠近的云。</div>
@@ -1065,6 +1068,8 @@ HTML = """<!doctype html>
       const character = currentCharacter();
       brandAvatar.src = character.avatar_path;
       brandAvatar.alt = character.name + "头像";
+      brandAvatar.style.background = character.bubble_color;
+      brandAvatar.style.borderColor = character.bubble_color;
       brandTitle.textContent = character.name;
       brandSubtitle.textContent = character.tagline;
       renderSelectedAnimalCard();
@@ -1101,13 +1106,21 @@ HTML = """<!doctype html>
       return Math.max(8, Math.min(100, Math.round(number)));
     }
 
+    function energyColor(value) {
+      const energy = boundedEnergy(value);
+      if (energy < 45) return "#d96b63";
+      if (energy < 72) return "#e2b95e";
+      return "#77b978";
+    }
+
     function renderSelectedAnimalCard() {
       const character = currentCharacter();
       const state = animalState[character.id] || defaultAnimalState[character.id] || {};
       const energy = boundedEnergy(state.energy);
+      const meterColor = energyColor(energy);
       selectedAnimalCard.innerHTML = `
         <div class="selected-animal-top">
-          <img class="selected-animal-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+          <img class="selected-animal-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
           <div>
             <div class="selected-animal-name">${escapeHtml(character.name)} ${escapeHtml(state.face || "🍃")}</div>
             <div class="selected-animal-mood">${escapeHtml(state.mood || "在听")} · ${energy}%</div>
@@ -1115,7 +1128,7 @@ HTML = """<!doctype html>
         </div>
         <div class="selected-animal-intro">${escapeHtml(character.tagline)}<br>${escapeHtml(state.need || character.voice)}</div>
         <div class="state-meter" aria-label="当前状态">
-          <div class="state-meter-fill" style="width: ${energy}%"></div>
+          <div class="state-meter-fill" style="width: ${energy}%; background: ${meterColor};"></div>
         </div>
         <div class="animal-actions">
           <button class="animal-action" type="button" data-animal-action="摸摸">摸摸</button>
@@ -1149,10 +1162,11 @@ HTML = """<!doctype html>
         const state = animalState[character.id] || defaultAnimalState[character.id] || {};
         const active = character.id === activeId || (replyMode === "manual" && character.id === activeCharacterId);
         const energy = boundedEnergy(state.energy);
+        const meterColor = energyColor(energy);
         return `
             <button class="animal-state ${active ? "active" : ""}" type="button" data-state-character="${escapeHtml(character.id)}">
             <div class="state-avatar-wrap">
-              <img class="state-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+              <img class="state-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" style="background: ${escapeHtml(character.bubble_color)}; border-color: ${escapeHtml(character.bubble_color)};" />
               <span class="state-face-badge">${escapeHtml(state.face || "🍃")}</span>
             </div>
             <div>
@@ -1160,7 +1174,7 @@ HTML = """<!doctype html>
               <div class="state-line">${escapeHtml(state.mood || "在听")}</div>
               <div class="state-line">${escapeHtml(state.need || character.voice)}</div>
               <div class="state-meter" aria-label="当前状态">
-                <div class="state-meter-fill" style="width: ${energy}%"></div>
+                <div class="state-meter-fill" style="width: ${energy}%; background: ${meterColor};"></div>
               </div>
               <div class="state-percent">${energy}%</div>
             </div>
