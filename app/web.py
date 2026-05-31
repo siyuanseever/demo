@@ -19,12 +19,12 @@ HTML = """<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>小鹿 · 心理陪伴 Agent</title>
+  <title>小动物夜谈会 · 心理陪伴 Agent</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #fff4ec;
-      --panel: rgba(255, 252, 246, 0.88);
+      --bg: #fff0f2;
+      --panel: rgba(255, 252, 247, 0.88);
       --user: #dcefff;
       --deer: #fffdf8;
       --text: #3d2d27;
@@ -39,21 +39,91 @@ HTML = """<!doctype html>
     body {
       margin: 0;
       background:
-        linear-gradient(rgba(255, 247, 239, 0.74), rgba(255, 241, 230, 0.92)),
-        url("/static/healing-bg.webp") center top / cover fixed,
-        radial-gradient(circle at top, #fff9ec, var(--bg));
+        linear-gradient(rgba(255, 239, 244, 0.1), rgba(255, 233, 231, 0.18)),
+        url("/static/night-forest-bg.webp") center center / cover no-repeat fixed,
+        linear-gradient(180deg, #2c294f 0%, #ffe1dd 100%);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+    body::before {
+      z-index: 0;
+      background: radial-gradient(circle at 50% 28%, rgba(255, 248, 235, 0.18), transparent 42%);
+    }
+    body::after {
+      display: none;
     }
     .app {
+      position: relative;
+      z-index: 1;
       width: min(1280px, 100vw);
       height: 100vh;
       margin: 0 auto;
       display: grid;
       grid-template-columns: 210px minmax(0, 1fr) 230px;
-      grid-template-rows: 1fr auto;
+      grid-template-rows: auto 1fr auto;
       padding: 12px 14px;
       gap: 10px;
+    }
+    .top-bar {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 56px;
+      padding: 10px 16px;
+      border: 1px solid rgba(255, 234, 221, 0.5);
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(46, 43, 82, 0.74), rgba(126, 91, 121, 0.55)),
+        radial-gradient(circle at 18% 20%, rgba(255, 238, 185, 0.35), transparent 28%);
+      color: #fffaf3;
+      box-shadow: 0 16px 36px rgba(50, 32, 62, 0.16);
+      backdrop-filter: blur(14px);
+    }
+    .app-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .app-title-mark {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 14px;
+      background: rgba(255, 246, 221, 0.18);
+      border: 1px solid rgba(255, 248, 232, 0.28);
+      box-shadow: inset 0 0 18px rgba(255, 244, 207, 0.18);
+    }
+    .app-title-text {
+      min-width: 0;
+    }
+    .app-title-name {
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: 0.06em;
+    }
+    .app-title-subtitle {
+      margin-top: 2px;
+      color: rgba(255, 250, 243, 0.72);
+      font-size: 12px;
+    }
+    .app-scene-note {
+      color: rgba(255, 250, 243, 0.78);
+      font-size: 12px;
+      white-space: nowrap;
     }
     .control-panel,
     .animal-panel {
@@ -68,11 +138,11 @@ HTML = """<!doctype html>
     }
     .control-panel {
       grid-column: 1;
-      grid-row: 1 / -1;
+      grid-row: 2 / -1;
     }
     .animal-panel {
       grid-column: 3;
-      grid-row: 1 / -1;
+      grid-row: 2 / -1;
     }
     .brand {
       display: flex;
@@ -221,7 +291,7 @@ HTML = """<!doctype html>
     .hidden { display: none !important; }
     #messages {
       grid-column: 2;
-      grid-row: 1;
+      grid-row: 2;
       overflow-y: auto;
       background: rgba(255, 252, 246, 0.64);
       border: 1px solid var(--border);
@@ -310,7 +380,7 @@ HTML = """<!doctype html>
     }
     form {
       grid-column: 2;
-      grid-row: 2;
+      grid-row: 3;
       display: grid;
       grid-template-columns: 1fr auto auto;
       gap: 8px;
@@ -357,7 +427,7 @@ HTML = """<!doctype html>
     }
     #dashboard {
       grid-column: 2 / -1;
-      grid-row: 1 / -1;
+      grid-row: 2 / -1;
       overflow-y: auto;
       background: rgba(255, 252, 246, 0.68);
       border: 1px solid var(--border);
@@ -605,13 +675,27 @@ HTML = """<!doctype html>
         min-height: 100dvh;
         height: 100dvh;
         grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: auto auto 1fr auto;
         padding: 8px;
         gap: 8px;
       }
-      .control-panel {
+      .top-bar {
         grid-column: 1;
         grid-row: 1;
+        min-height: 52px;
+        padding: 9px 12px;
+        border-radius: 20px;
+      }
+      .app-title-name {
+        font-size: 16px;
+      }
+      .app-title-subtitle,
+      .app-scene-note {
+        display: none;
+      }
+      .control-panel {
+        grid-column: 1;
+        grid-row: 2;
         border-radius: 20px;
         padding: 9px;
         overflow: visible;
@@ -621,15 +705,15 @@ HTML = """<!doctype html>
       }
       #messages {
         grid-column: 1;
-        grid-row: 2;
+        grid-row: 3;
       }
       #dashboard {
         grid-column: 1;
-        grid-row: 2 / -1;
+        grid-row: 3 / -1;
       }
       form {
         grid-column: 1;
-        grid-row: 3;
+        grid-row: 4;
       }
       .brand {
         gap: 10px;
@@ -737,6 +821,16 @@ HTML = """<!doctype html>
 </head>
 <body>
   <main class="app">
+    <header class="top-bar" aria-label="应用标题">
+      <div class="app-title">
+        <div class="app-title-mark" aria-hidden="true">🌙</div>
+        <div class="app-title-text">
+          <div class="app-title-name">小动物夜谈会</div>
+          <div class="app-title-subtitle">夜空、树影和几只正在值班的小动物。</div>
+        </div>
+      </div>
+      <div class="app-scene-note">今晚可以慢慢说。</div>
+    </header>
     <aside id="controlsPanel" class="control-panel">
       <div class="brand">
         <img id="brandAvatar" class="deer-logo" src="/static/mianmian-sheep.webp" alt="绵绵羊头像" />
