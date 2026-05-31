@@ -813,9 +813,10 @@ HTML = """<!doctype html>
         min-height: 100dvh;
         height: 100dvh;
         grid-template-columns: 1fr;
-        grid-template-rows: auto auto 1fr auto;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
         padding: 8px;
         gap: 8px;
+        overflow: hidden;
       }
       .top-bar {
         grid-column: 1;
@@ -836,7 +837,9 @@ HTML = """<!doctype html>
         grid-row: 2;
         border-radius: 20px;
         padding: 9px;
-        overflow: visible;
+        max-height: 238px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
       .animal-panel {
         display: none;
@@ -844,6 +847,8 @@ HTML = """<!doctype html>
       #messages {
         grid-column: 1;
         grid-row: 3;
+        min-height: 0;
+        overflow-y: auto;
       }
       #dashboard {
         grid-column: 1;
@@ -852,6 +857,8 @@ HTML = """<!doctype html>
       form {
         grid-column: 1;
         grid-row: 4;
+        position: relative;
+        z-index: 2;
       }
       .brand {
         gap: 10px;
@@ -881,6 +888,50 @@ HTML = """<!doctype html>
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 6px;
+      }
+      .quick-title,
+      .sidebar-section-title {
+        margin-top: 8px;
+      }
+      .cozy-list {
+        gap: 6px;
+      }
+      .cozy-card {
+        padding: 7px 6px;
+        border-radius: 15px;
+      }
+      .cozy-text {
+        display: none;
+      }
+      .settings-title,
+      .settings-list {
+        display: none;
+      }
+      .selected-animal-card {
+        margin-top: 7px;
+        padding: 8px;
+        border-radius: 18px;
+      }
+      .selected-animal-top {
+        grid-template-columns: 54px 1fr;
+        gap: 8px;
+      }
+      .selected-animal-avatar {
+        width: 54px;
+        height: 60px;
+        border-radius: 16px;
+      }
+      .selected-animal-intro {
+        display: none;
+      }
+      .animal-actions {
+        gap: 5px;
+        margin-top: 7px;
+      }
+      .animal-action {
+        padding: 6px 5px;
+        border-radius: 12px;
+        font-size: 11px;
       }
       .character-button {
         padding: 5px 4px;
@@ -997,10 +1048,10 @@ HTML = """<!doctype html>
           <div class="cozy-text">回到对话</div>
         </button>
       </div>
-      <div class="sidebar-section-title">当前角色</div>
+      <div class="sidebar-section-title current-role-title">当前角色</div>
       <section id="selectedAnimalCard" class="selected-animal-card" aria-label="当前小动物"></section>
       <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
-      <div class="sidebar-section-title">设置</div>
+      <div class="sidebar-section-title settings-title">设置</div>
       <div class="settings-list" aria-label="设置入口">
         <button class="settings-item" type="button">
           <span>角色设置</span>
