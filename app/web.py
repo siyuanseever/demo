@@ -230,6 +230,59 @@ HTML = """<!doctype html>
     .cozy-card.clickable:hover {
       background: rgba(255, 238, 224, 0.9);
     }
+    .selected-animal-card {
+      margin-top: 12px;
+      border: 1px solid rgba(226, 190, 166, 0.68);
+      border-radius: 22px;
+      padding: 12px;
+      background: rgba(255, 250, 243, 0.82);
+      box-shadow: 0 10px 24px rgba(120, 80, 50, 0.08);
+    }
+    .selected-animal-top {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .selected-animal-avatar {
+      width: 54px;
+      height: 54px;
+      border-radius: 20px;
+      object-fit: cover;
+      background: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 18px rgba(140, 92, 72, 0.13);
+    }
+    .selected-animal-name {
+      font-size: 14px;
+      font-weight: 800;
+      color: #5f3d26;
+    }
+    .selected-animal-mood {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .selected-animal-intro {
+      margin-top: 9px;
+      color: #6f4a3e;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .animal-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .animal-action {
+      padding: 7px 6px;
+      border-radius: 14px;
+      background: rgba(242, 222, 207, 0.78);
+      color: #69483a;
+      font-size: 12px;
+    }
     .cozy-title {
       font-size: 13px;
       font-weight: 700;
@@ -613,10 +666,10 @@ HTML = """<!doctype html>
     }
     .animal-state {
       display: grid;
-      grid-template-columns: 38px 1fr;
-      gap: 8px;
+      grid-template-columns: 62px 1fr;
+      gap: 10px;
       align-items: center;
-      padding: 8px;
+      padding: 9px;
       border-radius: 18px;
       background: rgba(255, 248, 239, 0.78);
       border: 1px solid rgba(226, 190, 166, 0.56);
@@ -632,29 +685,31 @@ HTML = """<!doctype html>
       opacity: 0.84;
     }
     .state-avatar {
-      width: 38px;
-      height: 38px;
-      border-radius: 15px;
+      width: 58px;
+      height: 58px;
+      border-radius: 22px;
       object-fit: cover;
       background: #fff;
+      border: 2px solid rgba(255, 255, 255, 0.86);
+      box-shadow: 0 8px 18px rgba(140, 92, 72, 0.12);
     }
     .state-avatar-wrap {
       position: relative;
-      width: 38px;
-      height: 38px;
+      width: 58px;
+      height: 58px;
     }
     .state-face-badge {
       position: absolute;
-      right: -4px;
-      bottom: -5px;
+      right: -6px;
+      bottom: -6px;
       display: grid;
       place-items: center;
-      width: 20px;
-      height: 20px;
+      width: 27px;
+      height: 27px;
       border-radius: 999px;
       background: rgba(255, 253, 248, 0.96);
       border: 1px solid rgba(226, 190, 166, 0.7);
-      font-size: 13px;
+      font-size: 16px;
       box-shadow: 0 4px 10px rgba(120, 80, 50, 0.12);
     }
     .state-name {
@@ -665,6 +720,25 @@ HTML = """<!doctype html>
       color: var(--muted);
       font-size: 11px;
       line-height: 1.35;
+    }
+    .state-meter {
+      width: 100%;
+      height: 7px;
+      margin-top: 7px;
+      border-radius: 999px;
+      background: rgba(224, 204, 187, 0.62);
+      overflow: hidden;
+    }
+    .state-meter-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #d88475, #e9c66d, #80bd7e);
+    }
+    .state-percent {
+      margin-top: 3px;
+      color: rgba(145, 120, 107, 0.82);
+      font-size: 10px;
+      text-align: right;
     }
     @media (max-width: 720px) {
       body {
@@ -861,6 +935,7 @@ HTML = """<!doctype html>
           <div class="cozy-text">右侧可以直接选择谁来陪你。</div>
         </article>
       </div>
+      <section id="selectedAnimalCard" class="selected-animal-card" aria-label="当前小动物"></section>
       <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
     </aside>
     <section id="messages" class="view"></section>
@@ -911,6 +986,7 @@ HTML = """<!doctype html>
     const brandAvatar = document.querySelector("#brandAvatar");
     const brandTitle = document.querySelector("#brandTitle");
     const brandSubtitle = document.querySelector("#brandSubtitle");
+    const selectedAnimalCard = document.querySelector("#selectedAnimalCard");
     const characterStrip = document.querySelector("#characterStrip");
     const controlsPanel = document.querySelector("#controlsPanel");
     const animalPanel = document.querySelector("#animalPanel");
@@ -930,12 +1006,12 @@ HTML = """<!doctype html>
     let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
     let replyMode = localStorage.getItem("xiaolu.replyMode") || "manual";
     const defaultAnimalState = {
-      sensen_deer: { mood: "柔软", need: "想听你慢慢说", face: "☁️" },
-      gugu_bear: { mood: "稳稳的", need: "正在守着节奏", face: "🪨" },
-      huahua_fox: { mood: "清醒", need: "在观察线索", face: "🔎" },
-      youyou_rabbit: { mood: "低低的", need: "愿意陪你难过", face: "🌧️" },
-      shanshan_butterfly: { mood: "亮亮的", need: "想带来一点空气", face: "✨" },
-      gangan_tiger: { mood: "坚定", need: "准备保护边界", face: "🔥" }
+      sensen_deer: { mood: "柔软", need: "想听你慢慢说", face: "☁️", energy: 78 },
+      gugu_bear: { mood: "稳稳的", need: "正在守着节奏", face: "🪨", energy: 84 },
+      huahua_fox: { mood: "清醒", need: "在观察线索", face: "🔎", energy: 76 },
+      youyou_rabbit: { mood: "低低的", need: "愿意陪你难过", face: "🌧️", energy: 68 },
+      shanshan_butterfly: { mood: "亮亮的", need: "想带来一点空气", face: "✨", energy: 88 },
+      gangan_tiger: { mood: "坚定", need: "准备保护边界", face: "🔥", energy: 82 }
     };
     let animalState = JSON.parse(JSON.stringify(defaultAnimalState));
 
@@ -965,6 +1041,7 @@ HTML = """<!doctype html>
       characterStrip.classList.toggle("auto-mode", replyMode === "auto");
       animalPanel.classList.toggle("auto-mode", replyMode === "auto");
       renderAnimalStates(activeCharacterId);
+      renderSelectedAnimalCard();
     }
 
     function selectCharacter(characterId) {
@@ -990,36 +1067,88 @@ HTML = """<!doctype html>
       brandAvatar.alt = character.name + "头像";
       brandTitle.textContent = character.name;
       brandSubtitle.textContent = character.tagline;
+      renderSelectedAnimalCard();
     }
 
     function stateForText(text, characterId) {
       const content = text || "";
       if (content.includes("难过") || content.includes("想哭") || content.includes("痛苦") || content.includes("心疼") || content.includes("抱抱")) {
-        return { mood: "很共情", need: "轻轻靠近你的难过", face: "🥺" };
+        return { mood: "很共情", need: "轻轻靠近你的难过", face: "🥺", energy: 72 };
       }
       if (content.includes("焦虑") || content.includes("慌") || content.includes("撑不住") || content.includes("慢慢") || content.includes("稳")) {
-        return { mood: "稳住中", need: "帮你慢慢落地", face: "🫶" };
+        return { mood: "稳住中", need: "帮你慢慢落地", face: "🫶", energy: 80 };
       }
       if (content.includes("生气") || content.includes("不公平") || content.includes("边界") || content.includes("保护") || content.includes("勇敢")) {
-        return { mood: "认真起来", need: "保护你的边界", face: "🛡️" };
+        return { mood: "认真起来", need: "保护你的边界", face: "🛡️", energy: 86 };
       }
       if (content.includes("看见") || content.includes("模式") || content.includes("理解") || content.includes("线索") || content.includes("清楚")) {
-        return { mood: "在思考", need: "帮你看清线索", face: "🧐" };
+        return { mood: "在思考", need: "帮你看清线索", face: "🧐", energy: 79 };
       }
       if (content.includes("开心") || content.includes("希望") || content.includes("试试") || content.includes("轻一点") || content.includes("亮")) {
-        return { mood: "亮了一点", need: "想陪你往前飞", face: "🌟" };
+        return { mood: "亮了一点", need: "想陪你往前飞", face: "🌟", energy: 90 };
       }
       return {
         mood: defaultAnimalState[characterId]?.mood || "在听",
         need: defaultAnimalState[characterId]?.need || "正在陪你",
-        face: defaultAnimalState[characterId]?.face || "🍃"
+        face: defaultAnimalState[characterId]?.face || "🍃",
+        energy: defaultAnimalState[characterId]?.energy || 75
       };
+    }
+
+    function boundedEnergy(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return 75;
+      return Math.max(8, Math.min(100, Math.round(number)));
+    }
+
+    function renderSelectedAnimalCard() {
+      const character = currentCharacter();
+      const state = animalState[character.id] || defaultAnimalState[character.id] || {};
+      const energy = boundedEnergy(state.energy);
+      selectedAnimalCard.innerHTML = `
+        <div class="selected-animal-top">
+          <img class="selected-animal-avatar" src="${escapeHtml(character.avatar_path)}" alt="${escapeHtml(character.name)}头像" />
+          <div>
+            <div class="selected-animal-name">${escapeHtml(character.name)} ${escapeHtml(state.face || "🍃")}</div>
+            <div class="selected-animal-mood">${escapeHtml(state.mood || "在听")} · ${energy}%</div>
+          </div>
+        </div>
+        <div class="selected-animal-intro">${escapeHtml(character.tagline)}<br>${escapeHtml(state.need || character.voice)}</div>
+        <div class="state-meter" aria-label="当前状态">
+          <div class="state-meter-fill" style="width: ${energy}%"></div>
+        </div>
+        <div class="animal-actions">
+          <button class="animal-action" type="button" data-animal-action="摸摸">摸摸</button>
+          <button class="animal-action" type="button" data-animal-action="抱抱">抱抱</button>
+          <button class="animal-action" type="button" data-animal-action="递点心">递点心</button>
+        </div>
+      `;
+      selectedAnimalCard.querySelectorAll("[data-animal-action]").forEach(button => {
+        button.addEventListener("click", () => interactWithAnimal(button.dataset.animalAction));
+      });
+    }
+
+    function interactWithAnimal(action) {
+      const character = currentCharacter();
+      const previous = animalState[character.id] || defaultAnimalState[character.id] || {};
+      const energy = boundedEnergy(previous.energy) + 4;
+      const face = action === "抱抱" ? "🥰" : action === "递点心" ? "🍪" : "☺️";
+      animalState[character.id] = {
+        mood: action === "递点心" ? "被投喂了" : action === "抱抱" ? "被抱住了" : "被摸摸了",
+        need: `${character.name}收到了你的${action}。`,
+        face,
+        energy: boundedEnergy(energy)
+      };
+      renderAnimalStates(character.id);
+      renderSelectedAnimalCard();
+      addSystem(`${character.name}${face}：收到你的${action}。`);
     }
 
     function renderAnimalStates(activeId = activeCharacterId) {
       animalStates.innerHTML = CHARACTERS.map(character => {
         const state = animalState[character.id] || defaultAnimalState[character.id] || {};
         const active = character.id === activeId || (replyMode === "manual" && character.id === activeCharacterId);
+        const energy = boundedEnergy(state.energy);
         return `
             <button class="animal-state ${active ? "active" : ""}" type="button" data-state-character="${escapeHtml(character.id)}">
             <div class="state-avatar-wrap">
@@ -1030,6 +1159,10 @@ HTML = """<!doctype html>
               <div class="state-name">${escapeHtml(character.name)}</div>
               <div class="state-line">${escapeHtml(state.mood || "在听")}</div>
               <div class="state-line">${escapeHtml(state.need || character.voice)}</div>
+              <div class="state-meter" aria-label="当前状态">
+                <div class="state-meter-fill" style="width: ${energy}%"></div>
+              </div>
+              <div class="state-percent">${energy}%</div>
             </div>
             </button>
         `;
@@ -1042,6 +1175,7 @@ HTML = """<!doctype html>
     function updateAnimalState(characterId, text) {
       animalState[characterId] = stateForText(text, characterId);
       renderAnimalStates(characterId);
+      if (characterId === activeCharacterId) renderSelectedAnimalCard();
     }
 
     function setBusy(value) {
