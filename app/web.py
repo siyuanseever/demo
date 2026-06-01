@@ -334,6 +334,65 @@ HTML = """<!doctype html>
     .settings-arrow {
       color: rgba(145, 120, 107, 0.82);
     }
+    .dev-panel {
+      position: fixed;
+      right: 18px;
+      top: 88px;
+      width: min(520px, calc(100vw - 36px));
+      max-height: calc(100vh - 112px);
+      overflow-y: auto;
+      z-index: 20;
+      background: rgba(255, 250, 243, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 14px;
+      box-shadow: 0 18px 46px rgba(70, 45, 20, 0.2);
+      backdrop-filter: blur(14px);
+    }
+    .dev-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .dev-panel h2 {
+      margin: 0;
+      font-size: 16px;
+      color: #5f3d26;
+    }
+    .dev-section {
+      border-top: 1px dashed rgba(226, 190, 166, 0.7);
+      padding-top: 10px;
+      margin-top: 10px;
+    }
+    .dev-section h3 {
+      margin: 0 0 7px;
+      font-size: 13px;
+      color: #5f3d26;
+    }
+    .dev-list {
+      display: grid;
+      gap: 7px;
+    }
+    .dev-item {
+      border-radius: 14px;
+      padding: 8px;
+      background: rgba(255, 248, 239, 0.78);
+      border: 1px solid rgba(226, 190, 166, 0.42);
+    }
+    .dev-pre {
+      margin: 7px 0 0;
+      max-height: 220px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #4b3829;
+      background: rgba(255, 255, 255, 0.58);
+      border-radius: 12px;
+      padding: 8px;
+    }
     .cozy-title {
       font-size: 12px;
       font-weight: 700;
@@ -425,6 +484,54 @@ HTML = """<!doctype html>
       place-items: center;
       font-size: 24px;
     }
+    .avatar-wrap {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .avatar-action {
+      position: absolute;
+      right: -4px;
+      top: -5px;
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255, 252, 246, 0.96);
+      border: 1px solid rgba(226, 190, 166, 0.7);
+      box-shadow: 0 6px 14px rgba(94, 57, 37, 0.12);
+      font-size: 12px;
+      animation: actionPulse 1.8s ease-in-out infinite;
+    }
+    .avatar-wrap[data-action="tilt_head"] .avatar {
+      animation: tiltHead 2.4s ease-in-out infinite;
+      transform-origin: 50% 70%;
+    }
+    .avatar-wrap[data-action="soft_lean"] .avatar {
+      animation: softLean 2.6s ease-in-out infinite;
+    }
+    .avatar-wrap[data-action="slow_nod"] .avatar {
+      animation: slowNod 2.8s ease-in-out infinite;
+    }
+    .avatar-wrap[data-action="warm_glow"] .avatar {
+      box-shadow: 0 0 0 4px rgba(255, 225, 150, 0.25), 0 10px 22px rgba(140, 92, 72, 0.13);
+    }
+    @keyframes tiltHead {
+      0%, 100% { transform: rotate(0deg); }
+      45%, 70% { transform: rotate(-8deg); }
+    }
+    @keyframes softLean {
+      0%, 100% { transform: translateX(0); }
+      48%, 72% { transform: translateX(3px); }
+    }
+    @keyframes slowNod {
+      0%, 100% { transform: translateY(0); }
+      45%, 70% { transform: translateY(2px); }
+    }
+    @keyframes actionPulse {
+      0%, 100% { transform: scale(1); opacity: 0.82; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
     .bubble {
       max-width: min(680px, 86%);
       padding: 10px 13px;
@@ -477,6 +584,31 @@ HTML = """<!doctype html>
         border: 1px solid var(--border);
         border-top-left-radius: 8px;
       }
+    .row.group-empathic .bubble {
+      max-width: min(430px, 74%);
+      padding: 7px 11px;
+      border-radius: 16px 16px 16px 7px;
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: 0 5px 13px rgba(94, 57, 37, 0.045);
+      opacity: 0.92;
+    }
+    .row.group-pinpoint .bubble {
+      max-width: min(500px, 78%);
+      padding: 8px 13px 8px 15px;
+      border-radius: 14px 18px 18px 7px;
+      border: 1px solid rgba(255, 255, 255, 0.76);
+      border-left: 3px solid rgba(120, 92, 64, 0.24);
+      box-shadow: 0 6px 15px rgba(94, 57, 37, 0.055);
+      font-weight: 600;
+    }
+    .row.group-main .bubble {
+      max-width: min(680px, 86%);
+    }
+    .row.group-empathic .message-body,
+    .row.group-pinpoint .message-body {
+      font-size: 14px;
+      line-height: 1.5;
+    }
     .name {
       font-size: 12px;
       color: var(--muted);
@@ -964,6 +1096,13 @@ HTML = """<!doctype html>
         width: auto;
         max-height: 70vh;
       }
+      .dev-panel {
+        left: 10px;
+        right: 10px;
+        top: 72px;
+        width: auto;
+        max-height: calc(100dvh - 92px);
+      }
     }
   </style>
 </head>
@@ -1020,6 +1159,10 @@ HTML = """<!doctype html>
           <span>系统设置</span>
           <span class="settings-arrow">›</span>
         </button>
+        <button id="devPanelToggle" class="settings-item" type="button">
+          <span>开发面板</span>
+          <span class="settings-arrow">›</span>
+        </button>
       </div>
     </aside>
     <section id="messages" class="view"></section>
@@ -1049,6 +1192,7 @@ HTML = """<!doctype html>
       <div id="dataList" class="grid"></div>
     </section>
     <aside id="detailPanel" class="detail-panel hidden"></aside>
+    <aside id="devPanel" class="dev-panel hidden" aria-label="开发者调试面板"></aside>
     <form id="form">
       <textarea id="input" placeholder="把此刻想说的话写在这里。Shift+Enter 换行，Enter 发送。"></textarea>
       <button id="send" type="submit">发送</button>
@@ -1076,6 +1220,8 @@ HTML = """<!doctype html>
     const dashboard = document.querySelector("#dashboard");
     const dataList = document.querySelector("#dataList");
     const detailPanel = document.querySelector("#detailPanel");
+    const devPanel = document.querySelector("#devPanel");
+    const devPanelToggle = document.querySelector("#devPanelToggle");
     const refreshData = document.querySelector("#refreshData");
     const cleanupSessions = document.querySelector("#cleanupSessions");
     const dataButtons = [...document.querySelectorAll("[data-view]")];
@@ -1084,6 +1230,7 @@ HTML = """<!doctype html>
     let busy = false;
     let activeDataView = "sessions";
     let memoryItems = [];
+    let lastDebugTrace = null;
     const CHARACTERS = __CHARACTERS_JSON__;
     let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
     let replyMode = localStorage.getItem("xiaolu.replyMode") || "manual";
@@ -1115,6 +1262,64 @@ HTML = """<!doctype html>
       const pinpoint = characterById(plan.pinpoint?.character_id);
       const main = characterById(plan.main?.character_id);
       return `群聊自动分工：${empathic.name}共情，${pinpoint.name}点明，${main.name}主回复`;
+    }
+
+    function formatJson(value) {
+      return escapeHtml(JSON.stringify(value ?? {}, null, 2));
+    }
+
+    function renderDevPanel(trace = lastDebugTrace) {
+      if (!trace) {
+        devPanel.innerHTML = `
+          <div class="dev-panel-header">
+            <h2>开发面板</h2>
+            <button type="button" onclick="window.closeDevPanel()">关闭</button>
+          </div>
+          <div class="empty">还没有本轮调试信息。发送一条消息后这里会显示后台流程。</div>
+        `;
+        return;
+      }
+      const calls = trace.llm_calls || [];
+      const steps = trace.steps || [];
+      devPanel.innerHTML = `
+        <div class="dev-panel-header">
+          <div>
+            <h2>开发面板</h2>
+            <div class="meta">${escapeHtml(trace.mode)} · LLM ${trace.llm_call_count ?? calls.length} 次 · ${trace.total_elapsed_sec ?? "-"}s</div>
+          </div>
+          <button type="button" onclick="window.closeDevPanel()">关闭</button>
+        </div>
+        <div class="dev-section">
+          <h3>流程步骤</h3>
+          <div class="dev-list">
+            ${steps.map((step, index) => `
+              <div class="dev-item">
+                <div><b>${index + 1}. ${escapeHtml(step.name)}</b> · ${escapeHtml(step.status || "-")}</div>
+                <div class="meta">${escapeHtml(step.summary || "")}</div>
+                ${step.output ? `<pre class="dev-pre">${formatJson(step.output)}</pre>` : ""}
+              </div>
+            `).join("") || '<div class="meta">无步骤记录。</div>'}
+          </div>
+        </div>
+        <div class="dev-section">
+          <h3>LLM 调用</h3>
+          <div class="dev-list">
+            ${calls.map((call, index) => `
+              <div class="dev-item">
+                <div><b>${index + 1}. ${escapeHtml(call.name)}</b> · ${escapeHtml(call.model || "-")} · ${escapeHtml(call.elapsed_sec ?? "-")}s</div>
+                <div class="meta">format: ${escapeHtml(call.response_format || "text")}</div>
+                ${call.error ? `<div class="meta">error: ${escapeHtml(call.error)}</div>` : ""}
+                ${call.parsed_output ? `<div class="meta">parsed output</div><pre class="dev-pre">${formatJson(call.parsed_output)}</pre>` : ""}
+                ${call.raw_output ? `<div class="meta">raw output</div><pre class="dev-pre">${escapeHtml(call.raw_output)}</pre>` : ""}
+              </div>
+            `).join("") || '<div class="meta">无 LLM 调用记录。</div>'}
+          </div>
+        </div>
+      `;
+    }
+
+    window.closeDevPanel = function() {
+      devPanel.classList.add("hidden");
     }
 
     function renderCharacters() {
@@ -1231,11 +1436,29 @@ HTML = """<!doctype html>
       send.textContent = value ? "等待中..." : "发送";
     }
 
-    function addMessage(role, text, knowledgeCards = [], characterId = null) {
+    function actionIcon(action) {
+      const icons = {
+        soft_lean: "↘",
+        tilt_head: "⌁",
+        slow_nod: "⌄",
+        warm_glow: "✦",
+        steady_guard: "●",
+        small_breath: "◦"
+      };
+      return icons[action] || "";
+    }
+
+    function addMessage(role, text, knowledgeCards = [], characterId = null, options = {}) {
       const character = characterId ? characterById(characterId) : CHARACTERS[0];
+      const groupRole = options.groupRole || "";
+      const action = options.action || "";
       const row = document.createElement("div");
       row.className = "row " + (role === "user" ? "user" : "deer");
+      if (groupRole) row.classList.add("group-" + groupRole);
       if (role !== "user") {
+        const avatarWrap = document.createElement("div");
+        avatarWrap.className = "avatar-wrap";
+        if (action) avatarWrap.dataset.action = action;
         let avatar;
         if (character.avatar_path) {
           avatar = document.createElement("img");
@@ -1250,7 +1473,15 @@ HTML = """<!doctype html>
         }
         avatar.classList.add("avatar");
         avatar.alt = character.name;
-        row.appendChild(avatar);
+        avatarWrap.appendChild(avatar);
+        const icon = actionIcon(action);
+        if (icon) {
+          const actionBadge = document.createElement("span");
+          actionBadge.className = "avatar-action";
+          actionBadge.textContent = icon;
+          avatarWrap.appendChild(actionBadge);
+        }
+        row.appendChild(avatarWrap);
       }
       const bubble = document.createElement("div");
       bubble.className = "bubble";
@@ -1270,9 +1501,11 @@ HTML = """<!doctype html>
       const body = document.createElement("div");
       body.className = "message-body";
       body.textContent = text;
-      bubble.appendChild(head);
+      if (!(role !== "user" && (groupRole === "empathic" || groupRole === "pinpoint"))) {
+        bubble.appendChild(head);
+      }
       bubble.appendChild(body);
-      const shouldCollapse = text.length > 80 || text.includes("\\n");
+      const shouldCollapse = groupRole !== "empathic" && groupRole !== "pinpoint" && (text.length > 80 || text.includes("\\n"));
       if (shouldCollapse) {
         body.classList.add("collapsed");
         const toggle = document.createElement("button");
@@ -1395,10 +1628,11 @@ HTML = """<!doctype html>
 
     window.closeDetail = closeDetail;
 
-    async function start() {
+    async function ensureSession() {
+      if (sessionId) return sessionId;
       const data = await post("/api/session");
       sessionId = data.session_id;
-      addSystem("新的会话已开始。");
+      return sessionId;
     }
 
     form.addEventListener("submit", async (event) => {
@@ -1407,13 +1641,16 @@ HTML = """<!doctype html>
       const text = input.value.trim();
       if (!text) return;
       input.value = "";
-      addMessage("user", text);
       const sendingCharacterId = replyMode === "auto" ? "auto" : activeCharacterId;
       const thinkingName = replyMode === "auto" ? "小动物们" : currentCharacter().name;
-      addSystem(thinkingName + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
       setBusy(true);
       try {
-        const data = await post("/api/chat", { session_id: sessionId, text, character_id: sendingCharacterId });
+        const currentSessionId = await ensureSession();
+        addMessage("user", text);
+        addSystem(thinkingName + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
+        const data = await post("/api/chat", { session_id: currentSessionId, text, character_id: sendingCharacterId });
+        lastDebugTrace = data.debug_trace || null;
+        renderDevPanel(lastDebugTrace);
         const routeSummary = routePlanSummary(data.route_plan);
         if (replyMode === "auto" && routeSummary) {
           addSystem(routeSummary);
@@ -1433,7 +1670,8 @@ HTML = """<!doctype html>
               "deer",
               item.text,
               index === data.group_messages.length - 1 ? (data.knowledge_cards || []) : [],
-              item.character?.id || activeCharacterId
+              item.character?.id || activeCharacterId,
+              { groupRole: item.role, action: item.action || "" }
             );
           });
         } else {
@@ -1456,6 +1694,11 @@ HTML = """<!doctype html>
 
     end.addEventListener("click", async () => {
       if (busy) return;
+      if (!sessionId) {
+        addSystem("还没有可总结的会话。先发送一条消息，再结束并总结。");
+        input.focus();
+        return;
+      }
       setBusy(true);
       try {
         const data = await post("/api/end", { session_id: sessionId });
@@ -1463,10 +1706,10 @@ HTML = """<!doctype html>
         if (data.memories.length) {
           addSystem("记忆处理：\\n" + data.memories.map(m => "- " + (m.action || "create") + " [" + m.category + "/" + (m.subcategory || "general") + "] " + m.content).join("\\n"));
         } else {
-        addSystem("这次没有新增长期记忆。");
+          addSystem("这次没有新增长期记忆。");
         }
         await loadData(activeDataView);
-        await start();
+        sessionId = null;
       } catch (error) {
         addSystem(error.message);
       } finally {
@@ -1776,7 +2019,8 @@ HTML = """<!doctype html>
             message.role === "user" ? "user" : "deer",
             message.content,
             [],
-            message.character_id || null
+            message.character_id || null,
+            { groupRole: message.group_role || "", action: message.action || "" }
           );
         }
         switchMainView("chat");
@@ -1799,6 +2043,10 @@ HTML = """<!doctype html>
       switchMainView("data");
     });
     chatShortcut.addEventListener("click", () => switchMainView("chat"));
+    devPanelToggle.addEventListener("click", () => {
+      renderDevPanel(lastDebugTrace);
+      devPanel.classList.toggle("hidden");
+    });
     groupToggle.addEventListener("click", () => {
       setReplyMode(replyMode === "auto" ? "manual" : "auto");
     });
@@ -1817,7 +2065,7 @@ HTML = """<!doctype html>
     updateCharacterBrand();
     setReplyMode(replyMode);
     renderAnimalStates(activeCharacterId);
-    start().catch(error => addSystem(error.message));
+    addSystem("新的会话会在你发送第一条消息时保存。");
   </script>
 </body>
 </html>

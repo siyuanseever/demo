@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import uuid
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
@@ -12,6 +13,16 @@ from app.memory.store import Store
 
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
+
+
+ROLE_ACTIONS = {
+    "soft_lean": "轻轻贴近",
+    "tilt_head": "歪头看向你",
+    "slow_nod": "慢慢点头",
+    "warm_glow": "轻轻发亮",
+    "steady_guard": "安静守住",
+    "small_breath": "陪你呼一口气",
+}
 
 
 def read_prompt(name: str) -> str:
@@ -140,29 +151,76 @@ def render_group_response_instruction(route_plan: dict) -> str:
         "\n\n本轮必须输出 JSON，不要输出 Markdown，不要输出 JSON 以外的正文。\n"
         "JSON schema：\n"
         "{\n"
+        '  "empathic_action": "动作 id，只能从 soft_lean, slow_nod, warm_glow, steady_guard, small_breath 中选择",\n'
         '  "empathic_text": "共情动作短句，18 字以内",\n'
+        '  "pinpoint_action": "动作 id，只能从 tilt_head, slow_nod, steady_guard, warm_glow 中选择",\n'
         '  "pinpoint_text": "一句话点明，35 字以内",\n'
         '  "main_reply": "主回复正文，3-6 段，克制但有深度"\n'
         "}\n"
-        f"empathic_text 必须由「{empathic.name}」说出，只接住情绪，不分析。\n"
-        f"pinpoint_text 必须由「{pinpoint.name}」说出，只点明一个痛点、事实或方向。\n"
+        f"empathic_text 必须由「{empathic.name}」说出，只接住情绪，不分析；不要写角色名字，不要写动作描写。\n"
+        f"pinpoint_text 必须由「{pinpoint.name}」说出，只点明一个痛点、事实或方向；不要写角色名字，不要写动作描写。\n"
         f"main_reply 必须由「{main.name}」说出，承担主要心理陪伴。\n"
-        "不要在字段文本前重复动物名字；前端会显示名字。"
+        "动作只能放进 *_action 字段。不要在任何 *_text 字段里写“歪头看你、轻轻贴近你、点点头”这类动作。"
     )
 
 
+def normalize_action(value: str | None, fallback: str) -> str:
+    return value if value in ROLE_ACTIONS else fallback
+
+
+def clean_short_text(text: str, character_name: str) -> str:
+    cleaned = text.strip()
+    for separator in ("：", ":", "，", ","):
+        prefix = f"{character_name}{separator}"
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+    if cleaned.startswith(character_name):
+        cleaned = cleaned[len(character_name):].strip(" ：:，,。")
+    action_phrases = [
+        "歪头看你",
+        "歪着头看你",
+        "轻轻贴近你",
+        "轻轻靠近你",
+        "慢慢点头",
+        "点点头",
+        "轻轻点头",
+        "轻轻发亮",
+        "安静守住",
+        "陪你呼一口气",
+    ]
+    changed = True
+    while changed:
+        changed = False
+        for phrase in action_phrases:
+            if cleaned.startswith(phrase):
+                cleaned = cleaned[len(phrase):].strip(" ：:，,。")
+                changed = True
+    return cleaned
+
+
 def normalize_group_response(raw: dict, route_plan: dict) -> dict:
+    empathic = get_character(route_plan["empathic"]["character_id"])
+    pinpoint = get_character(route_plan["pinpoint"]["character_id"])
     return {
         "empathic": {
             "character_id": route_plan["empathic"]["character_id"],
-            "text": str(raw.get("empathic_text") or "我在这里，先陪你停一下。")[:120],
+            "action": normalize_action(raw.get("empathic_action"), "soft_lean"),
+            "text": clean_short_text(
+                str(raw.get("empathic_text") or "我在这里，先陪你停一下。"),
+                empathic.name,
+            )[:120],
         },
         "pinpoint": {
             "character_id": route_plan["pinpoint"]["character_id"],
-            "text": str(raw.get("pinpoint_text") or "这里可能有一个很需要被看见的点。")[:180],
+            "action": normalize_action(raw.get("pinpoint_action"), "tilt_head"),
+            "text": clean_short_text(
+                str(raw.get("pinpoint_text") or "这里可能有一个很需要被看见的点。"),
+                pinpoint.name,
+            )[:180],
         },
         "main": {
             "character_id": route_plan["main"]["character_id"],
+            "action": normalize_action(raw.get("main_action"), "small_breath"),
             "text": str(raw.get("main_reply") or raw.get("reply") or "")[:4000],
         },
     }
@@ -175,6 +233,28 @@ def render_group_transcript(group_response: dict) -> str:
         character = get_character(item["character_id"])
         lines.append(f"{character.name}：{item['text']}")
     return "\n\n".join(lines)
+
+
+def group_response_messages(group_response: dict) -> list[dict]:
+    messages = []
+    for index, key in enumerate(("empathic", "pinpoint", "main")):
+        item = group_response[key]
+        messages.append(
+            {
+                "group_role": key,
+                "group_index": index,
+                "character_id": item["character_id"],
+                "action": item.get("action", ""),
+                "text": item["text"],
+            }
+        )
+    return messages
+
+
+def preview_text(text: str, limit: int = 3000) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"\n...（已截断，原始长度 {len(text)} 字符）"
 
 
 class ConversationOrchestrator:
@@ -200,11 +280,27 @@ class ConversationOrchestrator:
     ) -> dict:
         started_at = time.monotonic()
         route_plan = None
+        debug_trace = {
+            "mode": "group_auto" if character_id == "auto" else "single_character",
+            "steps": [],
+            "llm_calls": [],
+        }
         if character_id == "auto":
-            route_plan = self._choose_reply_roles(session_id, user_text)
+            route_plan = self._choose_reply_roles(session_id, user_text, debug_trace=debug_trace)
             character = get_character(route_plan["main"]["character_id"])
+            debug_trace["steps"].append({
+                "name": "role_router",
+                "status": "done",
+                "summary": "已选择共情、点明、主回复三个角色。",
+                "output": route_plan,
+            })
         else:
             character = get_character(character_id)
+            debug_trace["steps"].append({
+                "name": "manual_character",
+                "status": "done",
+                "summary": f"使用手动选择角色：{character.name}。",
+            })
         self.logger.info(
             "reply start session=%s character=%s user_chars=%s",
             session_id,
@@ -226,6 +322,14 @@ class ConversationOrchestrator:
                 "knowledge_cards": [],
                 "character": character.to_public_dict(),
                 "route_plan": route_plan,
+                "debug_trace": {
+                    **debug_trace,
+                    "steps": debug_trace["steps"] + [{
+                        "name": "safety",
+                        "status": "triggered",
+                        "summary": "命中安全兜底回复，未继续调用生成模型。",
+                    }],
+                },
             }
 
         messages = self.store.get_session_messages(session_id)
@@ -244,6 +348,16 @@ class ConversationOrchestrator:
             memory_keywords=memory_keywords,
             limit=3,
         )
+        debug_trace["steps"].append({
+            "name": "retrieve_context",
+            "status": "done",
+            "summary": "已读取历史消息、长期记忆，并检索知识卡。",
+            "output": {
+                "history_messages": max(0, len(messages) - 1),
+                "memory_count": len(memories),
+                "knowledge_cards": [card.get("title", "") for card in knowledge_cards],
+            },
+        })
         system_prompt = read_prompt("persona.md").format(
             character_profile=character.prompt,
             current_character_name=character.name,
@@ -257,31 +371,71 @@ class ConversationOrchestrator:
         llm_messages = [{"role": "system", "content": system_prompt}]
         llm_messages.append({"role": "user", "content": user_text})
 
+        generation_started_at = time.monotonic()
         response = self.llm.chat(
             llm_messages,
             temperature=0.75,
             max_tokens=900,
             response_format={"type": "json_object"} if route_plan else None,
         )
+        generation_call = {
+            "name": "group_response" if route_plan else "single_reply",
+            "model": response.model,
+            "elapsed_sec": round(time.monotonic() - generation_started_at, 2),
+            "response_format": "json_object" if route_plan else "text",
+            "raw_output": preview_text(response.content),
+        }
         group_response = None
         reply_content = response.content
         if route_plan:
             try:
                 group_response = normalize_group_response(json.loads(response.content), route_plan)
                 reply_content = render_group_transcript(group_response)
+                generation_call["parsed_output"] = group_response
             except (TypeError, json.JSONDecodeError):
                 self.logger.exception("group response parse failed; falling back to raw reply")
-        self.store.add_message(
-            session_id,
-            "assistant",
-            reply_content,
-            model=response.model,
-            metadata={
-                "character_id": character.id,
-                "route_plan": route_plan,
-                "group_response": group_response,
+                generation_call["parse_error"] = "JSON 解析失败，已回退为原始文本。"
+        debug_trace["llm_calls"].append(generation_call)
+        debug_trace["steps"].append({
+            "name": "generate_reply",
+            "status": "done",
+            "summary": "已生成回复内容。" if not route_plan else "已生成三角色结构化回复。",
+            "output": {
+                "main_character": character.name,
+                "reply_chars": len(reply_content),
+                "group_message_count": len(group_response_messages(group_response)) if group_response else 0,
             },
-        )
+        })
+        if group_response:
+            group_id = str(uuid.uuid4())
+            stored_group_messages = group_response_messages(group_response)
+            for item in stored_group_messages:
+                self.store.add_message(
+                    session_id,
+                    "assistant",
+                    item["text"],
+                    model=response.model,
+                    metadata={
+                        "character_id": item["character_id"],
+                        "route_plan": route_plan,
+                        "group_id": group_id,
+                        "group_role": item["group_role"],
+                        "group_index": item["group_index"],
+                        "group_size": len(stored_group_messages),
+                        "action": item["action"],
+                    },
+                )
+        else:
+            self.store.add_message(
+                session_id,
+                "assistant",
+                reply_content,
+                model=response.model,
+                metadata={
+                    "character_id": character.id,
+                    "route_plan": route_plan,
+                },
+            )
         self.logger.info(
             "reply done session=%s elapsed=%.2fs model=%s reply_chars=%s",
             session_id,
@@ -296,6 +450,7 @@ class ConversationOrchestrator:
                     {
                         "role": key,
                         "text": group_response[key]["text"],
+                        "action": group_response[key].get("action", ""),
                         "character": get_character(group_response[key]["character_id"]).to_public_dict(),
                     }
                     for key in ("empathic", "pinpoint", "main")
@@ -306,15 +461,21 @@ class ConversationOrchestrator:
             "knowledge_cards": knowledge_cards,
             "character": character.to_public_dict(),
             "route_plan": route_plan,
+            "debug_trace": {
+                **debug_trace,
+                "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                "llm_call_count": len(debug_trace["llm_calls"]),
+            },
         }
 
-    def _choose_reply_roles(self, session_id: str, user_text: str) -> dict:
+    def _choose_reply_roles(self, session_id: str, user_text: str, debug_trace: dict | None = None) -> dict:
         fallback = auto_select_character(user_text)
         messages = self.store.get_session_messages(session_id)
         prompt = read_prompt("role_router.md").format(
             character_options=render_character_options(),
             conversation_history=render_conversation_history(messages[-12:]),
         )
+        router_started_at = time.monotonic()
         try:
             response = self.llm.chat(
                 [
@@ -326,9 +487,27 @@ class ConversationOrchestrator:
                 response_format={"type": "json_object"},
             )
             raw_plan = json.loads(response.content)
+            if debug_trace is not None:
+                debug_trace["llm_calls"].append({
+                    "name": "role_router",
+                    "model": response.model,
+                    "elapsed_sec": round(time.monotonic() - router_started_at, 2),
+                    "response_format": "json_object",
+                    "raw_output": preview_text(response.content),
+                    "parsed_output": raw_plan,
+                })
         except Exception:
             self.logger.exception("role router failed; fallback=%s", fallback.id)
             raw_plan = {}
+            if debug_trace is not None:
+                debug_trace["llm_calls"].append({
+                    "name": "role_router",
+                    "model": "unknown",
+                    "elapsed_sec": round(time.monotonic() - router_started_at, 2),
+                    "response_format": "json_object",
+                    "error": "角色调度失败，已回退到关键词规则。",
+                    "fallback_character_id": fallback.id,
+                })
         return normalize_role_plan(raw_plan, fallback.id)
 
     def close_session(self, session_id: str) -> dict:

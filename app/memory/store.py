@@ -58,6 +58,10 @@ def message_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         metadata = {}
     item["metadata"] = metadata
     item["character_id"] = metadata.get("character_id", "")
+    item["group_id"] = metadata.get("group_id", "")
+    item["group_role"] = metadata.get("group_role", "")
+    item["group_index"] = metadata.get("group_index")
+    item["action"] = metadata.get("action", "")
     return item
 
 
@@ -188,7 +192,8 @@ class Store:
         *,
         model: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> str:
+        message_id = str(uuid.uuid4())
         with self.connect() as conn:
             conn.execute(
                 """
@@ -196,7 +201,7 @@ class Store:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(uuid.uuid4()),
+                    message_id,
                     session_id,
                     role,
                     content,
@@ -205,6 +210,7 @@ class Store:
                     utc_now(),
                 ),
             )
+        return message_id
 
     def get_session_messages(self, session_id: str) -> list[sqlite3.Row]:
         with self.connect() as conn:

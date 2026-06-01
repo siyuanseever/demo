@@ -36,8 +36,10 @@ class FakeClient:
             elif "empathic_text" in system and "pinpoint_text" in system:
                 content = json.dumps(
                     {
-                        "empathic_text": "我先在旁边陪你呼一口气。",
-                        "pinpoint_text": "这里真正累人的，可能是你一直在独自扛着。",
+                        "empathic_action": "soft_lean",
+                        "empathic_text": "感受到你心里的困惑和痛。",
+                        "pinpoint_action": "tilt_head",
+                        "pinpoint_text": "真正累人的，也许是你一直在独自扛着。",
                         "main_reply": (
                             "我听见了。你说的不是一个简单的“今天不开心”，而像是心里有一团东西一直没有被好好放下来。\n\n"
                             "我们可以先不急着解决它，只把它看清楚一点：它是在身体里更紧，还是在关系里更委屈？先分清这一点，就已经是在往内心走近。"
