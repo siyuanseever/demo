@@ -14,7 +14,38 @@ class FakeClient:
     ) -> LLMResponse:
         if response_format:
             system = messages[0]["content"]
-            if "candidate_memory" in messages[-1]["content"]:
+            if "角色调度器" in system:
+                content = json.dumps(
+                    {
+                        "empathic": {
+                            "character_id": "youyou_rabbit",
+                            "intent": "先轻轻接住难受",
+                        },
+                        "pinpoint": {
+                            "character_id": "huahua_fox",
+                            "intent": "点出正在找结构",
+                        },
+                        "main": {
+                            "character_id": "sensen_deer",
+                            "intent": "温柔地整理感受",
+                        },
+                        "reason": "fake 模式：固定返回三角色分工。",
+                    },
+                    ensure_ascii=False,
+                )
+            elif "empathic_text" in system and "pinpoint_text" in system:
+                content = json.dumps(
+                    {
+                        "empathic_text": "我先在旁边陪你呼一口气。",
+                        "pinpoint_text": "这里真正累人的，可能是你一直在独自扛着。",
+                        "main_reply": (
+                            "我听见了。你说的不是一个简单的“今天不开心”，而像是心里有一团东西一直没有被好好放下来。\n\n"
+                            "我们可以先不急着解决它，只把它看清楚一点：它是在身体里更紧，还是在关系里更委屈？先分清这一点，就已经是在往内心走近。"
+                        ),
+                    },
+                    ensure_ascii=False,
+                )
+            elif "candidate_memory" in messages[-1]["content"]:
                 payload = json.loads(messages[-1]["content"])
                 candidate = payload["candidate_memory"]
                 existing = payload["existing_memories"]

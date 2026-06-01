@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
-from app.characters import auto_select_character, get_character
+from app.characters import CHARACTERS, auto_select_character, get_character
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
 from app.memory.schema import MEMORY_CATEGORIES
@@ -58,6 +58,125 @@ def render_conversation_history(messages: list) -> str:
     return "\n".join(lines)
 
 
+def render_character_options() -> str:
+    lines = []
+    for profile in CHARACTERS.values():
+        lines.append(
+            f"- {profile.id}: {profile.name}（{profile.animal}）"
+            f"；气质：{profile.tagline}；声音：{profile.voice}"
+        )
+    return "\n".join(lines)
+
+
+def _normalize_role_id(value: str | None, fallback_id: str, used: set[str]) -> str:
+    if value in CHARACTERS and value not in used:
+        used.add(value)
+        return value
+    for character_id in CHARACTERS:
+        if character_id not in used:
+            used.add(character_id)
+            return character_id
+    return fallback_id
+
+
+def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
+    used: set[str] = set()
+    main_id = _normalize_role_id(
+        (raw_plan.get("main") or {}).get("character_id") or fallback_main_id,
+        fallback_main_id,
+        used,
+    )
+    empathic_id = _normalize_role_id(
+        (raw_plan.get("empathic") or {}).get("character_id"),
+        fallback_main_id,
+        used,
+    )
+    pinpoint_id = _normalize_role_id(
+        (raw_plan.get("pinpoint") or {}).get("character_id"),
+        fallback_main_id,
+        used,
+    )
+    return {
+        "empathic": {
+            "character_id": empathic_id,
+            "intent": str((raw_plan.get("empathic") or {}).get("intent") or "先接住用户表层情绪。")[:80],
+        },
+        "pinpoint": {
+            "character_id": pinpoint_id,
+            "intent": str((raw_plan.get("pinpoint") or {}).get("intent") or "用一句话点出一个可能的痛点。")[:80],
+        },
+        "main": {
+            "character_id": main_id,
+            "intent": str((raw_plan.get("main") or {}).get("intent") or "结合心理学视角做主要回应。")[:80],
+        },
+        "reason": str(raw_plan.get("reason") or "根据用户当前表达的情绪强度、问题类型和需要的支持方式选择。")[:160],
+    }
+
+
+def render_role_plan(route_plan: dict | None) -> str:
+    if not route_plan:
+        return "本轮是单角色回复。不要加入其他动物的短句。"
+    empathic = get_character(route_plan["empathic"]["character_id"])
+    pinpoint = get_character(route_plan["pinpoint"]["character_id"])
+    main = get_character(route_plan["main"]["character_id"])
+    return (
+        "本轮是三角色协作回复，但最终只输出一条消息。\n"
+        f"1. 共情动作：{empathic.name}。只在开头用一行很短的动作或表情接住表层情绪，不做分析。"
+        f"意图：{route_plan['empathic']['intent']}\n"
+        f"2. 一句话点明：{pinpoint.name}。随后用一句短话点到一个痛点、盲点或可依靠的事实；可以轻微幽默，但不能刺痛用户。"
+        f"意图：{route_plan['pinpoint']['intent']}\n"
+        f"3. 主回复：{main.name}。由它承担主要心理陪伴和解释。"
+        f"意图：{route_plan['main']['intent']}\n"
+        "格式要求：先写两行短句，每行以动物名字开头；然后空一行写主回复。"
+        "总长度仍要克制，不要让三只动物互相聊天。"
+    )
+
+
+def render_group_response_instruction(route_plan: dict) -> str:
+    empathic = get_character(route_plan["empathic"]["character_id"])
+    pinpoint = get_character(route_plan["pinpoint"]["character_id"])
+    main = get_character(route_plan["main"]["character_id"])
+    return (
+        "\n\n本轮必须输出 JSON，不要输出 Markdown，不要输出 JSON 以外的正文。\n"
+        "JSON schema：\n"
+        "{\n"
+        '  "empathic_text": "共情动作短句，18 字以内",\n'
+        '  "pinpoint_text": "一句话点明，35 字以内",\n'
+        '  "main_reply": "主回复正文，3-6 段，克制但有深度"\n'
+        "}\n"
+        f"empathic_text 必须由「{empathic.name}」说出，只接住情绪，不分析。\n"
+        f"pinpoint_text 必须由「{pinpoint.name}」说出，只点明一个痛点、事实或方向。\n"
+        f"main_reply 必须由「{main.name}」说出，承担主要心理陪伴。\n"
+        "不要在字段文本前重复动物名字；前端会显示名字。"
+    )
+
+
+def normalize_group_response(raw: dict, route_plan: dict) -> dict:
+    return {
+        "empathic": {
+            "character_id": route_plan["empathic"]["character_id"],
+            "text": str(raw.get("empathic_text") or "我在这里，先陪你停一下。")[:120],
+        },
+        "pinpoint": {
+            "character_id": route_plan["pinpoint"]["character_id"],
+            "text": str(raw.get("pinpoint_text") or "这里可能有一个很需要被看见的点。")[:180],
+        },
+        "main": {
+            "character_id": route_plan["main"]["character_id"],
+            "text": str(raw.get("main_reply") or raw.get("reply") or "")[:4000],
+        },
+    }
+
+
+def render_group_transcript(group_response: dict) -> str:
+    lines = []
+    for key in ("empathic", "pinpoint", "main"):
+        item = group_response[key]
+        character = get_character(item["character_id"])
+        lines.append(f"{character.name}：{item['text']}")
+    return "\n\n".join(lines)
+
+
 class ConversationOrchestrator:
     def __init__(self, llm: LLMClient, store: Store) -> None:
         self.llm = llm
@@ -80,11 +199,12 @@ class ConversationOrchestrator:
         character_id: str | None = None,
     ) -> dict:
         started_at = time.monotonic()
-        character = (
-            auto_select_character(user_text)
-            if character_id == "auto"
-            else get_character(character_id)
-        )
+        route_plan = None
+        if character_id == "auto":
+            route_plan = self._choose_reply_roles(session_id, user_text)
+            character = get_character(route_plan["main"]["character_id"])
+        else:
+            character = get_character(character_id)
         self.logger.info(
             "reply start session=%s character=%s user_chars=%s",
             session_id,
@@ -105,6 +225,7 @@ class ConversationOrchestrator:
                 "reply": CRISIS_RESPONSE,
                 "knowledge_cards": [],
                 "character": character.to_public_dict(),
+                "route_plan": route_plan,
             }
 
         messages = self.store.get_session_messages(session_id)
@@ -129,30 +250,86 @@ class ConversationOrchestrator:
             conversation_history=render_conversation_history(messages[:-1]),
             memories=render_memories(memories),
             knowledge_cards=render_knowledge_cards(knowledge_cards),
+            role_plan=render_role_plan(route_plan),
         )
+        if route_plan:
+            system_prompt += render_group_response_instruction(route_plan)
         llm_messages = [{"role": "system", "content": system_prompt}]
         llm_messages.append({"role": "user", "content": user_text})
 
-        response = self.llm.chat(llm_messages, temperature=0.75, max_tokens=700)
+        response = self.llm.chat(
+            llm_messages,
+            temperature=0.75,
+            max_tokens=900,
+            response_format={"type": "json_object"} if route_plan else None,
+        )
+        group_response = None
+        reply_content = response.content
+        if route_plan:
+            try:
+                group_response = normalize_group_response(json.loads(response.content), route_plan)
+                reply_content = render_group_transcript(group_response)
+            except (TypeError, json.JSONDecodeError):
+                self.logger.exception("group response parse failed; falling back to raw reply")
         self.store.add_message(
             session_id,
             "assistant",
-            response.content,
+            reply_content,
             model=response.model,
-            metadata={"character_id": character.id},
+            metadata={
+                "character_id": character.id,
+                "route_plan": route_plan,
+                "group_response": group_response,
+            },
         )
         self.logger.info(
             "reply done session=%s elapsed=%.2fs model=%s reply_chars=%s",
             session_id,
             time.monotonic() - started_at,
             response.model,
-            len(response.content),
+            len(reply_content),
         )
         return {
-            "reply": response.content,
+            "reply": group_response["main"]["text"] if group_response else reply_content,
+            "group_messages": (
+                [
+                    {
+                        "role": key,
+                        "text": group_response[key]["text"],
+                        "character": get_character(group_response[key]["character_id"]).to_public_dict(),
+                    }
+                    for key in ("empathic", "pinpoint", "main")
+                ]
+                if group_response
+                else []
+            ),
             "knowledge_cards": knowledge_cards,
             "character": character.to_public_dict(),
+            "route_plan": route_plan,
         }
+
+    def _choose_reply_roles(self, session_id: str, user_text: str) -> dict:
+        fallback = auto_select_character(user_text)
+        messages = self.store.get_session_messages(session_id)
+        prompt = read_prompt("role_router.md").format(
+            character_options=render_character_options(),
+            conversation_history=render_conversation_history(messages[-12:]),
+        )
+        try:
+            response = self.llm.chat(
+                [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_text},
+                ],
+                temperature=0.2,
+                max_tokens=500,
+                response_format={"type": "json_object"},
+            )
+            raw_plan = json.loads(response.content)
+        except Exception:
+            self.logger.exception("role router failed; fallback=%s", fallback.id)
+            raw_plan = {}
+        return normalize_role_plan(raw_plan, fallback.id)
 
     def close_session(self, session_id: str) -> dict:
         started_at = time.monotonic()

@@ -1109,6 +1109,14 @@ HTML = """<!doctype html>
       return CHARACTERS.find(item => item.id === characterId) || CHARACTERS[0];
     }
 
+    function routePlanSummary(plan) {
+      if (!plan || !plan.main) return "";
+      const empathic = characterById(plan.empathic?.character_id);
+      const pinpoint = characterById(plan.pinpoint?.character_id);
+      const main = characterById(plan.main?.character_id);
+      return `群聊自动分工：${empathic.name}共情，${pinpoint.name}点明，${main.name}主回复`;
+    }
+
     function renderCharacters() {
       characterStrip.innerHTML = CHARACTERS.map(character => `
         <button class="character-button ${replyMode === "manual" && character.id === activeCharacterId ? "active" : ""}" type="button" data-character="${escapeHtml(character.id)}" title="${escapeHtml(character.tagline)}">
@@ -1406,7 +1414,10 @@ HTML = """<!doctype html>
       setBusy(true);
       try {
         const data = await post("/api/chat", { session_id: sessionId, text, character_id: sendingCharacterId });
-        if (replyMode === "auto" && data.character?.name) {
+        const routeSummary = routePlanSummary(data.route_plan);
+        if (replyMode === "auto" && routeSummary) {
+          addSystem(routeSummary);
+        } else if (replyMode === "auto" && data.character?.name) {
           addSystem("群聊自动选择：" + data.character.name);
         }
         if (data.character?.id) {
@@ -1415,7 +1426,19 @@ HTML = """<!doctype html>
           updateAnimalState(data.character.id, data.reply);
           renderSelectedAnimalCard();
         }
-        addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
+        if (Array.isArray(data.group_messages) && data.group_messages.length) {
+          data.group_messages.forEach((item, index) => {
+            if (item.character?.id) updateAnimalState(item.character.id, item.text);
+            addMessage(
+              "deer",
+              item.text,
+              index === data.group_messages.length - 1 ? (data.knowledge_cards || []) : [],
+              item.character?.id || activeCharacterId
+            );
+          });
+        } else {
+          addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
+        }
       } catch (error) {
         addSystem(error.message);
       } finally {
