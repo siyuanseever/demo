@@ -506,6 +506,7 @@ class ConversationOrchestrator:
             temperature=0.75,
             max_tokens=1100,
             response_format={"type": "json_object"} if route_plan else None,
+            thinking="disabled",
         )
         generation_call = {
             "name": "group_response" if route_plan else "single_reply",
@@ -629,6 +630,8 @@ class ConversationOrchestrator:
                 temperature=0.2,
                 max_tokens=650,
                 response_format={"type": "json_object"},
+                thinking="enabled",
+                reasoning_effort="high",
             )
             raw_plan = json.loads(response.content)
             if debug_trace is not None:

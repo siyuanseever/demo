@@ -47,6 +47,14 @@ cp .env.example .env
 DEEPSEEK_API_KEY=sk-你的key
 ```
 
+DeepSeek 支持按请求开关 thinking。本项目默认全局关闭 thinking，但自动群聊的第一轮 `turn_planner` 会单独启用 thinking，第二轮回复生成会关闭 thinking。
+
+```env
+DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_THINKING=disabled
+DEEPSEEK_REASONING_EFFORT=high
+```
+
 ### 2. 启动 Web UI（推荐）
 
 ```bash

@@ -18,6 +18,7 @@ def main() -> None:
         base_url=settings.deepseek_base_url,
         timeout=settings.deepseek_timeout,
         thinking=settings.deepseek_thinking,
+        reasoning_effort=settings.deepseek_reasoning_effort,
         stream=settings.deepseek_stream,
     )
     started_at = time.monotonic()
@@ -26,6 +27,7 @@ def main() -> None:
     print(f"model={settings.deepseek_model}")
     print(f"timeout={settings.deepseek_timeout}s")
     print(f"thinking={settings.deepseek_thinking}")
+    print(f"reasoning_effort={settings.deepseek_reasoning_effort}")
     print(f"stream={settings.deepseek_stream}")
     print(f"has_key={bool(settings.deepseek_api_key)}")
 

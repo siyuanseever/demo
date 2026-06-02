@@ -11,6 +11,8 @@ class FakeClient:
         temperature: float = 0.7,
         max_tokens: int = 1200,
         response_format: dict | None = None,
+        thinking: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         if response_format:
             system = messages[0]["content"]

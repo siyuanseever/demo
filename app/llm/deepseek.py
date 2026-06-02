@@ -16,6 +16,7 @@ class DeepSeekClient:
         base_url: str,
         timeout: float = 30,
         thinking: str = "disabled",
+        reasoning_effort: str = "high",
         stream: bool = True,
     ) -> None:
         self.api_key = api_key
@@ -23,6 +24,7 @@ class DeepSeekClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.thinking = thinking
+        self.reasoning_effort = reasoning_effort
         self.stream = stream
         self.logger = logging.getLogger(__name__)
 
@@ -33,16 +35,23 @@ class DeepSeekClient:
         temperature: float = 0.7,
         max_tokens: int = 1200,
         response_format: dict | None = None,
+        thinking: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
+        effective_thinking = thinking if thinking is not None else self.thinking
+        effective_reasoning_effort = reasoning_effort or self.reasoning_effort
         payload: dict = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": self.stream,
         }
-        if self.thinking in {"enabled", "disabled"}:
-            payload["thinking"] = {"type": self.thinking}
+        if effective_thinking != "enabled":
+            payload["temperature"] = temperature
+        if effective_thinking in {"enabled", "disabled"}:
+            payload["thinking"] = {"type": effective_thinking}
+        if effective_thinking == "enabled" and effective_reasoning_effort in {"high", "max"}:
+            payload["reasoning_effort"] = effective_reasoning_effort
         if response_format:
             payload["response_format"] = response_format
 
@@ -58,12 +67,13 @@ class DeepSeekClient:
 
         started_at = time.monotonic()
         self.logger.info(
-            "deepseek request start model=%s messages=%s max_tokens=%s stream=%s thinking=%s",
+            "deepseek request start model=%s messages=%s max_tokens=%s stream=%s thinking=%s effort=%s",
             self.model,
             len(messages),
             max_tokens,
             self.stream,
-            self.thinking,
+            effective_thinking,
+            payload.get("reasoning_effort", "-"),
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:

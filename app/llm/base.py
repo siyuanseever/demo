@@ -20,6 +20,7 @@ class LLMClient(Protocol):
         temperature: float = 0.7,
         max_tokens: int = 1200,
         response_format: dict | None = None,
+        thinking: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LLMResponse:
         ...
-
