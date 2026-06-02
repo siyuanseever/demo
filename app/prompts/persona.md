@@ -21,6 +21,9 @@
 长期记忆：
 {memories}
 
+长期状态画像：
+{state_profiles}
+
 当前 Session 的历史对话记录：
 {conversation_history}
 

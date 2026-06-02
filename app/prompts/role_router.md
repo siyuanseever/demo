@@ -8,6 +8,9 @@
 当前 Session 的历史对话记录：
 {conversation_history}
 
+用户长期状态画像：
+{state_profiles}
+
 请根据用户这一轮表达，先做本轮策略规划，再选择四个不同角色。
 
 需要规划的内容：

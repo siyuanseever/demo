@@ -385,8 +385,14 @@ class ConversationOrchestrator:
             "steps": [],
             "llm_calls": [],
         }
+        state_profiles = self.store.list_state_profiles()
         if character_id == "auto":
-            route_plan = self._choose_reply_roles(session_id, user_text, debug_trace=debug_trace)
+            route_plan = self._choose_reply_roles(
+                session_id,
+                user_text,
+                state_profiles=state_profiles,
+                debug_trace=debug_trace,
+            )
             character = get_character(route_plan["main"]["character_id"])
             debug_trace["steps"].append({
                 "name": "turn_planner",
@@ -455,6 +461,7 @@ class ConversationOrchestrator:
             "output": {
                 "history_messages": max(0, len(messages) - 1),
                 "memory_count": len(memories),
+                "state_profile_count": len(state_profiles),
                 "knowledge_cards": [card.get("title", "") for card in knowledge_cards],
             },
         })
@@ -463,6 +470,7 @@ class ConversationOrchestrator:
             current_character_name=character.name,
             conversation_history=render_conversation_history(messages[:-1]),
             memories=render_memories(memories),
+            state_profiles=render_state_profiles(state_profiles),
             knowledge_cards=render_knowledge_cards(knowledge_cards),
             role_plan=render_role_plan(route_plan),
         )
@@ -573,12 +581,22 @@ class ConversationOrchestrator:
             },
         }
 
-    def _choose_reply_roles(self, session_id: str, user_text: str, debug_trace: dict | None = None) -> dict:
+    def _choose_reply_roles(
+        self,
+        session_id: str,
+        user_text: str,
+        *,
+        state_profiles: list[dict] | None = None,
+        debug_trace: dict | None = None,
+    ) -> dict:
         fallback = auto_select_character(user_text)
         messages = self.store.get_session_messages(session_id)
+        if state_profiles is None:
+            state_profiles = self.store.list_state_profiles()
         prompt = read_prompt("role_router.md").format(
             character_options=render_character_options(),
             conversation_history=render_conversation_history(messages[-12:]),
+            state_profiles=render_state_profiles(state_profiles),
         )
         router_started_at = time.monotonic()
         try:
