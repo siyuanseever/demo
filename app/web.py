@@ -686,6 +686,23 @@ HTML = """<!doctype html>
       background: var(--accent);
       color: #fff;
     }
+    .memory-switch {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .memory-switch button {
+      background: #e9dac9;
+      color: #4b3829;
+      padding: 8px 11px;
+      border-radius: 999px;
+    }
+    .memory-switch button.active {
+      background: var(--accent);
+      color: #fff;
+    }
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -1230,6 +1247,7 @@ HTML = """<!doctype html>
     let busy = false;
     let activeDataView = "sessions";
     let memoryItems = [];
+    let memoryViewMode = "taxonomy";
     let lastDebugTrace = null;
     const CHARACTERS = __CHARACTERS_JSON__;
     let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
@@ -1775,7 +1793,50 @@ HTML = """<!doctype html>
 
     function renderMemories(items) {
       memoryItems = items;
-      renderMemoryTaxonomy();
+      if (memoryViewMode === "recent") {
+        renderMemoryRecent();
+      } else {
+        renderMemoryTaxonomy();
+      }
+    }
+
+    function renderMemorySwitch(activeMode) {
+      return `
+        <div class="memory-switch" aria-label="记忆查看方式">
+          <button class="${activeMode === "taxonomy" ? "active" : ""}" type="button" onclick="window.setMemoryViewMode('taxonomy')">按分类</button>
+          <button class="${activeMode === "recent" ? "active" : ""}" type="button" onclick="window.setMemoryViewMode('recent')">最近更新</button>
+        </div>
+      `;
+    }
+
+    window.setMemoryViewMode = function(mode) {
+      memoryViewMode = mode === "recent" ? "recent" : "taxonomy";
+      if (memoryViewMode === "recent") renderMemoryRecent();
+      else renderMemoryTaxonomy();
+    }
+
+    function memoryDateLabel(item) {
+      const updated = item.updated_at || "";
+      const created = item.created_at || "";
+      if (!updated && !created) return "无日期";
+      if (updated && created && updated !== created) return "更新 " + updated + " · 创建 " + created;
+      return "创建 " + (updated || created);
+    }
+
+    function renderMemoryCard(item) {
+      return `
+        <article class="card">
+          <h3>${escapeHtml(item.content)}</h3>
+          <div class="meta">${escapeHtml(item.category)} / ${escapeHtml(item.subcategory || "general")}</div>
+          <div class="meta">status: ${escapeHtml(item.status || "active")} · importance: ${item.importance} · confidence: ${item.confidence}</div>
+          <div class="meta">${escapeHtml(memoryDateLabel(item))}</div>
+          <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
+          <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+          <div class="content">证据：${escapeHtml(item.evidence)}</div>
+          ${item.merge_note ? `<div class="meta">merge note: ${escapeHtml(item.merge_note)}</div>` : ""}
+          <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
+        </article>
+      `;
     }
 
     async function renderMemoryTaxonomy() {
@@ -1787,7 +1848,7 @@ HTML = """<!doctype html>
         groups.get(key).push(item);
       }
       dataList.className = "stack";
-      dataList.innerHTML = [...groups.entries()].map(([category, subcategories]) => `
+      dataList.innerHTML = renderMemorySwitch("taxonomy") + [...groups.entries()].map(([category, subcategories]) => `
         <section>
           <h2 class="group-title">${escapeHtml(category)} · ${subcategories.reduce((sum, item) => sum + item.count, 0)}</h2>
           <div class="grid">
@@ -1804,6 +1865,25 @@ HTML = """<!doctype html>
       `).join("");
     }
 
+    function renderMemoryRecent() {
+      const sorted = [...memoryItems].sort((left, right) => {
+        const leftDate = left.updated_at || left.created_at || "";
+        const rightDate = right.updated_at || right.created_at || "";
+        return rightDate.localeCompare(leftDate);
+      });
+      dataList.className = "stack";
+      dataList.innerHTML = `
+        ${renderMemorySwitch("recent")}
+        <section>
+          <h2 class="group-title">最近更新 · ${sorted.length}</h2>
+          <div class="meta">按 updated_at 从最近到最远排列；如果记忆刚创建，updated_at 和 created_at 通常相同。</div>
+          <div class="grid">
+            ${sorted.length ? sorted.map(renderMemoryCard).join("") : '<div class="empty">还没有保存的记忆。</div>'}
+          </div>
+        </section>
+      `;
+    }
+
     window.showMemorySubcategory = function(category, subcategory) {
       const memories = memoryItems.filter(item =>
         item.category === category && (item.subcategory || "general") === subcategory
@@ -1812,20 +1892,9 @@ HTML = """<!doctype html>
       dataList.innerHTML = `
         <section>
           <h2 class="group-title">${escapeHtml(category)} / ${escapeHtml(subcategory)} · ${memories.length}</h2>
-          <button type="button" onclick="renderMemoryTaxonomy()">返回小类总览</button>
+          <button type="button" onclick="window.setMemoryViewMode('taxonomy')">返回小类总览</button>
           <div class="grid">
-            ${memories.length ? memories.map(item => `
-              <article class="card">
-                <h3>${escapeHtml(item.content)}</h3>
-                <div class="meta">status: ${escapeHtml(item.status || "active")} · importance: ${item.importance} · confidence: ${item.confidence}</div>
-                <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
-                <div class="meta">updated: ${escapeHtml(item.updated_at)}</div>
-                <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
-                <div class="content">证据：${escapeHtml(item.evidence)}</div>
-                ${item.merge_note ? `<div class="meta">merge note: ${escapeHtml(item.merge_note)}</div>` : ""}
-                <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
-              </article>
-            `).join("") : '<div class="empty">这个小类目前还没有记忆。</div>'}
+            ${memories.length ? memories.map(renderMemoryCard).join("") : '<div class="empty">这个小类目前还没有记忆。</div>'}
           </div>
         </section>
       `;
