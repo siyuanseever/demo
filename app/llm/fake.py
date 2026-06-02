@@ -23,33 +23,39 @@ class FakeClient:
                         "response_mode": "insight",
                         "knowledge_needs": ["严苛的内在批判者", "创伤性向内归因", "全能控制感"],
                         "response_guidance": "先承认这种模式曾经保护过用户，再温和区分保护与伤害。",
-                        "empathic": {
+                        "empathy": {
                             "character_id": "youyou_rabbit",
                             "intent": "先轻轻接住难受",
                         },
-                        "pinpoint": {
+                        "need": {
                             "character_id": "huahua_fox",
-                            "intent": "点出正在找结构",
+                            "intent": "点明想被理解",
                         },
                         "main": {
                             "character_id": "sensen_deer",
                             "intent": "温柔地整理感受",
                         },
-                        "reason": "fake 模式：固定返回三角色分工。",
+                        "anchor": {
+                            "character_id": "shanshan_butterfly",
+                            "intent": "留下轻一点的锚点",
+                        },
+                        "reason": "fake 模式：固定返回四角色分工。",
                     },
                     ensure_ascii=False,
                 )
-            elif "empathic_text" in system and "pinpoint_text" in system:
+            elif "empathy_text" in system and "need_text" in system:
                 content = json.dumps(
                     {
-                        "empathic_action": "soft_lean",
-                        "empathic_text": "感受到你心里的困惑和痛。",
-                        "pinpoint_action": "tilt_head",
-                        "pinpoint_text": "真正累人的，也许是你一直在独自扛着。",
+                        "empathy_action": "soft_lean",
+                        "empathy_text": "感受到你心里的困惑和痛。",
+                        "need_action": "tilt_head",
+                        "need_text": "你可能很想确认：不完美的自己也能被爱。",
                         "main_reply": (
                             "我听见了。你说的不是一个简单的“今天不开心”，而像是心里有一团东西一直没有被好好放下来。\n\n"
                             "我们可以先不急着解决它，只把它看清楚一点：它是在身体里更紧，还是在关系里更委屈？先分清这一点，就已经是在往内心走近。"
                         ),
+                        "anchor_action": "warm_glow",
+                        "anchor_text": "你不用靠完美，才配得上安稳。",
                     },
                     ensure_ascii=False,
                 )

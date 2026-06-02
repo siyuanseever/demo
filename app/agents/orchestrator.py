@@ -26,6 +26,7 @@ ROLE_ACTIONS = {
 
 RISK_LEVELS = {"low", "medium", "high"}
 RESPONSE_MODES = {"stabilize", "validate", "insight", "boundary", "action", "mixed"}
+GROUP_RESPONSE_ORDER = ("empathy", "need", "main", "anchor")
 
 
 def read_prompt(name: str) -> str:
@@ -116,25 +117,41 @@ def _normalize_knowledge_needs(value: object) -> list[str]:
     return needs[:5]
 
 
+def _role_payload(raw_plan: dict, key: str, legacy_key: str | None = None) -> dict:
+    payload = raw_plan.get(key)
+    if not isinstance(payload, dict) and legacy_key:
+        payload = raw_plan.get(legacy_key)
+    return payload if isinstance(payload, dict) else {}
+
+
 def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
     if not isinstance(raw_plan, dict):
         raw_plan = {}
     used: set[str] = set()
     main_id = _normalize_role_id(
-        (raw_plan.get("main") or {}).get("character_id") or fallback_main_id,
+        _role_payload(raw_plan, "main").get("character_id") or fallback_main_id,
         fallback_main_id,
         used,
     )
-    empathic_id = _normalize_role_id(
-        (raw_plan.get("empathic") or {}).get("character_id"),
+    empathy_id = _normalize_role_id(
+        _role_payload(raw_plan, "empathy", "empathic").get("character_id"),
         fallback_main_id,
         used,
     )
-    pinpoint_id = _normalize_role_id(
-        (raw_plan.get("pinpoint") or {}).get("character_id"),
+    need_id = _normalize_role_id(
+        _role_payload(raw_plan, "need", "pinpoint").get("character_id"),
         fallback_main_id,
         used,
     )
+    anchor_id = _normalize_role_id(
+        _role_payload(raw_plan, "anchor").get("character_id"),
+        fallback_main_id,
+        used,
+    )
+    empathy_payload = _role_payload(raw_plan, "empathy", "empathic")
+    need_payload = _role_payload(raw_plan, "need", "pinpoint")
+    main_payload = _role_payload(raw_plan, "main")
+    anchor_payload = _role_payload(raw_plan, "anchor")
     return {
         "user_state": _short_text(raw_plan.get("user_state"), "需要进一步理解用户此刻状态。", 60),
         "core_need": _short_text(raw_plan.get("core_need"), "被接住，并获得一点清晰感。", 60),
@@ -146,17 +163,21 @@ def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
             "先承接，再给出克制的心理学解释；避免替用户下过重结论。",
             140,
         ),
-        "empathic": {
-            "character_id": empathic_id,
-            "intent": str((raw_plan.get("empathic") or {}).get("intent") or "先接住用户表层情绪。")[:80],
+        "empathy": {
+            "character_id": empathy_id,
+            "intent": str(empathy_payload.get("intent") or "先接住用户表层情绪。")[:80],
         },
-        "pinpoint": {
-            "character_id": pinpoint_id,
-            "intent": str((raw_plan.get("pinpoint") or {}).get("intent") or "用一句话点出一个可能的痛点。")[:80],
+        "need": {
+            "character_id": need_id,
+            "intent": str(need_payload.get("intent") or "点明用户背后真正需要什么。")[:80],
         },
         "main": {
             "character_id": main_id,
-            "intent": str((raw_plan.get("main") or {}).get("intent") or "结合心理学视角做主要回应。")[:80],
+            "intent": str(main_payload.get("intent") or "结合心理学视角做主要回应。")[:80],
+        },
+        "anchor": {
+            "character_id": anchor_id,
+            "intent": str(anchor_payload.get("intent") or "留下一句轻而稳的收束话。")[:80],
         },
         "reason": str(raw_plan.get("reason") or "根据用户当前表达的情绪强度、问题类型和需要的支持方式选择。")[:160],
     }
@@ -165,11 +186,12 @@ def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
 def render_role_plan(route_plan: dict | None) -> str:
     if not route_plan:
         return "本轮是单角色回复。不要加入其他动物的短句。"
-    empathic = get_character(route_plan["empathic"]["character_id"])
-    pinpoint = get_character(route_plan["pinpoint"]["character_id"])
+    empathy = get_character(route_plan["empathy"]["character_id"])
+    need = get_character(route_plan["need"]["character_id"])
     main = get_character(route_plan["main"]["character_id"])
+    anchor = get_character(route_plan["anchor"]["character_id"])
     return (
-        "本轮是三角色协作回复，但最终只输出一条消息。\n"
+        "本轮是四角色协作回复，但最终只输出一条结构化消息。\n"
         "本轮策略规划：\n"
         f"- 用户状态：{route_plan['user_state']}\n"
         f"- 核心需要：{route_plan['core_need']}\n"
@@ -177,34 +199,39 @@ def render_role_plan(route_plan: dict | None) -> str:
         f"- 回复模式：{route_plan['response_mode']}\n"
         f"- 知识需求：{'、'.join(route_plan['knowledge_needs']) if route_plan['knowledge_needs'] else '暂无明确知识卡需求'}\n"
         f"- 写作提醒：{route_plan['response_guidance']}\n"
-        f"1. 共情动作：{empathic.name}。只在开头用一行很短的动作或表情接住表层情绪，不做分析。"
-        f"意图：{route_plan['empathic']['intent']}\n"
-        f"2. 一句话点明：{pinpoint.name}。随后用一句短话点到一个痛点、盲点或可依靠的事实；可以轻微幽默，但不能刺痛用户。"
-        f"意图：{route_plan['pinpoint']['intent']}\n"
+        f"1. 共情承接：{empathy.name}。先用一句很短的话描述并接住用户当前感受，不分析。"
+        f"意图：{route_plan['empathy']['intent']}\n"
+        f"2. 需求点明：{need.name}。随后用一句短话点明用户背后的需要、渴望或保护性动机。"
+        f"意图：{route_plan['need']['intent']}\n"
         f"3. 主回复：{main.name}。由它承担主要心理陪伴和解释。"
         f"意图：{route_plan['main']['intent']}\n"
-        "格式要求：先写两行短句，每行以动物名字开头；然后空一行写主回复。"
-        "总长度仍要克制，不要让三只动物互相聊天。"
+        f"4. 收束锚点：{anchor.name}。最后留下一句很短、可带走的鼓励或提醒。"
+        f"意图：{route_plan['anchor']['intent']}\n"
+        "总长度仍要克制，不要让动物互相聊天。"
     )
 
 
 def render_group_response_instruction(route_plan: dict) -> str:
-    empathic = get_character(route_plan["empathic"]["character_id"])
-    pinpoint = get_character(route_plan["pinpoint"]["character_id"])
+    empathy = get_character(route_plan["empathy"]["character_id"])
+    need = get_character(route_plan["need"]["character_id"])
     main = get_character(route_plan["main"]["character_id"])
+    anchor = get_character(route_plan["anchor"]["character_id"])
     return (
         "\n\n本轮必须输出 JSON，不要输出 Markdown，不要输出 JSON 以外的正文。\n"
         "JSON schema：\n"
         "{\n"
-        '  "empathic_action": "动作 id，只能从 soft_lean, slow_nod, warm_glow, steady_guard, small_breath 中选择",\n'
-        '  "empathic_text": "共情动作短句，18 字以内",\n'
-        '  "pinpoint_action": "动作 id，只能从 tilt_head, slow_nod, steady_guard, warm_glow 中选择",\n'
-        '  "pinpoint_text": "一句话点明，35 字以内",\n'
-        '  "main_reply": "主回复正文，3-6 段，克制但有深度"\n'
+        '  "empathy_action": "动作 id，只能从 soft_lean, slow_nod, warm_glow, steady_guard, small_breath 中选择",\n'
+        '  "empathy_text": "共情承接短句，24 字以内",\n'
+        '  "need_action": "动作 id，只能从 tilt_head, slow_nod, steady_guard, warm_glow 中选择",\n'
+        '  "need_text": "需求点明短句，45 字以内",\n'
+        '  "main_reply": "主回复正文，3-6 段，克制但有深度",\n'
+        '  "anchor_action": "动作 id，只能从 warm_glow, steady_guard, small_breath, slow_nod 中选择",\n'
+        '  "anchor_text": "收束锚点短句，32 字以内"\n'
         "}\n"
-        f"empathic_text 必须由「{empathic.name}」说出，只接住情绪，不分析；不要写角色名字，不要写动作描写。\n"
-        f"pinpoint_text 必须由「{pinpoint.name}」说出，只点明一个痛点、事实或方向；不要写角色名字，不要写动作描写。\n"
+        f"empathy_text 必须由「{empathy.name}」说出，只描述并接住用户感受；不要写角色名字，不要写动作描写。\n"
+        f"need_text 必须由「{need.name}」说出，只点明用户背后的需要、渴望或保护性动机；不要写角色名字，不要写动作描写。\n"
         f"main_reply 必须由「{main.name}」说出，承担主要心理陪伴。\n"
+        f"anchor_text 必须由「{anchor.name}」说出，只留一句很短的收束锚点；不要写角色名字，不要写动作描写。\n"
         "动作只能放进 *_action 字段。不要在任何 *_text 字段里写“歪头看你、轻轻贴近你、点点头”这类动作。"
     )
 
@@ -244,23 +271,24 @@ def clean_short_text(text: str, character_name: str) -> str:
 
 
 def normalize_group_response(raw: dict, route_plan: dict) -> dict:
-    empathic = get_character(route_plan["empathic"]["character_id"])
-    pinpoint = get_character(route_plan["pinpoint"]["character_id"])
+    empathy = get_character(route_plan["empathy"]["character_id"])
+    need = get_character(route_plan["need"]["character_id"])
+    anchor = get_character(route_plan["anchor"]["character_id"])
     return {
-        "empathic": {
-            "character_id": route_plan["empathic"]["character_id"],
-            "action": normalize_action(raw.get("empathic_action"), "soft_lean"),
+        "empathy": {
+            "character_id": route_plan["empathy"]["character_id"],
+            "action": normalize_action(raw.get("empathy_action") or raw.get("empathic_action"), "soft_lean"),
             "text": clean_short_text(
-                str(raw.get("empathic_text") or "我在这里，先陪你停一下。"),
-                empathic.name,
+                str(raw.get("empathy_text") or raw.get("empathic_text") or "我在这里，先陪你停一下。"),
+                empathy.name,
             )[:120],
         },
-        "pinpoint": {
-            "character_id": route_plan["pinpoint"]["character_id"],
-            "action": normalize_action(raw.get("pinpoint_action"), "tilt_head"),
+        "need": {
+            "character_id": route_plan["need"]["character_id"],
+            "action": normalize_action(raw.get("need_action") or raw.get("pinpoint_action"), "tilt_head"),
             "text": clean_short_text(
-                str(raw.get("pinpoint_text") or "这里可能有一个很需要被看见的点。"),
-                pinpoint.name,
+                str(raw.get("need_text") or raw.get("pinpoint_text") or "你可能很想知道，自己真正需要的是什么。"),
+                need.name,
             )[:180],
         },
         "main": {
@@ -268,12 +296,20 @@ def normalize_group_response(raw: dict, route_plan: dict) -> dict:
             "action": normalize_action(raw.get("main_action"), "small_breath"),
             "text": str(raw.get("main_reply") or raw.get("reply") or "")[:4000],
         },
+        "anchor": {
+            "character_id": route_plan["anchor"]["character_id"],
+            "action": normalize_action(raw.get("anchor_action"), "warm_glow"),
+            "text": clean_short_text(
+                str(raw.get("anchor_text") or "你不用靠完美，才配得上安稳。"),
+                anchor.name,
+            )[:160],
+        },
     }
 
 
 def render_group_transcript(group_response: dict) -> str:
     lines = []
-    for key in ("empathic", "pinpoint", "main"):
+    for key in GROUP_RESPONSE_ORDER:
         item = group_response[key]
         character = get_character(item["character_id"])
         lines.append(f"{character.name}：{item['text']}")
@@ -282,7 +318,7 @@ def render_group_transcript(group_response: dict) -> str:
 
 def group_response_messages(group_response: dict) -> list[dict]:
     messages = []
-    for index, key in enumerate(("empathic", "pinpoint", "main")):
+    for index, key in enumerate(GROUP_RESPONSE_ORDER):
         item = group_response[key]
         messages.append(
             {
@@ -420,7 +456,7 @@ class ConversationOrchestrator:
         response = self.llm.chat(
             llm_messages,
             temperature=0.75,
-            max_tokens=900,
+            max_tokens=1100,
             response_format={"type": "json_object"} if route_plan else None,
         )
         generation_call = {
@@ -444,7 +480,7 @@ class ConversationOrchestrator:
         debug_trace["steps"].append({
             "name": "generate_reply",
             "status": "done",
-            "summary": "已生成回复内容。" if not route_plan else "已生成三角色结构化回复。",
+            "summary": "已生成回复内容。" if not route_plan else "已生成四角色结构化回复。",
             "output": {
                 "main_character": character.name,
                 "reply_chars": len(reply_content),
@@ -498,7 +534,7 @@ class ConversationOrchestrator:
                         "action": group_response[key].get("action", ""),
                         "character": get_character(group_response[key]["character_id"]).to_public_dict(),
                     }
-                    for key in ("empathic", "pinpoint", "main")
+                    for key in GROUP_RESPONSE_ORDER
                 ]
                 if group_response
                 else []
@@ -528,7 +564,7 @@ class ConversationOrchestrator:
                     {"role": "user", "content": user_text},
                 ],
                 temperature=0.2,
-                max_tokens=500,
+                max_tokens=650,
                 response_format={"type": "json_object"},
             )
             raw_plan = json.loads(response.content)

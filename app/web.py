@@ -618,6 +618,7 @@ HTML = """<!doctype html>
         border: 1px solid var(--border);
         border-top-left-radius: 8px;
       }
+    .row.group-empathy .bubble,
     .row.group-empathic .bubble {
       max-width: min(430px, 74%);
       padding: 7px 11px;
@@ -625,6 +626,15 @@ HTML = """<!doctype html>
       border: 1px solid rgba(255, 255, 255, 0.72);
       box-shadow: 0 5px 13px rgba(94, 57, 37, 0.045);
       opacity: 0.92;
+    }
+    .row.group-need .bubble {
+      max-width: min(540px, 80%);
+      padding: 8px 13px 8px 15px;
+      border-radius: 14px 18px 18px 7px;
+      border: 1px solid rgba(255, 255, 255, 0.78);
+      border-left: 3px solid rgba(118, 148, 128, 0.32);
+      box-shadow: 0 6px 15px rgba(94, 57, 37, 0.05);
+      font-weight: 560;
     }
     .row.group-pinpoint .bubble {
       max-width: min(500px, 78%);
@@ -638,7 +648,19 @@ HTML = """<!doctype html>
     .row.group-main .bubble {
       max-width: min(680px, 86%);
     }
+    .row.group-anchor .bubble {
+      max-width: min(460px, 76%);
+      padding: 7px 12px;
+      border-radius: 17px 17px 17px 7px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-bottom: 2px solid rgba(226, 190, 166, 0.42);
+      box-shadow: 0 5px 13px rgba(94, 57, 37, 0.045);
+      font-weight: 600;
+    }
+    .row.group-empathy .message-body,
     .row.group-empathic .message-body,
+    .row.group-need .message-body,
+    .row.group-anchor .message-body,
     .row.group-pinpoint .message-body {
       font-size: 14px;
       line-height: 1.5;
@@ -1310,11 +1332,13 @@ HTML = """<!doctype html>
 
     function routePlanSummary(plan) {
       if (!plan || !plan.main) return "";
-      const empathic = characterById(plan.empathic?.character_id);
-      const pinpoint = characterById(plan.pinpoint?.character_id);
+      const empathy = characterById((plan.empathy || plan.empathic)?.character_id);
+      const need = characterById((plan.need || plan.pinpoint)?.character_id);
       const main = characterById(plan.main?.character_id);
+      const anchor = plan.anchor ? characterById(plan.anchor?.character_id) : null;
       const mode = plan.response_mode ? ` · ${plan.response_mode}` : "";
-      return `本轮规划${mode}：${empathic.name}共情，${pinpoint.name}点明，${main.name}主回复`;
+      const anchorText = anchor ? `，${anchor.name}收束` : "";
+      return `本轮规划${mode}：${empathy.name}共情，${need.name}点明需求，${main.name}主回复${anchorText}`;
     }
 
     function formatJson(value) {
@@ -1323,9 +1347,10 @@ HTML = """<!doctype html>
 
     function renderTurnPlan(plan) {
       if (!plan) return "";
-      const empathic = characterById(plan.empathic?.character_id);
-      const pinpoint = characterById(plan.pinpoint?.character_id);
+      const empathy = characterById((plan.empathy || plan.empathic)?.character_id);
+      const need = characterById((plan.need || plan.pinpoint)?.character_id);
       const main = characterById(plan.main?.character_id);
+      const anchor = plan.anchor ? characterById(plan.anchor?.character_id) : null;
       const needs = Array.isArray(plan.knowledge_needs) ? plan.knowledge_needs : [];
       return `
         <div class="dev-section">
@@ -1349,7 +1374,7 @@ HTML = """<!doctype html>
             </div>
             <div class="dev-plan-cell">
               <div class="dev-plan-label">角色分工</div>
-              <div class="dev-plan-value">${escapeHtml(empathic.name)}共情 · ${escapeHtml(pinpoint.name)}点明 · ${escapeHtml(main.name)}主回复</div>
+              <div class="dev-plan-value">${escapeHtml(empathy.name)}共情 · ${escapeHtml(need.name)}需求 · ${escapeHtml(main.name)}主回复${anchor ? " · " + escapeHtml(anchor.name) + "收束" : ""}</div>
             </div>
             <div class="dev-plan-cell">
               <div class="dev-plan-label">知识需要</div>
@@ -1601,11 +1626,12 @@ HTML = """<!doctype html>
       const body = document.createElement("div");
       body.className = "message-body";
       body.textContent = text;
-      if (!(role !== "user" && (groupRole === "empathic" || groupRole === "pinpoint"))) {
+      const compactGroupRole = ["empathy", "empathic", "need", "pinpoint", "anchor"].includes(groupRole);
+      if (!(role !== "user" && compactGroupRole)) {
         bubble.appendChild(head);
       }
       bubble.appendChild(body);
-      const shouldCollapse = groupRole !== "empathic" && groupRole !== "pinpoint" && (text.length > 80 || text.includes("\\n"));
+      const shouldCollapse = !compactGroupRole && (text.length > 80 || text.includes("\\n"));
       if (shouldCollapse) {
         body.classList.add("collapsed");
         const toggle = document.createElement("button");
