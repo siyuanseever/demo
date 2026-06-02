@@ -490,21 +490,25 @@ class ConversationOrchestrator:
         if group_response:
             group_id = str(uuid.uuid4())
             stored_group_messages = group_response_messages(group_response)
+            knowledge_card_ids = [card.get("id", "") for card in knowledge_cards if card.get("id")]
             for item in stored_group_messages:
+                metadata = {
+                    "character_id": item["character_id"],
+                    "route_plan": route_plan,
+                    "group_id": group_id,
+                    "group_role": item["group_role"],
+                    "group_index": item["group_index"],
+                    "group_size": len(stored_group_messages),
+                    "action": item["action"],
+                }
+                if item["group_role"] == "main" and knowledge_card_ids:
+                    metadata["knowledge_card_ids"] = knowledge_card_ids
                 self.store.add_message(
                     session_id,
                     "assistant",
                     item["text"],
                     model=response.model,
-                    metadata={
-                        "character_id": item["character_id"],
-                        "route_plan": route_plan,
-                        "group_id": group_id,
-                        "group_role": item["group_role"],
-                        "group_index": item["group_index"],
-                        "group_size": len(stored_group_messages),
-                        "action": item["action"],
-                    },
+                    metadata=metadata,
                 )
         else:
             self.store.add_message(
@@ -515,6 +519,7 @@ class ConversationOrchestrator:
                 metadata={
                     "character_id": character.id,
                     "route_plan": route_plan,
+                    "knowledge_card_ids": [card.get("id", "") for card in knowledge_cards if card.get("id")],
                 },
             )
         self.logger.info(

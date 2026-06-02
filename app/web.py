@@ -1790,12 +1790,15 @@ HTML = """<!doctype html>
           renderSelectedAnimalCard();
         }
         if (Array.isArray(data.group_messages) && data.group_messages.length) {
+          const knowledgeCards = Array.isArray(data.knowledge_cards) ? data.knowledge_cards : [];
+          const mainMessageIndex = data.group_messages.findIndex(item => String(item.role || item.group_role || "").trim().toLowerCase() === "main");
+          const cardTargetIndex = mainMessageIndex >= 0 ? mainMessageIndex : data.group_messages.length - 1;
           data.group_messages.forEach((item, index) => {
             if (item.character?.id) updateAnimalState(item.character.id, item.text);
             addMessage(
               "deer",
               item.text,
-              index === data.group_messages.length - 1 ? (data.knowledge_cards || []) : [],
+              index === cardTargetIndex ? knowledgeCards : [],
               item.character?.id || activeCharacterId,
               { groupRole: item.role, action: item.action || "" }
             );
@@ -2195,7 +2198,7 @@ HTML = """<!doctype html>
           addMessage(
             message.role === "user" ? "user" : "deer",
             message.content,
-            [],
+            message.knowledge_cards || [],
             message.character_id || null,
             { groupRole: message.group_role || "", action: message.action || "" }
           );
@@ -2383,9 +2386,17 @@ class Handler(BaseHTTPRequestHandler):
             self.respond_json({"error": "missing session id"}, status=400)
             return
         store = self.app.orchestrator.store
+        messages = store.list_messages(session_id=session_id)
+        for message in messages:
+            card_ids = message.get("knowledge_card_ids", [])
+            message["knowledge_cards"] = [
+                card
+                for card_id in card_ids
+                if (card := self.app.orchestrator.knowledge.get_card(card_id))
+            ]
         self.respond_json(
             {
-                "messages": store.list_messages(session_id=session_id),
+                "messages": messages,
                 "journals": store.list_journals(session_id=session_id),
             }
         )
