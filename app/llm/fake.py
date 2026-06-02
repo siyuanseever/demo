@@ -22,6 +22,8 @@ class FakeClient:
                         "risk_level": "low",
                         "response_mode": "insight",
                         "knowledge_needs": ["严苛的内在批判者", "创伤性向内归因", "全能控制感"],
+                        "memory_queries": ["道德感", "自我苛责", "完美主义", "欲望压抑"],
+                        "knowledge_queries": ["过度道德化", "严苛内在批判者", "创伤性向内归因"],
                         "response_guidance": "先承认这种模式曾经保护过用户，再温和区分保护与伤害。",
                         "empathy": {
                             "character_id": "youyou_rabbit",

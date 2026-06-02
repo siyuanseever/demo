@@ -34,9 +34,13 @@ class KnowledgeRetriever:
         query: str,
         *,
         memory_keywords: list[str] | None = None,
+        query_terms: list[str] | None = None,
         limit: int = 3,
     ) -> list[dict[str, Any]]:
         tokens = set(memory_keywords or [])
+        for term in query_terms or []:
+            if str(term or "").strip():
+                tokens.add(str(term).strip())
         for chunk in query.replace("，", " ").replace("。", " ").split():
             if chunk.strip():
                 tokens.add(chunk.strip())
@@ -57,7 +61,7 @@ class KnowledgeRetriever:
                 if token and token in haystack:
                     score += 2
             for tag in card["tags"]:
-                if tag in query:
+                if tag in query or tag in tokens:
                     score += 3
             if score > 0:
                 scored.append((score, card))

@@ -91,6 +91,13 @@ def mood_score_for_journal(journal: dict[str, Any]) -> int:
     return max(-3, min(3, score))
 
 
+def tokenize_query(text: str) -> list[str]:
+    normalized = text
+    for char in "，。！？；：、,.!?;:\n\t":
+        normalized = normalized.replace(char, " ")
+    return [chunk.strip() for chunk in normalized.split() if chunk.strip()]
+
+
 class Store:
     def __init__(self, path: str) -> None:
         self.path = path
@@ -659,6 +666,58 @@ class Store:
             except (TypeError, json.JSONDecodeError):
                 memory["keywords"] = []
         return memories
+
+    def search_memories(
+        self,
+        query: str,
+        *,
+        query_terms: list[str] | None = None,
+        limit: int = 8,
+    ) -> list[dict[str, Any]]:
+        tokens = []
+        for token in tokenize_query(query):
+            if token not in tokens:
+                tokens.append(token)
+        for term in query_terms or []:
+            text = str(term or "").strip()
+            if text and text not in tokens:
+                tokens.append(text)
+        if not tokens:
+            return self.recent_memories(limit=limit)
+
+        memories = [memory for memory in self.list_memories(limit=10000) if memory.get("status") == "active"]
+        scored: list[tuple[float, dict[str, Any]]] = []
+        for memory in memories:
+            keywords = memory.get("keywords", [])
+            if not isinstance(keywords, list):
+                keywords = []
+            haystack = " ".join(
+                [
+                    memory.get("category", ""),
+                    memory.get("subcategory", ""),
+                    memory.get("content", ""),
+                    memory.get("evidence", ""),
+                    " ".join(str(keyword) for keyword in keywords),
+                ]
+            )
+            score = 0.0
+            for token in tokens:
+                if not token:
+                    continue
+                if token in keywords:
+                    score += 4
+                if token in memory.get("content", ""):
+                    score += 3
+                if token in memory.get("evidence", ""):
+                    score += 2
+                if token in haystack:
+                    score += 1
+            if score > 0:
+                score += float(memory.get("importance", 1)) * 0.2
+                score += float(memory.get("confidence", 0.5)) * 0.2
+                scored.append((score, memory))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [memory for _, memory in scored[:limit]]
 
     def memory_taxonomy_counts(self) -> list[dict[str, Any]]:
         memories = self.list_memories(limit=10000)

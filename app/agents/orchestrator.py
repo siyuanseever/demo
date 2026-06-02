@@ -125,15 +125,15 @@ def _normalize_choice(value: object, allowed: set[str], fallback: str) -> str:
     return text if text in allowed else fallback
 
 
-def _normalize_knowledge_needs(value: object) -> list[str]:
+def _normalize_query_terms(value: object, limit: int = 6) -> list[str]:
     if not isinstance(value, list):
         return []
-    needs = []
+    terms = []
     for item in value:
         text = str(item or "").strip()
-        if text and text not in needs:
-            needs.append(text[:32])
-    return needs[:5]
+        if text and text not in terms:
+            terms.append(text[:32])
+    return terms[:limit]
 
 
 def _role_payload(raw_plan: dict, key: str, legacy_key: str | None = None) -> dict:
@@ -176,7 +176,9 @@ def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
         "core_need": _short_text(raw_plan.get("core_need"), "被接住，并获得一点清晰感。", 60),
         "risk_level": _normalize_choice(raw_plan.get("risk_level"), RISK_LEVELS, "low"),
         "response_mode": _normalize_choice(raw_plan.get("response_mode"), RESPONSE_MODES, "mixed"),
-        "knowledge_needs": _normalize_knowledge_needs(raw_plan.get("knowledge_needs")),
+        "knowledge_needs": _normalize_query_terms(raw_plan.get("knowledge_needs"), limit=5),
+        "memory_queries": _normalize_query_terms(raw_plan.get("memory_queries"), limit=6),
+        "knowledge_queries": _normalize_query_terms(raw_plan.get("knowledge_queries"), limit=6),
         "response_guidance": _short_text(
             raw_plan.get("response_guidance"),
             "先承接，再给出克制的心理学解释；避免替用户下过重结论。",
@@ -439,7 +441,15 @@ class ConversationOrchestrator:
             }
 
         messages = self.store.get_session_messages(session_id)
-        memories = self.store.recent_memories()
+        memory_queries = route_plan.get("memory_queries", []) if route_plan else []
+        knowledge_queries = []
+        if route_plan:
+            knowledge_queries = route_plan.get("knowledge_needs", []) + route_plan.get("knowledge_queries", [])
+        memories = self.store.search_memories(
+            user_text,
+            query_terms=memory_queries,
+            limit=8,
+        )
         memory_keywords = []
         for memory in memories:
             keywords = memory["keywords"]
@@ -451,7 +461,8 @@ class ConversationOrchestrator:
             memory_keywords.extend(keywords)
         knowledge_cards = self.knowledge.retrieve(
             user_text,
-            memory_keywords=memory_keywords,
+            memory_keywords=[] if route_plan else memory_keywords,
+            query_terms=knowledge_queries,
             limit=3,
         )
         debug_trace["steps"].append({
@@ -461,7 +472,17 @@ class ConversationOrchestrator:
             "output": {
                 "history_messages": max(0, len(messages) - 1),
                 "memory_count": len(memories),
+                "memory_queries": memory_queries,
                 "state_profile_count": len(state_profiles),
+                "knowledge_queries": knowledge_queries,
+                "retrieved_memories": [
+                    {
+                        "category": memory.get("category", ""),
+                        "subcategory": memory.get("subcategory", ""),
+                        "content": memory.get("content", ""),
+                    }
+                    for memory in memories[:8]
+                ],
                 "knowledge_cards": [card.get("title", "") for card in knowledge_cards],
             },
         })

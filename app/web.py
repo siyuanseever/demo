@@ -1353,6 +1353,8 @@ HTML = """<!doctype html>
       const main = characterById(plan.main?.character_id);
       const anchor = plan.anchor ? characterById(plan.anchor?.character_id) : null;
       const needs = Array.isArray(plan.knowledge_needs) ? plan.knowledge_needs : [];
+      const memoryQueries = Array.isArray(plan.memory_queries) ? plan.memory_queries : [];
+      const knowledgeQueries = Array.isArray(plan.knowledge_queries) ? plan.knowledge_queries : [];
       return `
         <div class="dev-section">
           <h3>本轮策略规划</h3>
@@ -1381,6 +1383,18 @@ HTML = """<!doctype html>
               <div class="dev-plan-label">知识需要</div>
               <div class="dev-tags">
                 ${needs.length ? needs.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
+              </div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">记忆检索词</div>
+              <div class="dev-tags">
+                ${memoryQueries.length ? memoryQueries.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
+              </div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">知识检索词</div>
+              <div class="dev-tags">
+                ${knowledgeQueries.length ? knowledgeQueries.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
               </div>
             </div>
           </div>
