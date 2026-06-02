@@ -24,6 +24,9 @@ ROLE_ACTIONS = {
     "small_breath": "陪你呼一口气",
 }
 
+RISK_LEVELS = {"low", "medium", "high"}
+RESPONSE_MODES = {"stabilize", "validate", "insight", "boundary", "action", "mixed"}
+
 
 def read_prompt(name: str) -> str:
     return (PROMPT_DIR / name).read_text(encoding="utf-8")
@@ -90,7 +93,32 @@ def _normalize_role_id(value: str | None, fallback_id: str, used: set[str]) -> s
     return fallback_id
 
 
+def _short_text(value: object, fallback: str, limit: int) -> str:
+    text = str(value or "").strip()
+    if not text:
+        text = fallback
+    return text[:limit]
+
+
+def _normalize_choice(value: object, allowed: set[str], fallback: str) -> str:
+    text = str(value or "").strip().lower()
+    return text if text in allowed else fallback
+
+
+def _normalize_knowledge_needs(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    needs = []
+    for item in value:
+        text = str(item or "").strip()
+        if text and text not in needs:
+            needs.append(text[:32])
+    return needs[:5]
+
+
 def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
+    if not isinstance(raw_plan, dict):
+        raw_plan = {}
     used: set[str] = set()
     main_id = _normalize_role_id(
         (raw_plan.get("main") or {}).get("character_id") or fallback_main_id,
@@ -108,6 +136,16 @@ def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
         used,
     )
     return {
+        "user_state": _short_text(raw_plan.get("user_state"), "需要进一步理解用户此刻状态。", 60),
+        "core_need": _short_text(raw_plan.get("core_need"), "被接住，并获得一点清晰感。", 60),
+        "risk_level": _normalize_choice(raw_plan.get("risk_level"), RISK_LEVELS, "low"),
+        "response_mode": _normalize_choice(raw_plan.get("response_mode"), RESPONSE_MODES, "mixed"),
+        "knowledge_needs": _normalize_knowledge_needs(raw_plan.get("knowledge_needs")),
+        "response_guidance": _short_text(
+            raw_plan.get("response_guidance"),
+            "先承接，再给出克制的心理学解释；避免替用户下过重结论。",
+            140,
+        ),
         "empathic": {
             "character_id": empathic_id,
             "intent": str((raw_plan.get("empathic") or {}).get("intent") or "先接住用户表层情绪。")[:80],
@@ -132,6 +170,13 @@ def render_role_plan(route_plan: dict | None) -> str:
     main = get_character(route_plan["main"]["character_id"])
     return (
         "本轮是三角色协作回复，但最终只输出一条消息。\n"
+        "本轮策略规划：\n"
+        f"- 用户状态：{route_plan['user_state']}\n"
+        f"- 核心需要：{route_plan['core_need']}\n"
+        f"- 风险等级：{route_plan['risk_level']}\n"
+        f"- 回复模式：{route_plan['response_mode']}\n"
+        f"- 知识需求：{'、'.join(route_plan['knowledge_needs']) if route_plan['knowledge_needs'] else '暂无明确知识卡需求'}\n"
+        f"- 写作提醒：{route_plan['response_guidance']}\n"
         f"1. 共情动作：{empathic.name}。只在开头用一行很短的动作或表情接住表层情绪，不做分析。"
         f"意图：{route_plan['empathic']['intent']}\n"
         f"2. 一句话点明：{pinpoint.name}。随后用一句短话点到一个痛点、盲点或可依靠的事实；可以轻微幽默，但不能刺痛用户。"
@@ -289,9 +334,9 @@ class ConversationOrchestrator:
             route_plan = self._choose_reply_roles(session_id, user_text, debug_trace=debug_trace)
             character = get_character(route_plan["main"]["character_id"])
             debug_trace["steps"].append({
-                "name": "role_router",
+                "name": "turn_planner",
                 "status": "done",
-                "summary": "已选择共情、点明、主回复三个角色。",
+                "summary": "已完成本轮状态、需求、回复模式与角色分工规划。",
                 "output": route_plan,
             })
         else:
@@ -489,7 +534,7 @@ class ConversationOrchestrator:
             raw_plan = json.loads(response.content)
             if debug_trace is not None:
                 debug_trace["llm_calls"].append({
-                    "name": "role_router",
+                    "name": "turn_planner",
                     "model": response.model,
                     "elapsed_sec": round(time.monotonic() - router_started_at, 2),
                     "response_format": "json_object",
@@ -501,11 +546,11 @@ class ConversationOrchestrator:
             raw_plan = {}
             if debug_trace is not None:
                 debug_trace["llm_calls"].append({
-                    "name": "role_router",
+                    "name": "turn_planner",
                     "model": "unknown",
                     "elapsed_sec": round(time.monotonic() - router_started_at, 2),
                     "response_format": "json_object",
-                    "error": "角色调度失败，已回退到关键词规则。",
+                    "error": "本轮策略规划失败，已回退到关键词规则。",
                     "fallback_character_id": fallback.id,
                 })
         return normalize_role_plan(raw_plan, fallback.id)

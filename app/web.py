@@ -381,6 +381,40 @@ HTML = """<!doctype html>
       background: rgba(255, 248, 239, 0.78);
       border: 1px solid rgba(226, 190, 166, 0.42);
     }
+    .dev-plan-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .dev-plan-cell {
+      border-radius: 12px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(226, 190, 166, 0.36);
+    }
+    .dev-plan-label {
+      margin-bottom: 3px;
+      color: rgba(111, 74, 62, 0.72);
+      font-size: 11px;
+    }
+    .dev-plan-value {
+      color: #4b3829;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .dev-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .dev-tag {
+      border-radius: 999px;
+      padding: 3px 7px;
+      background: rgba(255, 248, 239, 0.9);
+      border: 1px solid rgba(226, 190, 166, 0.45);
+      color: #6f4a3e;
+      font-size: 11px;
+    }
     .dev-pre {
       margin: 7px 0 0;
       max-height: 220px;
@@ -1279,11 +1313,57 @@ HTML = """<!doctype html>
       const empathic = characterById(plan.empathic?.character_id);
       const pinpoint = characterById(plan.pinpoint?.character_id);
       const main = characterById(plan.main?.character_id);
-      return `群聊自动分工：${empathic.name}共情，${pinpoint.name}点明，${main.name}主回复`;
+      const mode = plan.response_mode ? ` · ${plan.response_mode}` : "";
+      return `本轮规划${mode}：${empathic.name}共情，${pinpoint.name}点明，${main.name}主回复`;
     }
 
     function formatJson(value) {
       return escapeHtml(JSON.stringify(value ?? {}, null, 2));
+    }
+
+    function renderTurnPlan(plan) {
+      if (!plan) return "";
+      const empathic = characterById(plan.empathic?.character_id);
+      const pinpoint = characterById(plan.pinpoint?.character_id);
+      const main = characterById(plan.main?.character_id);
+      const needs = Array.isArray(plan.knowledge_needs) ? plan.knowledge_needs : [];
+      return `
+        <div class="dev-section">
+          <h3>本轮策略规划</h3>
+          <div class="dev-plan-grid">
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">用户状态</div>
+              <div class="dev-plan-value">${escapeHtml(plan.user_state || "-")}</div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">核心需要</div>
+              <div class="dev-plan-value">${escapeHtml(plan.core_need || "-")}</div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">风险等级</div>
+              <div class="dev-plan-value">${escapeHtml(plan.risk_level || "-")}</div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">回复模式</div>
+              <div class="dev-plan-value">${escapeHtml(plan.response_mode || "-")}</div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">角色分工</div>
+              <div class="dev-plan-value">${escapeHtml(empathic.name)}共情 · ${escapeHtml(pinpoint.name)}点明 · ${escapeHtml(main.name)}主回复</div>
+            </div>
+            <div class="dev-plan-cell">
+              <div class="dev-plan-label">知识需要</div>
+              <div class="dev-tags">
+                ${needs.length ? needs.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
+              </div>
+            </div>
+          </div>
+          <div class="dev-item" style="margin-top: 7px;">
+            <div class="dev-plan-label">写作提醒</div>
+            <div class="dev-plan-value">${escapeHtml(plan.response_guidance || "-")}</div>
+          </div>
+        </div>
+      `;
     }
 
     function renderDevPanel(trace = lastDebugTrace) {
@@ -1299,6 +1379,7 @@ HTML = """<!doctype html>
       }
       const calls = trace.llm_calls || [];
       const steps = trace.steps || [];
+      const turnPlan = steps.find(step => step.name === "turn_planner" && step.output)?.output;
       devPanel.innerHTML = `
         <div class="dev-panel-header">
           <div>
@@ -1307,6 +1388,7 @@ HTML = """<!doctype html>
           </div>
           <button type="button" onclick="window.closeDevPanel()">关闭</button>
         </div>
+        ${renderTurnPlan(turnPlan)}
         <div class="dev-section">
           <h3>流程步骤</h3>
           <div class="dev-list">

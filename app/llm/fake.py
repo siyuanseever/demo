@@ -14,9 +14,15 @@ class FakeClient:
     ) -> LLMResponse:
         if response_format:
             system = messages[0]["content"]
-            if "角色调度器" in system:
+            if "策略规划器" in system:
                 content = json.dumps(
                     {
+                        "user_state": "在复杂情绪里寻找心理机制解释",
+                        "core_need": "被理解，并把内在模式理清楚",
+                        "risk_level": "low",
+                        "response_mode": "insight",
+                        "knowledge_needs": ["严苛的内在批判者", "创伤性向内归因", "全能控制感"],
+                        "response_guidance": "先承认这种模式曾经保护过用户，再温和区分保护与伤害。",
                         "empathic": {
                             "character_id": "youyou_rabbit",
                             "intent": "先轻轻接住难受",
