@@ -8,7 +8,7 @@ from app.agents.safety import CRISIS_RESPONSE, detect_crisis
 from app.characters import CHARACTERS, auto_select_character, get_character
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
-from app.memory.schema import MEMORY_CATEGORIES
+from app.memory.schema import MEMORY_CATEGORIES, STATE_PROFILE_DOMAINS, STATE_PROFILE_TRENDS
 from app.memory.store import Store
 
 
@@ -47,6 +47,25 @@ def render_memories(memories: list) -> str:
         lines.append(
             f"- [{memory['category']}/{memory['subcategory']}] {memory['content']}"
             f"（关键词：{'、'.join(keywords)}；证据：{memory['evidence']}）"
+        )
+    return "\n".join(lines)
+
+
+def render_state_profiles(profiles: list[dict]) -> str:
+    if not profiles:
+        return "暂无长期状态画像。"
+    lines = []
+    for profile in profiles:
+        evidence = profile.get("evidence", [])
+        if isinstance(evidence, list):
+            evidence_text = "；".join(str(item) for item in evidence[:3])
+        else:
+            evidence_text = ""
+        lines.append(
+            f"- [{profile.get('domain', '')}] {profile.get('stage', '')}：{profile.get('summary', '')}"
+            f"（强度：{profile.get('intensity', '-')}/10；趋势：{profile.get('trend', '')}；"
+            f"置信度：{profile.get('confidence', '-')}; 策略：{profile.get('support_strategy', '')}；"
+            f"证据：{evidence_text or '暂无'}）"
         )
     return "\n".join(lines)
 
@@ -606,15 +625,21 @@ class ConversationOrchestrator:
         journal = self._write_journal(transcript)
         candidates = self._extract_memories(transcript)
         memory_results = self._merge_memories(session_id, candidates)
+        try:
+            state_profile_results = self._review_state_profiles(session_id, transcript)
+        except Exception:
+            self.logger.exception("state profile review failed session=%s", session_id)
+            state_profile_results = []
         self.store.add_journal(session_id, journal)
         self.store.end_session(session_id)
         self.logger.info(
-            "close_session done session=%s elapsed=%.2fs memory_results=%s",
+            "close_session done session=%s elapsed=%.2fs memory_results=%s state_profile_results=%s",
             session_id,
             time.monotonic() - started_at,
             len(memory_results),
+            len(state_profile_results),
         )
-        return {"journal": journal, "memories": memory_results}
+        return {"journal": journal, "memories": memory_results, "state_profiles": state_profile_results}
 
     def _write_journal(self, transcript: str) -> dict:
         prompt = read_prompt("journal.md")
@@ -687,6 +712,81 @@ class ConversationOrchestrator:
             memory_id = self.store.add_memory(session_id, memory)
             results.append({**memory, "id": memory_id, "action": "create", "reason": reason})
         return results
+
+    def _review_state_profiles(self, session_id: str, transcript: str) -> list[dict]:
+        current_profiles = self.store.list_state_profiles()
+        prompt = read_prompt("state_profile_review.md").format(
+            domains=", ".join(STATE_PROFILE_DOMAINS),
+            trends=", ".join(STATE_PROFILE_TRENDS),
+            current_profiles=render_state_profiles(current_profiles),
+        )
+        response = self.llm.chat(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": transcript},
+            ],
+            temperature=0.2,
+            max_tokens=900,
+            response_format={"type": "json_object"},
+        )
+        payload = json.loads(response.content)
+        updates = payload.get("updates", [])
+        if not isinstance(updates, list):
+            return []
+        existing_domains = {profile.get("domain") for profile in current_profiles}
+        results = []
+        for update in updates[:3]:
+            if not isinstance(update, dict):
+                continue
+            domain = update.get("domain")
+            action = update.get("action", "no_change")
+            if domain not in STATE_PROFILE_DOMAINS:
+                continue
+            if action not in {"create", "update", "no_change"}:
+                action = "no_change"
+            if action == "create" and domain in existing_domains:
+                action = "update"
+            if action == "update" and domain not in existing_domains:
+                action = "create"
+            normalized = self._normalize_state_profile_update(update, action)
+            if action == "no_change":
+                results.append({**normalized, "action": action})
+                continue
+            saved = self.store.upsert_state_profile(
+                session_id,
+                normalized,
+                action=action,
+                reason=normalized["reason"],
+            )
+            results.append(saved)
+        return results
+
+    def _normalize_state_profile_update(self, update: dict, action: str) -> dict:
+        evidence = update.get("evidence", [])
+        if not isinstance(evidence, list):
+            evidence = []
+        try:
+            intensity = int(update.get("intensity", 5))
+        except (TypeError, ValueError):
+            intensity = 5
+        try:
+            confidence = float(update.get("confidence", 0.5))
+        except (TypeError, ValueError):
+            confidence = 0.5
+        trend = str(update.get("trend") or "unknown")
+        if trend not in STATE_PROFILE_TRENDS:
+            trend = "unknown"
+        return {
+            "domain": update["domain"],
+            "stage": str(update.get("stage") or "尚未形成清晰阶段")[:80],
+            "summary": str(update.get("summary") or "")[:600],
+            "intensity": max(1, min(10, intensity)),
+            "trend": trend,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "evidence": [str(item)[:160] for item in evidence if str(item).strip()][:5],
+            "support_strategy": str(update.get("support_strategy") or "")[:240],
+            "reason": str(update.get("reason") or ("本次证据不足以更新。" if action == "no_change" else "本次 session 提供了新的长期状态线索。"))[:160],
+        }
 
     def _decide_memory_merge(
         self,

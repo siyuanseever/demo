@@ -147,6 +147,41 @@ class Store:
                     suggested_next_step TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS user_state_profiles (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    domain TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    intensity INTEGER NOT NULL,
+                    trend TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    evidence TEXT NOT NULL,
+                    support_strategy TEXT NOT NULL,
+                    source_session_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(user_id, domain)
+                );
+
+                CREATE TABLE IF NOT EXISTS user_state_profile_versions (
+                    id TEXT PRIMARY KEY,
+                    profile_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    domain TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    intensity INTEGER NOT NULL,
+                    trend TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    evidence TEXT NOT NULL,
+                    support_strategy TEXT NOT NULL,
+                    source_session_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
                 """
             )
             self._ensure_column(conn, "memories", "subcategory", "TEXT NOT NULL DEFAULT 'general'")
@@ -355,6 +390,195 @@ class Store:
                     utc_now(),
                 ),
             )
+
+    def list_state_profiles(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT
+                    id, user_id, domain, stage, summary, intensity, trend,
+                    confidence, evidence, support_strategy, source_session_id,
+                    created_at, updated_at
+                FROM user_state_profiles
+                ORDER BY domain ASC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            profiles = [row_to_dict(row) for row in cursor.fetchall()]
+        for profile in profiles:
+            try:
+                profile["evidence"] = json.loads(profile["evidence"])
+            except (TypeError, json.JSONDecodeError):
+                profile["evidence"] = []
+        return profiles
+
+    def list_state_profile_versions(
+        self,
+        *,
+        domain: str | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            if domain:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        id, profile_id, user_id, domain, stage, summary, intensity,
+                        trend, confidence, evidence, support_strategy,
+                        source_session_id, action, reason, created_at
+                    FROM user_state_profile_versions
+                    WHERE domain = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (domain, limit),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        id, profile_id, user_id, domain, stage, summary, intensity,
+                        trend, confidence, evidence, support_strategy,
+                        source_session_id, action, reason, created_at
+                    FROM user_state_profile_versions
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            versions = [row_to_dict(row) for row in cursor.fetchall()]
+        for version in versions:
+            try:
+                version["evidence"] = json.loads(version["evidence"])
+            except (TypeError, json.JSONDecodeError):
+                version["evidence"] = []
+        return versions
+
+    def upsert_state_profile(
+        self,
+        session_id: str,
+        profile: dict[str, Any],
+        *,
+        action: str,
+        reason: str,
+    ) -> dict[str, Any]:
+        now = utc_now()
+        user_id = "default"
+        domain = profile["domain"]
+        evidence = profile.get("evidence", [])
+        if not isinstance(evidence, list):
+            evidence = []
+        values = {
+            "stage": profile.get("stage", ""),
+            "summary": profile.get("summary", ""),
+            "intensity": int(profile.get("intensity", 5)),
+            "trend": profile.get("trend", "unknown"),
+            "confidence": float(profile.get("confidence", 0.5)),
+            "evidence": json.dumps(evidence[:5], ensure_ascii=False),
+            "support_strategy": profile.get("support_strategy", ""),
+        }
+        with self.connect() as conn:
+            existing = conn.execute(
+                """
+                SELECT id, created_at
+                FROM user_state_profiles
+                WHERE user_id = ? AND domain = ?
+                """,
+                (user_id, domain),
+            ).fetchone()
+            if existing:
+                profile_id = existing["id"]
+                created_at = existing["created_at"]
+                conn.execute(
+                    """
+                    UPDATE user_state_profiles
+                    SET stage = ?, summary = ?, intensity = ?, trend = ?,
+                        confidence = ?, evidence = ?, support_strategy = ?,
+                        source_session_id = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        values["stage"],
+                        values["summary"],
+                        values["intensity"],
+                        values["trend"],
+                        values["confidence"],
+                        values["evidence"],
+                        values["support_strategy"],
+                        session_id,
+                        now,
+                        profile_id,
+                    ),
+                )
+            else:
+                profile_id = str(uuid.uuid4())
+                created_at = now
+                conn.execute(
+                    """
+                    INSERT INTO user_state_profiles (
+                        id, user_id, domain, stage, summary, intensity, trend,
+                        confidence, evidence, support_strategy, source_session_id,
+                        created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        profile_id,
+                        user_id,
+                        domain,
+                        values["stage"],
+                        values["summary"],
+                        values["intensity"],
+                        values["trend"],
+                        values["confidence"],
+                        values["evidence"],
+                        values["support_strategy"],
+                        session_id,
+                        now,
+                        now,
+                    ),
+                )
+            version_id = str(uuid.uuid4())
+            conn.execute(
+                """
+                INSERT INTO user_state_profile_versions (
+                    id, profile_id, user_id, domain, stage, summary, intensity,
+                    trend, confidence, evidence, support_strategy,
+                    source_session_id, action, reason, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    version_id,
+                    profile_id,
+                    user_id,
+                    domain,
+                    values["stage"],
+                    values["summary"],
+                    values["intensity"],
+                    values["trend"],
+                    values["confidence"],
+                    values["evidence"],
+                    values["support_strategy"],
+                    session_id,
+                    action,
+                    reason,
+                    now,
+                ),
+            )
+        return {
+            "id": profile_id,
+            "domain": domain,
+            **values,
+            "evidence": evidence[:5],
+            "source_session_id": session_id,
+            "created_at": created_at,
+            "updated_at": now,
+            "action": action,
+            "reason": reason,
+            "version_id": version_id,
+        }
 
     def list_sessions(
         self,

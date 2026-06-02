@@ -106,6 +106,29 @@ class FakeClient:
                     },
                     ensure_ascii=False,
                 )
+            elif "长期状态画像" in system and "updates" in system:
+                content = json.dumps(
+                    {
+                        "updates": [
+                            {
+                                "action": "create",
+                                "domain": "meaning_value",
+                                "stage": "正在重新理解道德化自责",
+                                "summary": "用户开始把强烈道德感看作曾经的求生策略，同时意识到它也会压抑欲望和真实感受。",
+                                "intensity": 7,
+                                "trend": "integrating",
+                                "confidence": 0.72,
+                                "evidence": [
+                                    "用户反复询问强烈道德感是否不健康。",
+                                    "用户提到自我苛责、完美主义和欲望压抑。",
+                                ],
+                                "support_strategy": "先去羞耻化，再帮助用户区分价值、念头和自我惩罚。",
+                                "reason": "本次 session 提供了明确的长期价值模式线索。",
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
             else:
                 content = json.dumps(
                     {

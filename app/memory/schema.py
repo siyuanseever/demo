@@ -76,6 +76,26 @@ MEMORY_SUBCATEGORIES = {
 MEMORY_STATUSES = ("active", "merged", "contradicted", "archived")
 
 
+STATE_PROFILE_DOMAINS = (
+    "self_relation",
+    "emotion_regulation",
+    "relationship",
+    "agency_boundary",
+    "trauma_pattern",
+    "meaning_value",
+)
+
+
+STATE_PROFILE_TRENDS = (
+    "unknown",
+    "stable",
+    "softening",
+    "intensifying",
+    "fluctuating",
+    "integrating",
+)
+
+
 @dataclass(frozen=True)
 class Memory:
     category: str

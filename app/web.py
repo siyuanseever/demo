@@ -1254,6 +1254,7 @@ HTML = """<!doctype html>
       <div class="toolbar">
         <button data-view="sessions" class="active" type="button">Sessions</button>
         <button data-view="memories" type="button">Memories</button>
+        <button data-view="state" type="button">State</button>
         <button data-view="knowledge" type="button">Knowledge</button>
         <button data-view="content" type="button">Content</button>
         <button data-view="mood" type="button">Mood</button>
@@ -1837,6 +1838,11 @@ HTML = """<!doctype html>
         } else {
           addSystem("这次没有新增长期记忆。");
         }
+        if ((data.state_profiles || []).length) {
+          addSystem("长期状态画像：\\n" + data.state_profiles.map(p => "- " + (p.action || "update") + " [" + p.domain + "] " + p.stage).join("\\n"));
+        } else {
+          addSystem("这次没有更新长期状态画像。");
+        }
         await loadData(activeDataView);
         sessionId = null;
       } catch (error) {
@@ -2025,6 +2031,39 @@ HTML = """<!doctype html>
       `);
     }
 
+    function trendLabel(trend) {
+      const labels = {
+        unknown: "未知",
+        stable: "稳定",
+        softening: "变柔和",
+        intensifying: "增强",
+        fluctuating: "波动",
+        integrating: "整合中"
+      };
+      return labels[trend] || trend || "未知";
+    }
+
+    function renderStateProfiles(items) {
+      if (!items.length) {
+        dataList.className = "";
+        dataList.innerHTML = '<div class="empty">还没有长期状态画像。结束几次有内容的会话后，这里会形成跨时间的心理地图。</div>';
+        return;
+      }
+      dataList.className = "grid";
+      dataList.innerHTML = items.map(item => `
+        <article class="card">
+          <h3>${escapeHtml(item.stage || item.domain)}</h3>
+          <div class="meta">${escapeHtml(item.domain)} · ${escapeHtml(trendLabel(item.trend))} · intensity ${escapeHtml(item.intensity)}/10 · confidence ${escapeHtml(item.confidence)}</div>
+          <div class="meta">updated: ${escapeHtml(item.updated_at || "")}</div>
+          <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
+          <div class="content">${escapeHtml(item.summary)}</div>
+          <div class="content">陪伴策略：${escapeHtml(item.support_strategy || "暂无")}</div>
+          <div>${(item.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+          <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
+        </article>
+      `).join("");
+    }
+
     function renderKnowledge(items) {
       renderList(items, item => `
         <article class="card clickable" onclick="showKnowledgeDetail('${escapeHtml(item.id)}')">
@@ -2163,6 +2202,7 @@ HTML = """<!doctype html>
         const data = await get("/api/data?type=" + encodeURIComponent(view));
         if (view === "sessions") renderSessions(data.items);
         if (view === "memories") renderMemories(data.items);
+        if (view === "state") renderStateProfiles(data.items);
         if (view === "knowledge") renderKnowledge(data.items);
         if (view === "content") renderContentLibrary(data.items);
         if (view === "journals") renderJournals(data.items);
@@ -2347,6 +2387,8 @@ class Handler(BaseHTTPRequestHandler):
             items = store.list_sessions()
         elif data_type == "memories":
             items = store.list_memories()
+        elif data_type == "state":
+            items = store.list_state_profiles()
         elif data_type == "journals":
             items = store.list_journals()
         elif data_type == "messages":
