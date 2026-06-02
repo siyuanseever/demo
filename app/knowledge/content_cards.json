@@ -84,6 +84,18 @@
     "source_url": "https://www.cnvc.org/"
   },
   {
+    "id": "practice_morning_low_demand_protocol",
+    "type": "practice",
+    "title": "晨间低要求过渡协议",
+    "creator": "小鹿练习卡",
+    "tags": ["晨重夜轻", "早醒", "冻结", "面试焦虑", "身体照顾", "低要求"],
+    "fit_for": "适合早晨醒来后胸口慌、低落、无法启动，或重要事件前神经系统提前报警的时候。",
+    "xiaolu_note": "把上午目标降到最低：确认安全、喝水、通风、洗脸或抹药中的一件、等待药效或身体节律回升；重要任务尽量安排在更稳定的时段，只保留必要准备。",
+    "related_knowledge_ids": ["morning_diurnal_mood_body", "trauma_insight_body_lag", "grieving_lost_years"],
+    "source_label": "Trauma-informed stabilization practice",
+    "source_url": "https://www.ptsd.va.gov/"
+  },
+  {
     "id": "music_weightless",
     "type": "music",
     "title": "Weightless",
@@ -108,4 +120,3 @@
     "source_url": "https://www.pixar.com/feature-films/inside-out"
   }
 ]
-
