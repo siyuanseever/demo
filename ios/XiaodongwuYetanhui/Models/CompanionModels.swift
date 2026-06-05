@@ -162,6 +162,14 @@ struct MonsterCareAction: Identifiable, Hashable {
     let reflectionPrompt: String
 }
 
+struct MonsterSafePlace: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let systemImageName: String
+    let detail: String
+    let reflectionHint: String
+}
+
 struct CareMoment: Identifiable, Hashable, Codable {
     let id: String
     let title: String
@@ -403,6 +411,37 @@ enum CompanionFixtures {
             systemImageName: "circle.dashed.inset.filled",
             message: "我给它放了一个柔软的边界圈，让它不用被外面的东西一直碰到。",
             reflectionPrompt: "请根据这个动作回应我：它可能代表我需要边界、距离和一点掌控感。"
+        ),
+    ]
+
+    static let monsterSafePlaces: [MonsterSafePlace] = [
+        MonsterSafePlace(
+            id: "pillow-corner",
+            title: "枕头角落",
+            systemImageName: "bed.double.fill",
+            detail: "让它靠在一个软软的角落里。",
+            reflectionHint: "它可能需要休息、降低刺激和被允许暂时不用回应。"
+        ),
+        MonsterSafePlace(
+            id: "warm-window",
+            title: "暖灯窗边",
+            systemImageName: "lamp.table.fill",
+            detail: "给它留一小块有光的地方。",
+            reflectionHint: "它可能需要一点可见度，知道自己不是独自待在黑暗里。"
+        ),
+        MonsterSafePlace(
+            id: "quiet-box",
+            title: "安静盒子",
+            systemImageName: "shippingbox.fill",
+            detail: "把外面的声音先隔远一点。",
+            reflectionHint: "它可能需要边界、容器和更可控的空间。"
+        ),
+        MonsterSafePlace(
+            id: "tiny-garden",
+            title: "小小花园",
+            systemImageName: "leaf.fill",
+            detail: "让它旁边有一点正在生长的东西。",
+            reflectionHint: "它可能需要慢慢恢复，不用马上开花。"
         ),
     ]
 }

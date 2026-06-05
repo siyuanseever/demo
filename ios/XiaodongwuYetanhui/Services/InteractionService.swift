@@ -39,20 +39,29 @@ struct InteractionService {
         )
     }
 
-    func monsterCare(monster: EmotionMonster, action: MonsterCareAction, note: String) -> MonsterCareCompletion {
+    func monsterCare(
+        monster: EmotionMonster,
+        action: MonsterCareAction,
+        safePlace: MonsterSafePlace,
+        customName: String,
+        note: String
+    ) -> MonsterCareCompletion {
+        let trimmedName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = trimmedName.isEmpty ? monster.name : trimmedName
         let notePart = trimmedNote.isEmpty ? "" : " 我还留了一句话：\(trimmedNote)。"
+        let detail = "\(safePlace.detail) \(action.message)"
         return MonsterCareCompletion(
             careMoment: CareMoment(
                 id: UUID().uuidString,
-                title: "\(monster.name) · \(action.title)",
-                detail: trimmedNote.isEmpty ? action.message : trimmedNote,
+                title: "\(displayName) · \(safePlace.title)",
+                detail: trimmedNote.isEmpty ? detail : trimmedNote,
                 systemImageName: action.systemImageName,
                 tintHex: monster.colorHex,
                 createdAt: Date()
             ),
-            prompt: "我刚刚玩了一个情绪小怪兽照顾游戏。我选择的是\(monster.name)，动作是“\(action.title)”。\(action.message)\(notePart) \(action.reflectionPrompt)",
-            fallbackReply: "我看到你选择了\(monster.name)，也选择了“\(action.title)”。\(action.message) 这个动作已经在表达一种需要：它不一定要被解释清楚，但它需要被温柔地对待。"
+            prompt: "我刚刚玩了一个情绪小怪兽照顾游戏。我选择的是\(monster.name)，给它的小名是“\(displayName)”，把它安置在“\(safePlace.title)”，动作是“\(action.title)”。\(safePlace.detail)\(action.message)\(notePart) \(safePlace.reflectionHint) \(action.reflectionPrompt)",
+            fallbackReply: "我看到你把\(displayName)安置在“\(safePlace.title)”，也选择了“\(action.title)”。\(safePlace.detail)\(action.message) 这个动作已经在表达一种需要：它不一定要被解释清楚，但它需要被温柔地对待。"
         )
     }
 

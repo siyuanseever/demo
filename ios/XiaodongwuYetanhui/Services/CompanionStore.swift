@@ -170,8 +170,20 @@ final class CompanionStore: ObservableObject {
         )
     }
 
-    func completeMonsterCareGame(monster: EmotionMonster, action: MonsterCareAction, note: String) async {
-        let completion = interactionService.monsterCare(monster: monster, action: action, note: note)
+    func completeMonsterCareGame(
+        monster: EmotionMonster,
+        action: MonsterCareAction,
+        safePlace: MonsterSafePlace,
+        customName: String,
+        note: String
+    ) async {
+        let completion = interactionService.monsterCare(
+            monster: monster,
+            action: action,
+            safePlace: safePlace,
+            customName: customName,
+            note: note
+        )
         isMonsterCareGameVisible = false
         recordCareMoment(completion.careMoment)
         await sendChatText(

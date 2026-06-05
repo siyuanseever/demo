@@ -150,17 +150,19 @@ struct ChatEmotionCheckInCard: View {
 struct MonsterCareGameCard: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var selectedMonsterID = CompanionFixtures.emotionMonsters[1].id
+    @State private var customName = ""
+    @State private var selectedSafePlaceID = CompanionFixtures.monsterSafePlaces[0].id
     @State private var selectedActionID = CompanionFixtures.monsterCareActions[0].id
     @State private var note = ""
 
     var body: some View {
         SoftPanel {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 17) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Label("小怪兽照顾站", systemImage: "hands.sparkles.fill")
+                        Label("情绪怪兽小屋", systemImage: "hands.sparkles.fill")
                             .font(.headline)
-                        Text("不是解决情绪，只是给它一个动作。")
+                        Text("给它一个名字、一个位置和一个动作。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -178,8 +180,11 @@ struct MonsterCareGameCard: View {
 
                 HStack(alignment: .center, spacing: 14) {
                     ZStack {
-                        Circle()
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
                             .fill(selectedMonster.color.opacity(0.72))
+                        Image(systemName: selectedSafePlace.systemImageName)
+                            .font(.system(size: 54, weight: .semibold))
+                            .foregroundStyle(Color.white.opacity(0.42))
                         Image(systemName: selectedMonster.systemImageName)
                             .font(.system(size: 36, weight: .semibold))
                             .foregroundStyle(Color.nightInk.opacity(0.74))
@@ -187,9 +192,12 @@ struct MonsterCareGameCard: View {
                     .frame(width: 86, height: 86)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(selectedMonster.name)
+                        Text(displayMonsterName)
                             .font(.title3.weight(.bold))
                             .foregroundStyle(Color.nightInk)
+                        Text("\(selectedSafePlace.title) · \(selectedAction.title)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.warmBrown)
                         Text(selectedAction.message)
                             .font(.callout)
                             .foregroundStyle(.secondary)
@@ -200,7 +208,7 @@ struct MonsterCareGameCard: View {
                 .background(selectedMonster.color.opacity(0.32), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("选择一只")
+                    Text("1. 选择一只")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -220,7 +228,40 @@ struct MonsterCareGameCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("给它一个动作")
+                    Text("2. 给它一个小名")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    TextField("可以叫它：软软、刺刺、雨团...", text: $customName)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("3. 把它安置在哪里")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(CompanionFixtures.monsterSafePlaces) { safePlace in
+                            GameChoiceButton(
+                                title: safePlace.title,
+                                systemImageName: safePlace.systemImageName,
+                                tint: selectedMonster.color,
+                                isSelected: safePlace.id == selectedSafePlaceID
+                            ) {
+                                selectedSafePlaceID = safePlace.id
+                            }
+                        }
+                    }
+                    Text(selectedSafePlace.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("4. 给它一个动作")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -246,7 +287,13 @@ struct MonsterCareGameCard: View {
 
                 Button {
                     Task {
-                        await store.completeMonsterCareGame(monster: selectedMonster, action: selectedAction, note: note)
+                        await store.completeMonsterCareGame(
+                            monster: selectedMonster,
+                            action: selectedAction,
+                            safePlace: selectedSafePlace,
+                            customName: customName,
+                            note: note
+                        )
                     }
                 } label: {
                     Label("带回对话", systemImage: "arrowshape.turn.up.left.fill")
@@ -266,6 +313,15 @@ struct MonsterCareGameCard: View {
 
     private var selectedAction: MonsterCareAction {
         CompanionFixtures.monsterCareActions.first { $0.id == selectedActionID } ?? CompanionFixtures.monsterCareActions[0]
+    }
+
+    private var selectedSafePlace: MonsterSafePlace {
+        CompanionFixtures.monsterSafePlaces.first { $0.id == selectedSafePlaceID } ?? CompanionFixtures.monsterSafePlaces[0]
+    }
+
+    private var displayMonsterName: String {
+        let trimmedName = customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty ? selectedMonster.name : trimmedName
     }
 }
 
