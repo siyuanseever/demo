@@ -1,0 +1,486 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000000000000000000000101 /* XiaodongwuYetanhuiApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000201 /* XiaodongwuYetanhuiApp.swift */; };
+		000000000000000000000102 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000202 /* AppRootView.swift */; };
+		000000000000000000000103 /* CompanionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000203 /* CompanionModels.swift */; };
+		000000000000000000000104 /* SQLiteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* SQLiteDatabase.swift */; };
+		000000000000000000000105 /* CompanionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000205 /* CompanionStore.swift */; };
+		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
+		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
+		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
+		000000000000000000000106 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000206 /* SharedViews.swift */; };
+		000000000000000000000107 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000207 /* ChatView.swift */; };
+		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
+		000000000000000000000108 /* StateOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000208 /* StateOverviewView.swift */; };
+		000000000000000000000109 /* MemoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000209 /* MemoryListView.swift */; };
+		000000000000000000000110 /* CompanionGardenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000210 /* CompanionGardenView.swift */; };
+		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
+		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
+		000000000000000000000111 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000301 /* libsqlite3.tbd */; };
+		000000000000000000000112 /* app.db in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000302 /* app.db */; };
+		000000000000000000000113 /* mianmian-sheep-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000303 /* mianmian-sheep-alpha.webp */; };
+		000000000000000000000114 /* shishi-turtle-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000304 /* shishi-turtle-alpha.webp */; };
+		000000000000000000000115 /* momo-crow-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000305 /* momo-crow-alpha.webp */; };
+		000000000000000000000116 /* youyou-rabbit-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000306 /* youyou-rabbit-alpha.webp */; };
+		000000000000000000000117 /* shanshan-butterfly-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000307 /* shanshan-butterfly-alpha.webp */; };
+		000000000000000000000118 /* gangan-tiger-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000308 /* gangan-tiger-alpha.webp */; };
+		000000000000000000000119 /* mianmian-sheep-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000309 /* mianmian-sheep-showcase.png */; };
+		000000000000000000000120 /* shishi-turtle-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000310 /* shishi-turtle-showcase.png */; };
+		000000000000000000000121 /* momo-crow-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000311 /* momo-crow-showcase.png */; };
+		000000000000000000000122 /* youyou-rabbit-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000312 /* youyou-rabbit-showcase.png */; };
+		000000000000000000000123 /* shanshan-butterfly-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000313 /* shanshan-butterfly-showcase.png */; };
+		000000000000000000000124 /* gangan-tiger-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000314 /* gangan-tiger-showcase.png */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000201 /* XiaodongwuYetanhuiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XiaodongwuYetanhuiApp.swift; sourceTree = "<group>"; };
+		000000000000000000000202 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		000000000000000000000211 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000000203 /* CompanionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionModels.swift; sourceTree = "<group>"; };
+		000000000000000000000204 /* SQLiteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteDatabase.swift; sourceTree = "<group>"; };
+		000000000000000000000205 /* CompanionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionStore.swift; sourceTree = "<group>"; };
+		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		000000000000000000000318 /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
+		000000000000000000000320 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
+		000000000000000000000206 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
+		000000000000000000000207 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		000000000000000000000319 /* InteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionViews.swift; sourceTree = "<group>"; };
+		000000000000000000000208 /* StateOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateOverviewView.swift; sourceTree = "<group>"; };
+		000000000000000000000209 /* MemoryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryListView.swift; sourceTree = "<group>"; };
+		000000000000000000000210 /* CompanionGardenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionGardenView.swift; sourceTree = "<group>"; };
+		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
+		000000000000000000000301 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		000000000000000000000302 /* app.db */ = {isa = PBXFileReference; lastKnownFileType = file; name = app.db; path = ../data/app.db; sourceTree = SOURCE_ROOT; };
+		000000000000000000000303 /* mianmian-sheep-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "mianmian-sheep-alpha.webp"; path = "../app/static/mianmian-sheep-alpha.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000304 /* shishi-turtle-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "shishi-turtle-alpha.webp"; path = "../app/static/shishi-turtle-alpha.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000305 /* momo-crow-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "momo-crow-alpha.webp"; path = "../app/static/momo-crow-alpha.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000306 /* youyou-rabbit-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "youyou-rabbit-alpha.webp"; path = "../app/static/youyou-rabbit-alpha.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000307 /* shanshan-butterfly-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "shanshan-butterfly-alpha.webp"; path = "../app/static/shanshan-butterfly-alpha.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000308 /* gangan-tiger-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "gangan-tiger-alpha.webp"; path = "../app/static/gangan-tiger-alpha.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000309 /* mianmian-sheep-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "mianmian-sheep-showcase.png"; path = "../app/static/mianmian-sheep-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000310 /* shishi-turtle-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "shishi-turtle-showcase.png"; path = "../app/static/shishi-turtle-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000311 /* momo-crow-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "momo-crow-showcase.png"; path = "../app/static/momo-crow-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000312 /* youyou-rabbit-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "youyou-rabbit-showcase.png"; path = "../app/static/youyou-rabbit-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000313 /* shanshan-butterfly-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "shanshan-butterfly-showcase.png"; path = "../app/static/shanshan-butterfly-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000314 /* gangan-tiger-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "gangan-tiger-showcase.png"; path = "../app/static/gangan-tiger-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000401 /* XiaodongwuYetanhui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XiaodongwuYetanhui.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000501 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000111 /* libsqlite3.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000000000000000000000601 = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000602 /* XiaodongwuYetanhui */,
+				000000000000000000000610 /* Linked Resources */,
+				000000000000000000000611 /* Frameworks */,
+				000000000000000000000612 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000000602 /* XiaodongwuYetanhui */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000603 /* App */,
+				000000000000000000000604 /* Models */,
+				000000000000000000000605 /* Services */,
+				000000000000000000000606 /* Views */,
+			);
+			path = XiaodongwuYetanhui;
+			sourceTree = "<group>";
+		};
+		000000000000000000000603 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000201 /* XiaodongwuYetanhuiApp.swift */,
+				000000000000000000000202 /* AppRootView.swift */,
+				000000000000000000000211 /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		000000000000000000000604 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000203 /* CompanionModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		000000000000000000000605 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000204 /* SQLiteDatabase.swift */,
+				000000000000000000000205 /* CompanionStore.swift */,
+				000000000000000000000315 /* ChatService.swift */,
+				000000000000000000000318 /* InteractionService.swift */,
+				000000000000000000000320 /* RecommendationService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		000000000000000000000606 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000206 /* SharedViews.swift */,
+				000000000000000000000207 /* ChatView.swift */,
+				000000000000000000000319 /* InteractionViews.swift */,
+				000000000000000000000208 /* StateOverviewView.swift */,
+				000000000000000000000209 /* MemoryListView.swift */,
+				000000000000000000000210 /* CompanionGardenView.swift */,
+				000000000000000000000316 /* SettingsView.swift */,
+				000000000000000000000317 /* EmotionCheckInView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		000000000000000000000610 /* Linked Resources */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000302 /* app.db */,
+				000000000000000000000303 /* mianmian-sheep-alpha.webp */,
+				000000000000000000000304 /* shishi-turtle-alpha.webp */,
+				000000000000000000000305 /* momo-crow-alpha.webp */,
+				000000000000000000000306 /* youyou-rabbit-alpha.webp */,
+				000000000000000000000307 /* shanshan-butterfly-alpha.webp */,
+				000000000000000000000308 /* gangan-tiger-alpha.webp */,
+				000000000000000000000309 /* mianmian-sheep-showcase.png */,
+				000000000000000000000310 /* shishi-turtle-showcase.png */,
+				000000000000000000000311 /* momo-crow-showcase.png */,
+				000000000000000000000312 /* youyou-rabbit-showcase.png */,
+				000000000000000000000313 /* shanshan-butterfly-showcase.png */,
+				000000000000000000000314 /* gangan-tiger-showcase.png */,
+			);
+			name = "Linked Resources";
+			sourceTree = "<group>";
+		};
+		000000000000000000000611 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000301 /* libsqlite3.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		000000000000000000000612 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000401 /* XiaodongwuYetanhui.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000701 /* XiaodongwuYetanhui */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000903 /* Build configuration list for PBXNativeTarget "XiaodongwuYetanhui" */;
+			buildPhases = (
+				000000000000000000000801 /* Sources */,
+				000000000000000000000501 /* Frameworks */,
+				000000000000000000000802 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = XiaodongwuYetanhui;
+			productName = XiaodongwuYetanhui;
+			productReference = 000000000000000000000401 /* XiaodongwuYetanhui.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					000000000000000000000701 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+				};
+			};
+			buildConfigurationList = 000000000000000000000900 /* Build configuration list for PBXProject "XiaodongwuYetanhui" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				zh-Hans,
+			);
+			mainGroup = 000000000000000000000601;
+			productRefGroup = 000000000000000000000612 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000701 /* XiaodongwuYetanhui */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000000802 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000112 /* app.db in Resources */,
+				000000000000000000000113 /* mianmian-sheep-alpha.webp in Resources */,
+				000000000000000000000114 /* shishi-turtle-alpha.webp in Resources */,
+				000000000000000000000115 /* momo-crow-alpha.webp in Resources */,
+				000000000000000000000116 /* youyou-rabbit-alpha.webp in Resources */,
+				000000000000000000000117 /* shanshan-butterfly-alpha.webp in Resources */,
+				000000000000000000000118 /* gangan-tiger-alpha.webp in Resources */,
+				000000000000000000000119 /* mianmian-sheep-showcase.png in Resources */,
+				000000000000000000000120 /* shishi-turtle-showcase.png in Resources */,
+				000000000000000000000121 /* momo-crow-showcase.png in Resources */,
+				000000000000000000000122 /* youyou-rabbit-showcase.png in Resources */,
+				000000000000000000000123 /* shanshan-butterfly-showcase.png in Resources */,
+				000000000000000000000124 /* gangan-tiger-showcase.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000801 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000101 /* XiaodongwuYetanhuiApp.swift in Sources */,
+				000000000000000000000102 /* AppRootView.swift in Sources */,
+				000000000000000000000103 /* CompanionModels.swift in Sources */,
+				000000000000000000000104 /* SQLiteDatabase.swift in Sources */,
+				000000000000000000000105 /* CompanionStore.swift in Sources */,
+				000000000000000000000125 /* ChatService.swift in Sources */,
+				000000000000000000000128 /* InteractionService.swift in Sources */,
+				000000000000000000000130 /* RecommendationService.swift in Sources */,
+				000000000000000000000106 /* SharedViews.swift in Sources */,
+				000000000000000000000107 /* ChatView.swift in Sources */,
+				000000000000000000000129 /* InteractionViews.swift in Sources */,
+				000000000000000000000108 /* StateOverviewView.swift in Sources */,
+				000000000000000000000109 /* MemoryListView.swift in Sources */,
+				000000000000000000000110 /* CompanionGardenView.swift in Sources */,
+				000000000000000000000126 /* SettingsView.swift in Sources */,
+				000000000000000000000127 /* EmotionCheckInView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000000901 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		000000000000000000000902 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		000000000000000000000904 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = XiaodongwuYetanhui/App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaolu.nighttalk;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		000000000000000000000905 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = XiaodongwuYetanhui/App/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaolu.nighttalk;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000900 /* Build configuration list for PBXProject "XiaodongwuYetanhui" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000901 /* Debug */,
+				000000000000000000000902 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000903 /* Build configuration list for PBXNativeTarget "XiaodongwuYetanhui" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000904 /* Debug */,
+				000000000000000000000905 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000000001 /* Project object */;
+}
