@@ -129,7 +129,14 @@ final class ChatService {
         {
             return url
         }
-        return URL(string: "http://127.0.0.1:8765")!
+        
+        // 检查是否是模拟器
+        #if targetEnvironment(simulator)
+            return URL(string: "http://127.0.0.1:8765")!
+        #else
+            // 真机用局域网 IP
+            return URL(string: "http://192.168.2.124:8765")!
+        #endif
     }
 
     private static func describe(_ error: Error) -> String {

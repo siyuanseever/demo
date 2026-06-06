@@ -12,17 +12,11 @@
 		000000000000000000000103 /* CompanionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000203 /* CompanionModels.swift */; };
 		000000000000000000000104 /* SQLiteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* SQLiteDatabase.swift */; };
 		000000000000000000000105 /* CompanionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000205 /* CompanionStore.swift */; };
-		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
-		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
-		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
 		000000000000000000000106 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000206 /* SharedViews.swift */; };
 		000000000000000000000107 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000207 /* ChatView.swift */; };
-		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
 		000000000000000000000108 /* StateOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000208 /* StateOverviewView.swift */; };
 		000000000000000000000109 /* MemoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000209 /* MemoryListView.swift */; };
 		000000000000000000000110 /* CompanionGardenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000210 /* CompanionGardenView.swift */; };
-		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
-		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
 		000000000000000000000111 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000301 /* libsqlite3.tbd */; };
 		000000000000000000000112 /* app.db in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000302 /* app.db */; };
 		000000000000000000000113 /* mianmian-sheep-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000303 /* mianmian-sheep-alpha.webp */; };
@@ -37,26 +31,26 @@
 		000000000000000000000122 /* youyou-rabbit-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000312 /* youyou-rabbit-showcase.png */; };
 		000000000000000000000123 /* shanshan-butterfly-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000313 /* shanshan-butterfly-showcase.png */; };
 		000000000000000000000124 /* gangan-tiger-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000314 /* gangan-tiger-showcase.png */; };
+		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
+		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
+		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
+		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
+		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
+		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		000000000000000000000201 /* XiaodongwuYetanhuiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XiaodongwuYetanhuiApp.swift; sourceTree = "<group>"; };
 		000000000000000000000202 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
-		000000000000000000000211 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000203 /* CompanionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionModels.swift; sourceTree = "<group>"; };
 		000000000000000000000204 /* SQLiteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteDatabase.swift; sourceTree = "<group>"; };
 		000000000000000000000205 /* CompanionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionStore.swift; sourceTree = "<group>"; };
-		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
-		000000000000000000000318 /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
-		000000000000000000000320 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
 		000000000000000000000206 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
 		000000000000000000000207 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
-		000000000000000000000319 /* InteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionViews.swift; sourceTree = "<group>"; };
 		000000000000000000000208 /* StateOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateOverviewView.swift; sourceTree = "<group>"; };
 		000000000000000000000209 /* MemoryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryListView.swift; sourceTree = "<group>"; };
 		000000000000000000000210 /* CompanionGardenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionGardenView.swift; sourceTree = "<group>"; };
-		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
+		000000000000000000000211 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000301 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		000000000000000000000302 /* app.db */ = {isa = PBXFileReference; lastKnownFileType = file; name = app.db; path = ../data/app.db; sourceTree = SOURCE_ROOT; };
 		000000000000000000000303 /* mianmian-sheep-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "mianmian-sheep-alpha.webp"; path = "../app/static/mianmian-sheep-alpha.webp"; sourceTree = SOURCE_ROOT; };
@@ -71,6 +65,12 @@
 		000000000000000000000312 /* youyou-rabbit-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "youyou-rabbit-showcase.png"; path = "../app/static/youyou-rabbit-showcase.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000313 /* shanshan-butterfly-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "shanshan-butterfly-showcase.png"; path = "../app/static/shanshan-butterfly-showcase.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000314 /* gangan-tiger-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "gangan-tiger-showcase.png"; path = "../app/static/gangan-tiger-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
+		000000000000000000000318 /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
+		000000000000000000000319 /* InteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionViews.swift; sourceTree = "<group>"; };
+		000000000000000000000320 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
 		000000000000000000000401 /* XiaodongwuYetanhui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XiaodongwuYetanhui.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -230,7 +230,7 @@
 			knownRegions = (
 				en,
 				Base,
-				zh-Hans,
+				"zh-Hans",
 			);
 			mainGroup = 000000000000000000000601;
 			productRefGroup = 000000000000000000000612 /* Products */;
@@ -414,7 +414,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 644NS7Y9Z3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = XiaodongwuYetanhui/App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -440,7 +440,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 644NS7Y9Z3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = XiaodongwuYetanhui/App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
