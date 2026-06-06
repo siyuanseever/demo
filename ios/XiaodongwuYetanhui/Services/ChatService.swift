@@ -3,10 +3,24 @@ import Foundation
 struct ChatServiceResponse {
     let reply: String
     let characterID: String?
+    let groupMessages: [ChatServiceGroupMessage]
     let usedFallback: Bool
     let notice: String?
     let backendURL: String
     let errorDetail: String?
+}
+
+struct ChatServiceGroupMessage {
+    let role: String
+    let text: String
+    let action: String
+    let characterID: String?
+}
+
+struct SessionCloseSummary {
+    let journalSummary: String
+    let memoryCount: Int
+    let stateProfileCount: Int
 }
 
 final class ChatService {
@@ -48,6 +62,7 @@ final class ChatService {
     func send(
         text: String,
         character: CompanionCharacter,
+        isGroupMode: Bool = false,
         fallbackReply: String? = nil
     ) async -> ChatServiceResponse {
         do {
@@ -57,13 +72,21 @@ final class ChatService {
                 body: ChatRequestBody(
                     sessionID: sessionID,
                     text: text,
-                    characterID: character.id
+                    characterID: isGroupMode ? "auto" : character.id
                 )
             )
             let response: ChatResponseBody = try await decode(request)
             return ChatServiceResponse(
                 reply: response.reply,
                 characterID: response.character?.id ?? character.id,
+                groupMessages: (response.groupMessages ?? []).map {
+                    ChatServiceGroupMessage(
+                        role: $0.role,
+                        text: $0.text,
+                        action: $0.action ?? "",
+                        characterID: $0.character?.id
+                    )
+                },
                 usedFallback: false,
                 notice: nil,
                 backendURL: backendURLDescription,
@@ -73,12 +96,31 @@ final class ChatService {
             return ChatServiceResponse(
                 reply: fallbackReply ?? Self.fallbackReply(for: text, character: character),
                 characterID: character.id,
+                groupMessages: [],
                 usedFallback: true,
                 notice: "本地 Web 服务暂时没有回应，先用 iOS 原型陪你接住这一轮。",
                 backendURL: backendURLDescription,
                 errorDetail: Self.describe(error)
             )
         }
+    }
+
+    func closeCurrentSession() async throws -> SessionCloseSummary {
+        guard let sessionID else {
+            throw ChatServiceError.noActiveSession
+        }
+        let request = try makeJSONRequest(path: "/api/end", body: EndSessionRequestBody(sessionID: sessionID))
+        let response: EndSessionResponseBody = try await decode(request)
+        self.sessionID = nil
+        return SessionCloseSummary(
+            journalSummary: response.journal.summary,
+            memoryCount: response.memories.count,
+            stateProfileCount: response.stateProfiles.count
+        )
+    }
+
+    func resetSession() {
+        sessionID = nil
     }
 
     private func currentSessionID() async throws -> String {
@@ -173,15 +215,58 @@ private struct ChatRequestBody: Encodable {
 private struct ChatResponseBody: Decodable {
     let reply: String
     let character: ResponseCharacter?
+    let groupMessages: [GroupMessageResponseBody]?
+
+    enum CodingKeys: String, CodingKey {
+        case reply
+        case character
+        case groupMessages = "group_messages"
+    }
+}
+
+private struct GroupMessageResponseBody: Decodable {
+    let role: String
+    let text: String
+    let action: String?
+    let character: ResponseCharacter?
 }
 
 private struct ResponseCharacter: Decodable {
     let id: String
 }
 
-private enum ChatServiceError: Error {
+private struct EndSessionRequestBody: Encodable {
+    let sessionID: String
+
+    enum CodingKeys: String, CodingKey {
+        case sessionID = "session_id"
+    }
+}
+
+private struct EndSessionResponseBody: Decodable {
+    let journal: EndSessionJournalBody
+    let memories: [EndSessionMemoryBody]
+    let stateProfiles: [EndSessionStateProfileBody]
+
+    enum CodingKeys: String, CodingKey {
+        case journal
+        case memories
+        case stateProfiles = "state_profiles"
+    }
+}
+
+private struct EndSessionJournalBody: Decodable {
+    let summary: String
+}
+
+private struct EndSessionMemoryBody: Decodable {}
+
+private struct EndSessionStateProfileBody: Decodable {}
+
+private enum ChatServiceError: Error, CustomStringConvertible {
     case invalidResponse
     case httpStatus(Int)
+    case noActiveSession
 
     var description: String {
         switch self {
@@ -189,6 +274,8 @@ private enum ChatServiceError: Error {
             return "后端响应格式无效"
         case .httpStatus(let status):
             return "HTTP \(status)"
+        case .noActiveSession:
+            return "还没有正在进行的会话"
         }
     }
 }

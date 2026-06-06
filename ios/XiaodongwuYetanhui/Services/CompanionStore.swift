@@ -21,6 +21,8 @@ final class CompanionStore: ObservableObject {
     @Published var latestRecommendation: CompanionRecommendation?
     @Published var isRecommendationVisible = false
     @Published var recommendationHistory: [CompanionRecommendation] = []
+    @Published var isGroupMode = false
+    @Published var sessionNotice: String?
 
     private let chatService = ChatService()
     private let interactionService = InteractionService()
@@ -72,6 +74,37 @@ final class CompanionStore: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isSending else { return }
         await sendChatText(trimmed, fallbackReply: nil, shouldSuggestCheckIn: true)
+    }
+
+    func startNewSession() {
+        chatService.resetSession()
+        messages = [Self.greetingMessage(characterID: selectedCharacterID)]
+        sessionNotice = "已经准备好一个新的夜谈。"
+        chatNotice = nil
+        refreshInteractionOffers()
+    }
+
+    func closeCurrentSession() async {
+        guard !isSending else { return }
+        isSending = true
+        sessionNotice = "正在结束并总结这次夜谈..."
+        do {
+            let summary = try await chatService.closeCurrentSession()
+            sessionNotice = "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
+            load()
+            messages.append(
+                ChatMessage(
+                    id: UUID().uuidString,
+                    role: .system,
+                    content: "会话总结：\(summary.journalSummary)",
+                    characterID: nil,
+                    createdAt: ""
+                )
+            )
+        } catch {
+            sessionNotice = "暂时无法结束会话：\(Self.describe(error))"
+        }
+        isSending = false
     }
 
     func checkBackendConnection() async {
@@ -301,7 +334,12 @@ final class CompanionStore: ObservableObject {
         )
         isSending = true
         chatNotice = nil
-        let response = await chatService.send(text: text, character: character, fallbackReply: fallbackReply)
+        let response = await chatService.send(
+            text: text,
+            character: character,
+            isGroupMode: isGroupMode,
+            fallbackReply: fallbackReply
+        )
         backendStatus = BackendConnectionStatus(
             state: response.usedFallback ? .fallback : .online,
             baseURL: response.backendURL,
@@ -310,18 +348,49 @@ final class CompanionStore: ObservableObject {
                 : "这轮消息来自本地 Web 后端。",
             lastCheckedAt: Date()
         )
-        messages.append(
-            ChatMessage(
-                id: UUID().uuidString,
-                role: .assistant,
-                content: response.reply,
-                characterID: response.characterID ?? character.id,
-                createdAt: ""
+        if response.groupMessages.isEmpty {
+            messages.append(
+                ChatMessage(
+                    id: UUID().uuidString,
+                    role: .assistant,
+                    content: response.reply,
+                    characterID: response.characterID ?? character.id,
+                    createdAt: ""
+                )
             )
-        )
+        } else {
+            for groupMessage in response.groupMessages {
+                messages.append(
+                    ChatMessage(
+                        id: UUID().uuidString,
+                        role: .assistant,
+                        content: groupMessage.text,
+                        characterID: groupMessage.characterID ?? response.characterID ?? character.id,
+                        createdAt: ""
+                    )
+                )
+            }
+        }
         chatNotice = response.notice
         isChatCheckInVisible = shouldSuggestCheckIn && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + response.reply)
         refreshInteractionOffers()
         isSending = false
+    }
+
+    private static func greetingMessage(characterID: String) -> ChatMessage {
+        ChatMessage(
+            id: UUID().uuidString,
+            role: .assistant,
+            content: "晚上好。我在这里。你可以先说一点点，不需要整理好。",
+            characterID: characterID,
+            createdAt: ""
+        )
+    }
+
+    private static func describe(_ error: Error) -> String {
+        if let error = error as? CustomStringConvertible {
+            return error.description
+        }
+        return (error as NSError).localizedDescription
     }
 }

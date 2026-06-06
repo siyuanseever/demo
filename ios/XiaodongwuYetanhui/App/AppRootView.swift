@@ -16,6 +16,7 @@ struct AppRootView: View {
             }
         }
         .tint(Color.warmBrown)
+        .preferredColorScheme(.light)
     }
 }
 
