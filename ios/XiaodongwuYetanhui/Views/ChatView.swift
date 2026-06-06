@@ -104,6 +104,60 @@ struct ChatView: View {
 
 private struct CampfireStage: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var highlightedHotspotID: String?
+
+    let openMailbox: () -> Void
+    let openSessionNotebook: () -> Void
+    let toggleGroupMode: () -> Void
+    let focusComposer: () -> Void
+    let setNotice: (String) -> Void
+
+    var body: some View {
+        GeometryReader { _ in
+            ZStack {
+                if let background = UIImage(named: Self.generatedBackgroundAssetName) {
+                    GeneratedNightScene(
+                        background: background,
+                        highlightedHotspotID: highlightedHotspotID,
+                        openMailbox: openMailbox,
+                        openSessionNotebook: openSessionNotebook,
+                        toggleGroupMode: toggleGroupMode,
+                        focusComposer: focusComposer,
+                        setNotice: setNotice,
+                        activateHotspot: activateHotspot
+                    )
+                } else {
+                    CodeGeneratedNightScene(
+                        highlightedHotspotID: highlightedHotspotID,
+                        openMailbox: { activateHotspot("mailbox", action: openMailbox) },
+                        openSessionNotebook: { activateHotspot("notebook", action: openSessionNotebook) },
+                        toggleGroupMode: { activateHotspot("lantern", action: toggleGroupMode) },
+                        focusComposer: { activateHotspot("campfire", action: focusComposer) },
+                        setNotice: setNotice
+                    )
+                }
+            }
+        }
+        .frame(height: 500)
+        .frame(maxWidth: .infinity)
+    }
+
+    private static let generatedBackgroundAssetName = "nighttalk-home-bg-v1"
+
+    private func activateHotspot(_ id: String, action: @escaping () -> Void) {
+        highlightedHotspotID = id
+        action()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+            if highlightedHotspotID == id {
+                highlightedHotspotID = nil
+            }
+        }
+    }
+}
+
+private struct CodeGeneratedNightScene: View {
+    @EnvironmentObject private var store: CompanionStore
+    let highlightedHotspotID: String?
     let openMailbox: () -> Void
     let openSessionNotebook: () -> Void
     let toggleGroupMode: () -> Void
@@ -121,6 +175,7 @@ private struct CampfireStage: View {
                     setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
                 }
                 .position(x: size.width * 0.78, y: size.height * 0.13)
+                .sceneTouchHalo(isVisible: highlightedHotspotID == "moon", color: Color(hex: 0xfff3c2), radius: 82)
 
                 Ellipse()
                     .fill(Color.white.opacity(0.055))
@@ -132,7 +187,7 @@ private struct CampfireStage: View {
                     let point = position(for: index, in: size)
                     SceneAnimalButton(
                         character: character,
-                        isSelected: character.id == store.selectedCharacterID
+                        isSelected: character.id == store.selectedCharacterID || highlightedHotspotID == character.id
                     ) {
                         store.selectedCharacterID = character.id
                         setNotice("\(character.name)靠近了一点。")
@@ -141,20 +196,22 @@ private struct CampfireStage: View {
                 }
 
                 MailboxObject(messageCount: store.messages.count, action: openMailbox)
+                    .sceneTouchHalo(isVisible: highlightedHotspotID == "mailbox", color: Color(hex: 0xffd27d), radius: 82)
                     .position(x: size.width * 0.15, y: size.height * 0.82)
 
                 NotebookObject(action: openSessionNotebook)
+                    .sceneTouchHalo(isVisible: highlightedHotspotID == "notebook", color: Color(hex: 0xffd27d), radius: 82)
                     .position(x: size.width * 0.86, y: size.height * 0.82)
 
                 GroupLanternObject(isGroupMode: store.isGroupMode, action: toggleGroupMode)
+                    .sceneTouchHalo(isVisible: highlightedHotspotID == "lantern", color: Color(hex: 0xffd27d), radius: 82)
                     .position(x: size.width * 0.13, y: size.height * 0.25)
 
                 CampfireButton(action: focusComposer)
+                    .sceneTouchHalo(isVisible: highlightedHotspotID == "campfire", color: Color(hex: 0xffb45d), radius: 140)
                     .position(x: size.width * 0.5, y: size.height * 0.58)
             }
         }
-        .frame(height: 500)
-        .frame(maxWidth: .infinity)
     }
 
     private func position(for index: Int, in size: CGSize) -> CGPoint {
@@ -167,6 +224,128 @@ private struct CampfireStage: View {
             CGPoint(x: size.width * 0.64, y: size.height * 0.39),
         ]
         return points[index]
+    }
+}
+
+private struct GeneratedNightScene: View {
+    @EnvironmentObject private var store: CompanionStore
+    let background: UIImage
+    let highlightedHotspotID: String?
+    let openMailbox: () -> Void
+    let openSessionNotebook: () -> Void
+    let toggleGroupMode: () -> Void
+    let focusComposer: () -> Void
+    let setNotice: (String) -> Void
+    let activateHotspot: (String, @escaping () -> Void) -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            ZStack {
+                Image(uiImage: background)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .allowsHitTesting(false)
+
+                ForEach(hotspots(in: size)) { hotspot in
+                    SceneHotspotButton(
+                        hotspot: hotspot,
+                        isHighlighted: highlightedHotspotID == hotspot.id
+                    ) {
+                        activateHotspot(hotspot.id, hotspot.action)
+                    }
+                }
+            }
+        }
+    }
+
+    private func hotspots(in size: CGSize) -> [SceneHotspot] {
+        let characters = CompanionFixtures.characters
+        return [
+            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.78, y: size.height * 0.14), radius: 42, color: Color(hex: 0xfff3c2)) {
+                setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
+            },
+            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.13, y: size.height * 0.25), radius: 46, color: Color(hex: 0xffd27d)) {
+                toggleGroupMode()
+            },
+            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.15, y: size.height * 0.82), radius: 50, color: Color(hex: 0xffd27d)) {
+                openMailbox()
+            },
+            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.86, y: size.height * 0.82), radius: 50, color: Color(hex: 0xffd27d)) {
+                openSessionNotebook()
+            },
+            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.5, y: size.height * 0.58), radius: 74, color: Color(hex: 0xffb45d)) {
+                focusComposer()
+            },
+            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.23, y: size.height * 0.53), radius: 44, color: characters[0].bubbleColor) {
+                store.selectedCharacterID = characters[0].id
+            },
+            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.34, y: size.height * 0.73), radius: 44, color: characters[1].bubbleColor) {
+                store.selectedCharacterID = characters[1].id
+            },
+            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.66, y: size.height * 0.73), radius: 44, color: characters[2].bubbleColor) {
+                store.selectedCharacterID = characters[2].id
+            },
+            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.77, y: size.height * 0.53), radius: 44, color: characters[3].bubbleColor) {
+                store.selectedCharacterID = characters[3].id
+            },
+            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.36, y: size.height * 0.39), radius: 44, color: characters[4].bubbleColor) {
+                store.selectedCharacterID = characters[4].id
+            },
+            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.64, y: size.height * 0.39), radius: 44, color: characters[5].bubbleColor) {
+                store.selectedCharacterID = characters[5].id
+            },
+        ]
+    }
+}
+
+private struct SceneHotspot: Identifiable {
+    let id: String
+    let label: String
+    let center: CGPoint
+    let radius: CGFloat
+    let color: Color
+    let action: () -> Void
+}
+
+private struct SceneHotspotButton: View {
+    let hotspot: SceneHotspot
+    let isHighlighted: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(isHighlighted ? hotspot.color.opacity(0.18) : Color.clear)
+                .overlay {
+                    Circle()
+                        .stroke(hotspot.color.opacity(isHighlighted ? 0.72 : 0), lineWidth: 2)
+                }
+                .shadow(color: hotspot.color.opacity(isHighlighted ? 0.35 : 0), radius: 18)
+                .frame(width: hotspot.radius * 2, height: hotspot.radius * 2)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .position(hotspot.center)
+        .accessibilityLabel(hotspot.label)
+    }
+}
+
+private extension View {
+    func sceneTouchHalo(isVisible: Bool, color: Color, radius: CGFloat) -> some View {
+        overlay {
+            Circle()
+                .fill(isVisible ? color.opacity(0.16) : Color.clear)
+                .overlay {
+                    Circle()
+                        .stroke(color.opacity(isVisible ? 0.68 : 0), lineWidth: 2)
+                }
+                .shadow(color: color.opacity(isVisible ? 0.34 : 0), radius: 18)
+                .frame(width: radius, height: radius)
+                .allowsHitTesting(false)
+        }
     }
 }
 
