@@ -18,12 +18,22 @@ struct ChatMessage: Identifiable, Hashable {
     let content: String
     let characterID: String?
     let createdAt: String
+    var groupRole: String = ""
+    var action: String = ""
+    var routeSummary: String?
+    var knowledgeCards: [KnowledgeCard] = []
 }
 
 enum MessageRole: String {
     case user
     case assistant
     case system
+}
+
+struct KnowledgeCard: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let concept: String
 }
 
 struct MemoryEntry: Identifiable, Hashable {

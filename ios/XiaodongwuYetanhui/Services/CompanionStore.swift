@@ -355,18 +355,24 @@ final class CompanionStore: ObservableObject {
                     role: .assistant,
                     content: response.reply,
                     characterID: response.characterID ?? character.id,
-                    createdAt: ""
+                    createdAt: "",
+                    routeSummary: response.routeSummary,
+                    knowledgeCards: response.knowledgeCards
                 )
             )
         } else {
-            for groupMessage in response.groupMessages {
+            for (index, groupMessage) in response.groupMessages.enumerated() {
                 messages.append(
                     ChatMessage(
                         id: UUID().uuidString,
                         role: .assistant,
                         content: groupMessage.text,
                         characterID: groupMessage.characterID ?? response.characterID ?? character.id,
-                        createdAt: ""
+                        createdAt: "",
+                        groupRole: groupMessage.role,
+                        action: groupMessage.action,
+                        routeSummary: index == 0 ? response.routeSummary : nil,
+                        knowledgeCards: groupMessage.knowledgeCards
                     )
                 )
             }

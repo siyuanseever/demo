@@ -33,12 +33,17 @@ final class SQLiteDatabase {
         )
         .reversed()
         .map { row in
-            ChatMessage(
+            let metadata = Self.metadataObject(from: row["metadata"] ?? "{}")
+            return ChatMessage(
                 id: row["id"] ?? UUID().uuidString,
                 role: MessageRole(rawValue: row["role"] ?? "") ?? .assistant,
                 content: row["content"] ?? "",
-                characterID: Self.characterID(from: row["metadata"] ?? "{}"),
-                createdAt: row["created_at"] ?? ""
+                characterID: metadata["character_id"] as? String,
+                createdAt: row["created_at"] ?? "",
+                groupRole: metadata["group_role"] as? String ?? "",
+                action: metadata["action"] as? String ?? "",
+                routeSummary: Self.routeSummary(from: metadata["route_plan"] as? [String: Any]),
+                knowledgeCards: Self.knowledgeCards(from: metadata["knowledge_card_ids"])
             )
         }
     }
@@ -135,14 +140,44 @@ final class SQLiteDatabase {
         return writableURL
     }
 
-    private static func characterID(from jsonString: String) -> String? {
+    private static func metadataObject(from jsonString: String) -> [String: Any] {
         guard
             let data = jsonString.data(using: .utf8),
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
+            return [:]
+        }
+        return object
+    }
+
+    private static func knowledgeCards(from value: Any?) -> [KnowledgeCard] {
+        guard let ids = value as? [String] else { return [] }
+        return ids.map { KnowledgeCard(id: $0, title: $0, concept: "") }
+    }
+
+    private static func routeSummary(from plan: [String: Any]?) -> String? {
+        guard
+            let plan,
+            let main = plan["main"] as? [String: Any],
+            let mainID = main["character_id"] as? String
+        else {
             return nil
         }
-        return object["character_id"] as? String
+        let empathy = (plan["empathy"] as? [String: Any]) ?? (plan["empathic"] as? [String: Any])
+        let need = (plan["need"] as? [String: Any]) ?? (plan["pinpoint"] as? [String: Any])
+        let anchor = plan["anchor"] as? [String: Any]
+        let empathyID = empathy?["character_id"] as? String
+        let needID = need?["character_id"] as? String
+        let empathyName = CompanionFixtures.characters.first { $0.id == empathyID }?.name ?? "一只小动物"
+        let needName = CompanionFixtures.characters.first { $0.id == needID }?.name ?? "另一只小动物"
+        let mainName = CompanionFixtures.characters.first { $0.id == mainID }?.name ?? "主回应"
+        let anchorName = (anchor?["character_id"] as? String).flatMap { id in CompanionFixtures.characters.first { $0.id == id }?.name }
+        let responseMode = plan["response_mode"] as? String
+        let mode = responseMode.flatMap { $0.isEmpty ? nil : " · \($0)" } ?? ""
+        if let anchorName {
+            return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复，\(anchorName)收束"
+        }
+        return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复"
     }
 
     private static let allowedTables = Set(["sessions", "messages", "memories", "journals"])

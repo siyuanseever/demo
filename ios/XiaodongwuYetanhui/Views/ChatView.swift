@@ -555,14 +555,36 @@ private struct MessageBubble: View {
     var body: some View {
         let isUser = message.role == .user
         let character = store.character(id: message.characterID) ?? store.selectedCharacter
-        HStack(alignment: .bottom, spacing: 10) {
-            if !isUser {
-                CharacterAvatar(character: character, size: 40)
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 7) {
+            if let routeSummary = message.routeSummary, !routeSummary.isEmpty {
+                Label(routeSummary, systemImage: "wand.and.stars")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.warmBrown)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.white.opacity(0.56), in: Capsule())
             }
-            Text(message.content)
-                .font(.body)
-                .lineSpacing(4)
-                .foregroundStyle(Color.nightInk)
+
+            HStack(alignment: .bottom, spacing: 10) {
+                if !isUser {
+                    CharacterAvatar(character: character, size: 40)
+                }
+
+                VStack(alignment: .leading, spacing: 9) {
+                    if !isUser, message.hasGroupMetadata {
+                        MessageMetaRow(groupRole: message.groupRole, action: message.action)
+                    }
+
+                    Text(message.content)
+                        .font(.body)
+                        .lineSpacing(4)
+                        .foregroundStyle(Color.nightInk)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !message.knowledgeCards.isEmpty {
+                        KnowledgeCardStrip(cards: message.knowledgeCards)
+                    }
+                }
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
                 .background(
@@ -570,12 +592,177 @@ private struct MessageBubble: View {
                     in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                 )
                 .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
-            if isUser {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(Color.warmBrown)
+
+                if isUser {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(Color.warmBrown)
+                }
             }
         }
+    }
+}
+
+private struct MessageMetaRow: View {
+    let groupRole: String
+    let action: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let roleLabel {
+                Text(roleLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.nightInk.opacity(0.76))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.42), in: Capsule())
+            }
+
+            if let actionIcon {
+                Image(systemName: actionIcon)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.warmBrown.opacity(0.82))
+                    .accessibilityLabel(actionLabel ?? "小动物动作")
+            }
+        }
+    }
+
+    private var roleLabel: String? {
+        switch groupRole.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "empathy", "empathic":
+            return "共情"
+        case "need", "pinpoint":
+            return "需求"
+        case "main":
+            return "主回复"
+        case "anchor":
+            return "收束"
+        case "":
+            return nil
+        default:
+            return groupRole
+        }
+    }
+
+    private var actionIcon: String? {
+        switch action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "soft_lean":
+            return "arrow.down.forward.circle.fill"
+        case "tilt_head":
+            return "sparkle.magnifyingglass"
+        case "slow_nod":
+            return "checkmark.circle.fill"
+        case "warm_glow":
+            return "sparkles"
+        case "steady_guard":
+            return "shield.fill"
+        case "small_breath":
+            return "wind"
+        case "":
+            return nil
+        default:
+            return "circle.fill"
+        }
+    }
+
+    private var actionLabel: String? {
+        switch action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "soft_lean":
+            return "轻轻靠近"
+        case "tilt_head":
+            return "歪头思考"
+        case "slow_nod":
+            return "慢慢点头"
+        case "warm_glow":
+            return "温暖发光"
+        case "steady_guard":
+            return "稳定守护"
+        case "small_breath":
+            return "陪你呼吸"
+        default:
+            return nil
+        }
+    }
+}
+
+private struct KnowledgeCardStrip: View {
+    let cards: [KnowledgeCard]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("本轮参考知识卡", systemImage: "leaf.fill")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.nightInk.opacity(0.68))
+
+            FlowLayout(spacing: 6) {
+                ForEach(cards) { card in
+                    Text(card.title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.warmBrown)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.45), in: Capsule())
+                        .accessibilityLabel(card.concept.isEmpty ? card.title : "\(card.title)：\(card.concept)")
+                }
+            }
+        }
+    }
+}
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? 280
+        let layout = rows(in: maxWidth, subviews: subviews)
+        return CGSize(width: maxWidth, height: layout.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+
+    private func rows(in maxWidth: CGFloat, subviews: Subviews) -> (height: CGFloat, rowCount: Int) {
+        var x: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var rowCount = subviews.isEmpty ? 0 : 1
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                totalHeight += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+                rowCount += 1
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        totalHeight += rowHeight
+        return (totalHeight, rowCount)
+    }
+}
+
+private extension ChatMessage {
+    var hasGroupMetadata: Bool {
+        !groupRole.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !action.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

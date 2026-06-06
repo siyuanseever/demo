@@ -4,6 +4,8 @@ struct ChatServiceResponse {
     let reply: String
     let characterID: String?
     let groupMessages: [ChatServiceGroupMessage]
+    let knowledgeCards: [KnowledgeCard]
+    let routeSummary: String?
     let usedFallback: Bool
     let notice: String?
     let backendURL: String
@@ -15,6 +17,7 @@ struct ChatServiceGroupMessage {
     let text: String
     let action: String
     let characterID: String?
+    let knowledgeCards: [KnowledgeCard]
 }
 
 struct SessionCloseSummary {
@@ -76,17 +79,25 @@ final class ChatService {
                 )
             )
             let response: ChatResponseBody = try await decode(request)
+            let knowledgeCards = response.knowledgeCards.map(\.knowledgeCard)
+            let groupMessages = response.groupMessages ?? []
+            let cardTargetIndex = groupMessages.firstIndex {
+                $0.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "main"
+            } ?? max(0, groupMessages.count - 1)
             return ChatServiceResponse(
                 reply: response.reply,
                 characterID: response.character?.id ?? character.id,
-                groupMessages: (response.groupMessages ?? []).map {
+                groupMessages: groupMessages.enumerated().map { index, item in
                     ChatServiceGroupMessage(
-                        role: $0.role,
-                        text: $0.text,
-                        action: $0.action ?? "",
-                        characterID: $0.character?.id
+                        role: item.role,
+                        text: item.text,
+                        action: item.action ?? "",
+                        characterID: item.character?.id,
+                        knowledgeCards: index == cardTargetIndex ? knowledgeCards : []
                     )
                 },
+                knowledgeCards: knowledgeCards,
+                routeSummary: Self.routeSummary(response.routePlan),
                 usedFallback: false,
                 notice: nil,
                 backendURL: backendURLDescription,
@@ -97,6 +108,8 @@ final class ChatService {
                 reply: fallbackReply ?? Self.fallbackReply(for: text, character: character),
                 characterID: character.id,
                 groupMessages: [],
+                knowledgeCards: [],
+                routeSummary: nil,
                 usedFallback: true,
                 notice: "本地 Web 服务暂时没有回应，先用 iOS 原型陪你接住这一轮。",
                 backendURL: backendURLDescription,
@@ -164,6 +177,22 @@ final class ChatService {
         return "\(character.name)在这里接住这一小段。你愿意的话，可以继续说：这件事最刺痛你的地方是什么？"
     }
 
+    private static func routeSummary(_ plan: RoutePlanResponseBody?) -> String? {
+        guard let plan, let mainID = plan.main?.characterID else { return nil }
+        let empathyID = plan.empathy?.characterID ?? plan.empathic?.characterID
+        let needID = plan.need?.characterID ?? plan.pinpoint?.characterID
+        let anchorID = plan.anchor?.characterID
+        let empathyName = CompanionFixtures.characters.first { $0.id == empathyID }?.name ?? "一只小动物"
+        let needName = CompanionFixtures.characters.first { $0.id == needID }?.name ?? "另一只小动物"
+        let mainName = CompanionFixtures.characters.first { $0.id == mainID }?.name ?? "主回应"
+        let anchorName = anchorID.flatMap { id in CompanionFixtures.characters.first { $0.id == id }?.name }
+        let mode = plan.responseMode.flatMap { $0.isEmpty ? nil : " · \($0)" } ?? ""
+        if let anchorName {
+            return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复，\(anchorName)收束"
+        }
+        return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复"
+    }
+
     private static func defaultBaseURL() -> URL {
         if
             let rawValue = ProcessInfo.processInfo.environment["XIAOLU_BACKEND_URL"],
@@ -216,11 +245,24 @@ private struct ChatResponseBody: Decodable {
     let reply: String
     let character: ResponseCharacter?
     let groupMessages: [GroupMessageResponseBody]?
+    let knowledgeCards: [KnowledgeCardResponseBody]
+    let routePlan: RoutePlanResponseBody?
 
     enum CodingKeys: String, CodingKey {
         case reply
         case character
         case groupMessages = "group_messages"
+        case knowledgeCards = "knowledge_cards"
+        case routePlan = "route_plan"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        reply = try container.decode(String.self, forKey: .reply)
+        character = try container.decodeIfPresent(ResponseCharacter.self, forKey: .character)
+        groupMessages = try container.decodeIfPresent([GroupMessageResponseBody].self, forKey: .groupMessages)
+        knowledgeCards = try container.decodeIfPresent([KnowledgeCardResponseBody].self, forKey: .knowledgeCards) ?? []
+        routePlan = try container.decodeIfPresent(RoutePlanResponseBody.self, forKey: .routePlan)
     }
 }
 
@@ -233,6 +275,44 @@ private struct GroupMessageResponseBody: Decodable {
 
 private struct ResponseCharacter: Decodable {
     let id: String
+}
+
+private struct KnowledgeCardResponseBody: Decodable {
+    let id: String
+    let title: String
+    let concept: String?
+
+    var knowledgeCard: KnowledgeCard {
+        KnowledgeCard(id: id, title: title, concept: concept ?? "")
+    }
+}
+
+private struct RoutePlanResponseBody: Decodable {
+    let responseMode: String?
+    let empathy: RouteRoleResponseBody?
+    let empathic: RouteRoleResponseBody?
+    let need: RouteRoleResponseBody?
+    let pinpoint: RouteRoleResponseBody?
+    let main: RouteRoleResponseBody?
+    let anchor: RouteRoleResponseBody?
+
+    enum CodingKeys: String, CodingKey {
+        case responseMode = "response_mode"
+        case empathy
+        case empathic
+        case need
+        case pinpoint
+        case main
+        case anchor
+    }
+}
+
+private struct RouteRoleResponseBody: Decodable {
+    let characterID: String
+
+    enum CodingKeys: String, CodingKey {
+        case characterID = "character_id"
+    }
 }
 
 private struct EndSessionRequestBody: Encodable {
