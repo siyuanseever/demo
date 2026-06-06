@@ -112,19 +112,24 @@ private struct CampfireStage: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let side = min(geometry.size.width, geometry.size.height)
+            let size = geometry.size
             ZStack {
+                DistantTreeLine()
+                    .position(x: size.width * 0.5, y: size.height * 0.38)
+
                 MoonAndStars {
                     setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
                 }
+                .position(x: size.width * 0.78, y: size.height * 0.13)
 
-                Circle()
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: side * 0.92, height: side * 0.92)
-                    .blur(radius: 2)
+                Ellipse()
+                    .fill(Color.white.opacity(0.055))
+                    .frame(width: size.width * 0.86, height: size.height * 0.54)
+                    .blur(radius: 4)
+                    .position(x: size.width * 0.5, y: size.height * 0.6)
 
                 ForEach(Array(CompanionFixtures.characters.enumerated()), id: \.element.id) { index, character in
-                    let point = position(for: index, side: side)
+                    let point = position(for: index, in: size)
                     SceneAnimalButton(
                         character: character,
                         isSelected: character.id == store.selectedCharacterID
@@ -132,31 +137,75 @@ private struct CampfireStage: View {
                         store.selectedCharacterID = character.id
                         setNotice("\(character.name)靠近了一点。")
                     }
-                    .position(x: geometry.size.width / 2 + point.x, y: geometry.size.height / 2 + point.y)
+                    .position(point)
                 }
 
                 MailboxObject(messageCount: store.messages.count, action: openMailbox)
-                    .position(x: geometry.size.width / 2 - side * 0.34, y: geometry.size.height / 2 + side * 0.29)
+                    .position(x: size.width * 0.15, y: size.height * 0.82)
 
                 NotebookObject(action: openSessionNotebook)
-                    .position(x: geometry.size.width / 2 + side * 0.34, y: geometry.size.height / 2 + side * 0.29)
+                    .position(x: size.width * 0.86, y: size.height * 0.82)
 
                 GroupLanternObject(isGroupMode: store.isGroupMode, action: toggleGroupMode)
-                    .position(x: geometry.size.width / 2 - side * 0.36, y: geometry.size.height / 2 - side * 0.2)
+                    .position(x: size.width * 0.13, y: size.height * 0.25)
 
                 CampfireButton(action: focusComposer)
-                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2 + side * 0.04)
+                    .position(x: size.width * 0.5, y: size.height * 0.58)
             }
         }
-        .frame(height: 430)
+        .frame(height: 500)
         .frame(maxWidth: .infinity)
     }
 
-    private func position(for index: Int, side: CGFloat) -> CGPoint {
-        let radius = side * 0.32
-        let angles: [CGFloat] = [-130, -78, -28, 28, 78, 130]
-        let radians = angles[index] * .pi / 180
-        return CGPoint(x: cos(radians) * radius, y: sin(radians) * radius)
+    private func position(for index: Int, in size: CGSize) -> CGPoint {
+        let points = [
+            CGPoint(x: size.width * 0.23, y: size.height * 0.53),
+            CGPoint(x: size.width * 0.34, y: size.height * 0.73),
+            CGPoint(x: size.width * 0.66, y: size.height * 0.73),
+            CGPoint(x: size.width * 0.77, y: size.height * 0.53),
+            CGPoint(x: size.width * 0.36, y: size.height * 0.39),
+            CGPoint(x: size.width * 0.64, y: size.height * 0.39),
+        ]
+        return points[index]
+    }
+}
+
+private struct DistantTreeLine: View {
+    var body: some View {
+        HStack(alignment: .bottom, spacing: -18) {
+            ForEach(0..<7) { index in
+                TreeSilhouette(height: [96, 132, 108, 154, 118, 140, 104][index])
+                    .opacity(index == 3 ? 0.42 : 0.28)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct TreeSilhouette: View {
+    let height: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Triangle()
+                .fill(Color(hex: 0x0f1c18).opacity(0.9))
+                .frame(width: height * 0.78, height: height * 0.64)
+            Rectangle()
+                .fill(Color(hex: 0x0b1410).opacity(0.9))
+                .frame(width: 7, height: height * 0.36)
+        }
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -178,7 +227,6 @@ private struct MoonAndStars: View {
                 .shadow(color: Color(hex: 0xfff3c2).opacity(0.35), radius: 18)
             }
             .buttonStyle(.plain)
-            .offset(x: 110, y: -178)
             .accessibilityLabel("月亮和天气")
 
             ForEach(0..<9) { index in
@@ -192,15 +240,15 @@ private struct MoonAndStars: View {
 
     private func starOffset(_ index: Int) -> CGSize {
         let offsets = [
-            CGSize(width: -150, height: -175),
-            CGSize(width: -82, height: -134),
-            CGSize(width: 12, height: -190),
-            CGSize(width: 155, height: -112),
-            CGSize(width: -170, height: -35),
-            CGSize(width: 170, height: 35),
-            CGSize(width: -108, height: 132),
-            CGSize(width: 88, height: 150),
-            CGSize(width: 22, height: 114),
+            CGSize(width: -148, height: -48),
+            CGSize(width: -92, height: -78),
+            CGSize(width: -16, height: -96),
+            CGSize(width: 82, height: -54),
+            CGSize(width: -174, height: 34),
+            CGSize(width: 128, height: 34),
+            CGSize(width: -106, height: 88),
+            CGSize(width: 72, height: 92),
+            CGSize(width: 16, height: 58),
         ]
         return offsets[index]
     }
@@ -246,19 +294,19 @@ private struct SceneAnimalButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 5) {
-                CharacterAvatar(character: character, size: isSelected ? 66 : 56)
+            ZStack {
+                if isSelected {
+                    Circle()
+                        .fill(character.bubbleColor.opacity(0.24))
+                        .frame(width: 82, height: 82)
+                        .blur(radius: 4)
+                }
+
+                CharacterAvatar(character: character, size: isSelected ? 62 : 52)
                     .shadow(color: isSelected ? character.bubbleColor.opacity(0.72) : Color.black.opacity(0.16), radius: isSelected ? 16 : 8)
-                Text(character.name)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.softPaper.opacity(0.9))
-                    .lineLimit(1)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.black.opacity(isSelected ? 0.28 : 0.16), in: Capsule())
             }
             .contentShape(Rectangle())
-            .frame(minWidth: 74, minHeight: 86)
+            .frame(width: 86, height: 86)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("选择\(character.name)")
@@ -407,11 +455,6 @@ private struct ChatStatusStrip: View {
                     .lineLimit(1)
             } else if let sessionNotice = store.sessionNotice {
                 Text(sessionNotice)
-                    .font(.caption)
-                    .foregroundStyle(Color.softPaper.opacity(0.78))
-                    .lineLimit(1)
-            } else {
-                Text(store.isGroupMode ? "群聊模式已开启" : "轻声说，火边会接住")
                     .font(.caption)
                     .foregroundStyle(Color.softPaper.opacity(0.78))
                     .lineLimit(1)
