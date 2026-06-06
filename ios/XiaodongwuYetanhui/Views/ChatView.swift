@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 struct ChatView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
     @State private var isMessageDrawerVisible = false
+    @State private var sceneNotice: String?
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
@@ -11,6 +13,7 @@ struct ChatView: View {
             NightCampBackground()
                 .onTapGesture {
                     isComposerFocused = false
+                    UIApplication.shared.dismissKeyboard()
                 }
 
             VStack(spacing: 0) {
@@ -23,12 +26,24 @@ struct ChatView: View {
 
                 Spacer(minLength: 10)
 
-                CampfireStage()
+                CampfireStage(
+                    openMailbox: {
+                        isComposerFocused = false
+                        isMessageDrawerVisible = true
+                    },
+                    focusComposer: {
+                        isComposerFocused = true
+                        sceneNotice = "篝火在听。可以直接说一句。"
+                    },
+                    setNotice: { notice in
+                        sceneNotice = notice
+                    }
+                )
                     .padding(.horizontal, 18)
 
                 Spacer(minLength: 12)
 
-                ChatStatusStrip(openDrawer: { isMessageDrawerVisible = true })
+                ChatStatusStrip(sceneNotice: sceneNotice, openDrawer: { isMessageDrawerVisible = true })
                     .padding(.horizontal, 18)
                     .padding(.bottom, 10)
 
@@ -40,6 +55,7 @@ struct ChatView: View {
                     let text = draft
                     draft = ""
                     isComposerFocused = false
+                    UIApplication.shared.dismissKeyboard()
                     Task {
                         await store.sendDraft(text)
                     }
@@ -87,19 +103,6 @@ private struct ChatTopBar: View {
             Spacer()
 
             Button {
-                dismissKeyboard()
-                isMessageDrawerVisible = true
-            } label: {
-                Image(systemName: "tray.full.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 38, height: 38)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.softPaper)
-            .background(Color.white.opacity(0.14), in: Circle())
-            .accessibilityLabel("打开夜谈信箱")
-
-            Button {
                 store.isGroupMode.toggle()
             } label: {
                 Image(systemName: store.isGroupMode ? "person.3.fill" : "person.fill")
@@ -116,12 +119,17 @@ private struct ChatTopBar: View {
 
 private struct CampfireStage: View {
     @EnvironmentObject private var store: CompanionStore
+    let openMailbox: () -> Void
+    let focusComposer: () -> Void
+    let setNotice: (String) -> Void
 
     var body: some View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
             ZStack {
-                MoonAndStars()
+                MoonAndStars {
+                    setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
+                }
 
                 Circle()
                     .fill(Color.white.opacity(0.06))
@@ -130,23 +138,20 @@ private struct CampfireStage: View {
 
                 ForEach(Array(CompanionFixtures.characters.enumerated()), id: \.element.id) { index, character in
                     let point = position(for: index, side: side)
-                    Button {
+                    SceneAnimalButton(
+                        character: character,
+                        isSelected: character.id == store.selectedCharacterID
+                    ) {
                         store.selectedCharacterID = character.id
-                    } label: {
-                        VStack(spacing: 5) {
-                            CharacterAvatar(character: character, size: character.id == store.selectedCharacterID ? 62 : 54)
-                            Text(character.name)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Color.softPaper.opacity(0.86))
-                                .lineLimit(1)
-                        }
+                        setNotice("\(character.name)靠近了一点。")
                     }
-                    .buttonStyle(.plain)
                     .position(x: geometry.size.width / 2 + point.x, y: geometry.size.height / 2 + point.y)
-                    .accessibilityLabel("选择\(character.name)")
                 }
 
-                CampfireSymbol()
+                MailboxObject(messageCount: store.messages.count, action: openMailbox)
+                    .position(x: geometry.size.width / 2 - side * 0.34, y: geometry.size.height / 2 + side * 0.29)
+
+                CampfireButton(action: focusComposer)
                     .position(x: geometry.size.width / 2, y: geometry.size.height / 2 + side * 0.04)
             }
         }
@@ -163,12 +168,26 @@ private struct CampfireStage: View {
 }
 
 private struct MoonAndStars: View {
+    let moonAction: () -> Void
+
     var body: some View {
         ZStack {
-            Circle()
-                .fill(Color(hex: 0xfff3c2).opacity(0.9))
-                .frame(width: 58, height: 58)
-                .offset(x: 110, y: -178)
+            Button(action: moonAction) {
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: 0xfff3c2).opacity(0.92))
+                    Circle()
+                        .fill(Color(hex: 0x1d2736).opacity(0.38))
+                        .frame(width: 45, height: 45)
+                        .offset(x: 15, y: -7)
+                }
+                .frame(width: 64, height: 64)
+                .shadow(color: Color(hex: 0xfff3c2).opacity(0.35), radius: 18)
+            }
+            .buttonStyle(.plain)
+            .offset(x: 110, y: -178)
+            .accessibilityLabel("月亮和天气")
+
             ForEach(0..<9) { index in
                 Image(systemName: "sparkle")
                     .font(.system(size: index % 3 == 0 ? 10 : 7, weight: .semibold))
@@ -194,40 +213,122 @@ private struct MoonAndStars: View {
     }
 }
 
-private struct CampfireSymbol: View {
+private struct SceneAnimalButton: View {
+    let character: CompanionCharacter
+    let isSelected: Bool
+    let action: () -> Void
+
     var body: some View {
-        ZStack {
-            Ellipse()
-                .fill(Color.black.opacity(0.28))
-                .frame(width: 150, height: 38)
-                .offset(y: 52)
-                .blur(radius: 8)
-
-            ForEach([-32, 32], id: \.self) { rotation in
-                Capsule()
-                    .fill(Color(hex: 0x7b4c2d))
-                    .frame(width: 84, height: 16)
-                    .rotationEffect(.degrees(Double(rotation)))
-                    .offset(y: 44)
+        Button(action: action) {
+            VStack(spacing: 5) {
+                CharacterAvatar(character: character, size: isSelected ? 66 : 56)
+                    .shadow(color: isSelected ? character.bubbleColor.opacity(0.72) : Color.black.opacity(0.16), radius: isSelected ? 16 : 8)
+                Text(character.name)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.softPaper.opacity(0.9))
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(isSelected ? 0.28 : 0.16), in: Capsule())
             }
-
-            Image(systemName: "flame.fill")
-                .font(.system(size: 82, weight: .bold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color(hex: 0xffe4a3), Color(hex: 0xf09a52), Color(hex: 0xbd5c35)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: Color(hex: 0xffb45d).opacity(0.65), radius: 24)
+            .contentShape(Rectangle())
+            .frame(minWidth: 74, minHeight: 86)
         }
-        .accessibilityLabel("深夜篝火")
+        .buttonStyle(.plain)
+        .accessibilityLabel("选择\(character.name)")
+    }
+}
+
+private struct CampfireButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Ellipse()
+                    .fill(Color.black.opacity(0.28))
+                    .frame(width: 150, height: 38)
+                    .offset(y: 52)
+                    .blur(radius: 8)
+
+                Circle()
+                    .fill(Color(hex: 0xffb45d).opacity(0.13))
+                    .frame(width: 154, height: 154)
+                    .blur(radius: 3)
+
+                ForEach([-32, 32], id: \.self) { rotation in
+                    Capsule()
+                        .fill(Color(hex: 0x7b4c2d))
+                        .frame(width: 84, height: 16)
+                        .rotationEffect(.degrees(Double(rotation)))
+                        .offset(y: 44)
+                }
+
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 82, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(hex: 0xffe4a3), Color(hex: 0xf09a52), Color(hex: 0xbd5c35)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .shadow(color: Color(hex: 0xffb45d).opacity(0.65), radius: 24)
+            }
+            .frame(width: 170, height: 170)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("点篝火开始输入")
+    }
+}
+
+private struct MailboxObject: View {
+    let messageCount: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack(alignment: .topTrailing) {
+                VStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(hex: 0xb87855))
+                        .frame(width: 70, height: 46)
+                        .overlay(alignment: .top) {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color(hex: 0xffd7a2).opacity(0.75), lineWidth: 2)
+                        }
+                        .overlay {
+                            Image(systemName: "tray.full.fill")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(Color(hex: 0xfff4dc))
+                        }
+
+                    Capsule()
+                        .fill(Color(hex: 0x6f4b32))
+                        .frame(width: 12, height: 34)
+                }
+                .shadow(color: Color.black.opacity(0.22), radius: 10, y: 6)
+
+                Text("\(messageCount)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.nightInk)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color(hex: 0xffd27d), in: Capsule())
+                    .offset(x: 8, y: -8)
+            }
+            .frame(width: 96, height: 98)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("打开夜谈信箱，\(messageCount)条消息")
     }
 }
 
 private struct ChatStatusStrip: View {
     @EnvironmentObject private var store: CompanionStore
+    let sceneNotice: String?
     let openDrawer: () -> Void
 
     var body: some View {
@@ -246,6 +347,11 @@ private struct ChatStatusStrip: View {
                 Label("正在回应", systemImage: "ellipsis.bubble.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color(hex: 0xffd27d))
+            } else if let sceneNotice {
+                Text(sceneNotice)
+                    .font(.caption)
+                    .foregroundStyle(Color.softPaper.opacity(0.78))
+                    .lineLimit(1)
             } else if let sessionNotice = store.sessionNotice {
                 Text(sessionNotice)
                     .font(.caption)
@@ -490,6 +596,7 @@ private struct ComposerBar: View {
                 .background(Color.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             Button {
                 isFocused = false
+                UIApplication.shared.dismissKeyboard()
             } label: {
                 Image(systemName: "keyboard.chevron.compact.down")
                     .font(.system(size: 23, weight: .semibold))
@@ -507,6 +614,22 @@ private struct ComposerBar: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Color(hex: 0x111725).opacity(0.74))
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") {
+                    isFocused = false
+                    UIApplication.shared.dismissKeyboard()
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+        }
+    }
+}
+
+private extension UIApplication {
+    func dismissKeyboard() {
+        sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 
