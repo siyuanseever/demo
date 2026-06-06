@@ -257,6 +257,8 @@ private struct CodeGeneratedNightScene: View {
 
 private struct GeneratedNightScene: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var ambientPulse = false
+
     let background: UIImage
     let highlightedHotspotID: String?
     let openMailbox: () -> Void
@@ -277,6 +279,30 @@ private struct GeneratedNightScene: View {
                     .clipped()
                     .allowsHitTesting(false)
 
+                AmbientFireflies(size: size, isAnimating: ambientPulse)
+                    .allowsHitTesting(false)
+
+                CampfireGlowOverlay(
+                    center: CGPoint(x: size.width * 0.5, y: size.height * 0.64),
+                    isActive: highlightedHotspotID == "campfire",
+                    isAnimating: ambientPulse
+                )
+                .allowsHitTesting(false)
+
+                LanternGlowOverlay(
+                    center: CGPoint(x: size.width * 0.17, y: size.height * 0.28),
+                    isActive: store.isGroupMode || highlightedHotspotID == "lantern",
+                    isAnimating: ambientPulse
+                )
+                .allowsHitTesting(false)
+
+                if let highlightedHotspotID,
+                   let hotspot = hotspots(in: size).first(where: { $0.id == highlightedHotspotID })
+                {
+                    TouchedObjectRipple(hotspot: hotspot)
+                        .allowsHitTesting(false)
+                }
+
                 ForEach(hotspots(in: size)) { hotspot in
                     SceneHotspotButton(
                         hotspot: hotspot,
@@ -285,6 +311,11 @@ private struct GeneratedNightScene: View {
                         activateHotspot(hotspot.id, hotspot.action)
                     }
                 }
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.45).repeatForever(autoreverses: true)) {
+                ambientPulse = true
             }
         }
     }
@@ -358,6 +389,122 @@ private struct SceneHotspotButton: View {
         .buttonStyle(.plain)
         .position(hotspot.center)
         .accessibilityLabel(hotspot.label)
+    }
+}
+
+private struct AmbientFireflies: View {
+    let size: CGSize
+    let isAnimating: Bool
+
+    private let fireflies = [
+        FireflySpec(x: 0.14, y: 0.42, delay: 0.0, scale: 0.8),
+        FireflySpec(x: 0.25, y: 0.36, delay: 0.4, scale: 0.65),
+        FireflySpec(x: 0.72, y: 0.31, delay: 0.8, scale: 0.72),
+        FireflySpec(x: 0.88, y: 0.44, delay: 0.2, scale: 0.9),
+        FireflySpec(x: 0.42, y: 0.47, delay: 0.7, scale: 0.6),
+        FireflySpec(x: 0.63, y: 0.76, delay: 0.3, scale: 0.7),
+        FireflySpec(x: 0.19, y: 0.78, delay: 0.9, scale: 0.62),
+    ]
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            ZStack {
+                ForEach(Array(fireflies.enumerated()), id: \.offset) { index, spec in
+                    let phase = time * 0.75 + spec.delay * 4.0 + Double(index)
+                    Circle()
+                        .fill(Color(hex: 0xffd27d).opacity(0.48 + 0.26 * sin(phase)))
+                        .frame(width: 5 * spec.scale, height: 5 * spec.scale)
+                        .blur(radius: 0.6)
+                        .shadow(color: Color(hex: 0xffd27d).opacity(0.7), radius: 7)
+                        .position(
+                            x: size.width * spec.x + CGFloat(sin(phase * 0.8)) * 8,
+                            y: size.height * spec.y + CGFloat(cos(phase * 0.7)) * 10
+                        )
+                }
+            }
+            .opacity(isAnimating ? 1 : 0.8)
+        }
+    }
+}
+
+private struct FireflySpec {
+    let x: CGFloat
+    let y: CGFloat
+    let delay: Double
+    let scale: CGFloat
+}
+
+private struct CampfireGlowOverlay: View {
+    let center: CGPoint
+    let isActive: Bool
+    let isAnimating: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: 0xffd27d).opacity(isActive ? 0.34 : 0.2),
+                            Color(hex: 0xff8b4c).opacity(isActive ? 0.18 : 0.08),
+                            Color.clear,
+                        ],
+                        center: .center,
+                        startRadius: 8,
+                        endRadius: 124
+                    )
+                )
+                .frame(width: isAnimating ? 230 : 198, height: isAnimating ? 230 : 198)
+
+            Image(systemName: "flame.fill")
+                .font(.system(size: isActive ? 38 : 30, weight: .bold))
+                .foregroundStyle(Color(hex: 0xffd27d).opacity(isActive ? 0.86 : 0.44))
+                .scaleEffect(isAnimating ? 1.08 : 0.94)
+                .offset(y: isAnimating ? -4 : 3)
+        }
+        .position(center)
+        .blendMode(.screen)
+    }
+}
+
+private struct LanternGlowOverlay: View {
+    let center: CGPoint
+    let isActive: Bool
+    let isAnimating: Bool
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        Color(hex: 0xffd27d).opacity(isActive ? 0.32 : 0.16),
+                        Color(hex: 0xffb45d).opacity(isActive ? 0.18 : 0.08),
+                        Color.clear,
+                    ],
+                    center: .center,
+                    startRadius: 6,
+                    endRadius: isActive ? 100 : 72
+                )
+            )
+            .frame(width: isAnimating ? 154 : 132, height: isAnimating ? 154 : 132)
+            .position(center)
+            .blendMode(.screen)
+    }
+}
+
+private struct TouchedObjectRipple: View {
+    let hotspot: SceneHotspot
+
+    var body: some View {
+        Circle()
+            .stroke(hotspot.color.opacity(0.72), lineWidth: 2)
+            .background(Circle().fill(hotspot.color.opacity(0.12)))
+            .frame(width: hotspot.radius * 2.24, height: hotspot.radius * 2.24)
+            .scaleEffect(1.08)
+            .shadow(color: hotspot.color.opacity(0.4), radius: 18)
+            .position(hotspot.center)
+            .transition(.scale.combined(with: .opacity))
     }
 }
 
