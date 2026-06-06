@@ -170,7 +170,7 @@ private struct CampfireStage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private static let generatedBackgroundAssetName = "nighttalk-home-bg-v4"
+    private static let generatedBackgroundAssetName = "nighttalk-home-bg-v6"
 
     private func activateHotspot(_ id: String, action: @escaping () -> Void) {
         highlightedHotspotID = id
@@ -283,14 +283,14 @@ private struct GeneratedNightScene: View {
                     .allowsHitTesting(false)
 
                 CampfireGlowOverlay(
-                    center: CGPoint(x: size.width * 0.5, y: size.height * 0.66),
+                    center: CGPoint(x: size.width * 0.49, y: size.height * 0.63),
                     isActive: highlightedHotspotID == "campfire",
                     isAnimating: ambientPulse
                 )
                 .allowsHitTesting(false)
 
                 LanternGlowOverlay(
-                    center: CGPoint(x: size.width * 0.83, y: size.height * 0.31),
+                    center: CGPoint(x: size.width * 0.15, y: size.height * 0.25),
                     isActive: store.isGroupMode || highlightedHotspotID == "lantern",
                     isAnimating: ambientPulse
                 )
@@ -323,43 +323,43 @@ private struct GeneratedNightScene: View {
     private func hotspots(in size: CGSize) -> [SceneHotspot] {
         let characters = CompanionFixtures.characters
         return [
-            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.27, y: size.height * 0.17), radius: 46, color: Color(hex: 0xfff3c2)) {
+            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.67, y: size.height * 0.16), radius: 46, color: Color(hex: 0xfff3c2)) {
                 setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
             },
-            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.83, y: size.height * 0.31), radius: 50, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.15, y: size.height * 0.25), radius: 52, color: Color(hex: 0xffd27d)) {
                 toggleGroupMode()
             },
-            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.18, y: size.height * 0.8), radius: 58, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.19, y: size.height * 0.78), radius: 62, color: Color(hex: 0xffd27d)) {
                 openMailbox()
             },
-            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.73, y: size.height * 0.79), radius: 58, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.72, y: size.height * 0.78), radius: 64, color: Color(hex: 0xffd27d)) {
                 openSessionNotebook()
             },
-            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.22, y: size.height * 0.6), radius: 62, color: characters[0].bubbleColor) {
+            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.25, y: size.height * 0.6), radius: 66, color: characters[0].bubbleColor) {
                 store.selectedCharacterID = characters[0].id
                 setNotice("\(characters[0].name)靠近了一点。")
             },
-            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.38, y: size.height * 0.55), radius: 58, color: characters[1].bubbleColor) {
+            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.34, y: size.height * 0.47), radius: 58, color: characters[1].bubbleColor) {
                 store.selectedCharacterID = characters[1].id
                 setNotice("\(characters[1].name)靠近了一点。")
             },
-            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.76, y: size.height * 0.43), radius: 60, color: characters[2].bubbleColor) {
+            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.72, y: size.height * 0.35), radius: 66, color: characters[2].bubbleColor) {
                 store.selectedCharacterID = characters[2].id
                 setNotice("\(characters[2].name)靠近了一点。")
             },
-            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.76, y: size.height * 0.62), radius: 62, color: characters[3].bubbleColor) {
+            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.75, y: size.height * 0.6), radius: 64, color: characters[3].bubbleColor) {
                 store.selectedCharacterID = characters[3].id
                 setNotice("\(characters[3].name)靠近了一点。")
             },
-            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.2, y: size.height * 0.37), radius: 52, color: characters[4].bubbleColor) {
+            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.25, y: size.height * 0.34), radius: 54, color: characters[4].bubbleColor) {
                 store.selectedCharacterID = characters[4].id
                 setNotice("\(characters[4].name)靠近了一点。")
             },
-            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.58, y: size.height * 0.57), radius: 62, color: characters[5].bubbleColor) {
+            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.57, y: size.height * 0.54), radius: 64, color: characters[5].bubbleColor) {
                 store.selectedCharacterID = characters[5].id
                 setNotice("\(characters[5].name)靠近了一点。")
             },
-            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.5, y: size.height * 0.66), radius: 82, color: Color(hex: 0xffb45d)) {
+            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.49, y: size.height * 0.63), radius: 82, color: Color(hex: 0xffb45d)) {
                 focusComposer()
             },
         ]

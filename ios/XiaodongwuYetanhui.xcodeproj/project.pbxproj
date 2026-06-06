@@ -35,6 +35,7 @@
 		000000000000000000000132 /* nighttalk-home-bg-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000322 /* nighttalk-home-bg-v2.png */; };
 		000000000000000000000133 /* nighttalk-home-bg-v3.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000323 /* nighttalk-home-bg-v3.png */; };
 		000000000000000000000134 /* nighttalk-home-bg-v4.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000324 /* nighttalk-home-bg-v4.png */; };
+		000000000000000000000135 /* nighttalk-home-bg-v6.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000325 /* nighttalk-home-bg-v6.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -73,6 +74,7 @@
 		000000000000000000000322 /* nighttalk-home-bg-v2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v2.png"; path = "../app/static/nighttalk-home-bg-v2.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000323 /* nighttalk-home-bg-v3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v3.png"; path = "../app/static/nighttalk-home-bg-v3.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000324 /* nighttalk-home-bg-v4.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v4.png"; path = "../app/static/nighttalk-home-bg-v4.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000325 /* nighttalk-home-bg-v6.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v6.png"; path = "../app/static/nighttalk-home-bg-v6.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
@@ -180,6 +182,7 @@
 				000000000000000000000322 /* nighttalk-home-bg-v2.png */,
 				000000000000000000000323 /* nighttalk-home-bg-v3.png */,
 				000000000000000000000324 /* nighttalk-home-bg-v4.png */,
+				000000000000000000000325 /* nighttalk-home-bg-v6.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -276,6 +279,7 @@
 				000000000000000000000132 /* nighttalk-home-bg-v2.png in Resources */,
 				000000000000000000000133 /* nighttalk-home-bg-v3.png in Resources */,
 				000000000000000000000134 /* nighttalk-home-bg-v4.png in Resources */,
+				000000000000000000000135 /* nighttalk-home-bg-v6.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
