@@ -6,6 +6,7 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var isMessageDrawerVisible = false
     @State private var isSessionMenuVisible = false
+    @State private var isComposerVisible = false
     @State private var sceneNotice: String?
     @FocusState private var isComposerFocused: Bool
 
@@ -14,58 +15,77 @@ struct ChatView: View {
             NightCampBackground()
                 .onTapGesture {
                     isComposerFocused = false
+                    if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        withAnimation(.snappy) {
+                            isComposerVisible = false
+                        }
+                    }
                     UIApplication.shared.dismissKeyboard()
                 }
 
+            CampfireStage(
+                openMailbox: {
+                    isComposerFocused = false
+                    isMessageDrawerVisible = true
+                },
+                openSessionNotebook: {
+                    isComposerFocused = false
+                    isSessionMenuVisible = true
+                },
+                toggleGroupMode: {
+                    store.isGroupMode.toggle()
+                    sceneNotice = store.isGroupMode ? "灯笼亮起，六只小动物会一起听。" : "灯笼变暗，先由一只小动物陪你。"
+                },
+                focusComposer: {
+                    revealComposer()
+                    sceneNotice = "篝火在听。可以直接说一句。"
+                },
+                setNotice: { notice in
+                    sceneNotice = notice
+                }
+            )
+            .ignoresSafeArea()
+
             VStack(spacing: 0) {
-                Spacer(minLength: 10)
-
-                CampfireStage(
-                    openMailbox: {
-                        isComposerFocused = false
-                        isMessageDrawerVisible = true
-                    },
-                    openSessionNotebook: {
-                        isComposerFocused = false
-                        isSessionMenuVisible = true
-                    },
-                    toggleGroupMode: {
-                        store.isGroupMode.toggle()
-                        sceneNotice = store.isGroupMode ? "灯笼亮起，六只小动物会一起听。" : "灯笼变暗，先由一只小动物陪你。"
-                    },
-                    focusComposer: {
-                        isComposerFocused = true
-                        sceneNotice = "篝火在听。可以直接说一句。"
-                    },
-                    setNotice: { notice in
-                        sceneNotice = notice
-                    }
-                )
-                    .padding(.horizontal, 18)
-
-                Spacer(minLength: 12)
+                Spacer()
 
                 ChatStatusStrip(sceneNotice: sceneNotice)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 10)
-
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .preferredColorScheme(.light)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if isComposerVisible {
                 ComposerBar(
                     draft: $draft,
                     isSending: store.isSending,
-                    isFocused: $isComposerFocused
+                    isFocused: $isComposerFocused,
+                    dismiss: {
+                        isComposerFocused = false
+                        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            withAnimation(.snappy) {
+                                isComposerVisible = false
+                            }
+                        }
+                        UIApplication.shared.dismissKeyboard()
+                    }
                 ) {
                     let text = draft
                     draft = ""
                     isComposerFocused = false
+                    withAnimation(.snappy) {
+                        isComposerVisible = false
+                    }
                     UIApplication.shared.dismissKeyboard()
                     Task {
                         await store.sendDraft(text)
                     }
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .preferredColorScheme(.light)
         .sheet(isPresented: $isMessageDrawerVisible) {
             MessageDrawerContent()
                 .environmentObject(store)
@@ -98,6 +118,15 @@ struct ChatView: View {
         }
         .onChange(of: store.isRecommendationVisible) {
             if store.isRecommendationVisible { isMessageDrawerVisible = true }
+        }
+    }
+
+    private func revealComposer() {
+        withAnimation(.snappy) {
+            isComposerVisible = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            isComposerFocused = true
         }
     }
 }
@@ -138,8 +167,7 @@ private struct CampfireStage: View {
                 }
             }
         }
-        .frame(height: 500)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private static let generatedBackgroundAssetName = "nighttalk-home-bg-v1"
@@ -264,38 +292,38 @@ private struct GeneratedNightScene: View {
     private func hotspots(in size: CGSize) -> [SceneHotspot] {
         let characters = CompanionFixtures.characters
         return [
-            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.78, y: size.height * 0.14), radius: 42, color: Color(hex: 0xfff3c2)) {
+            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.68, y: size.height * 0.14), radius: 42, color: Color(hex: 0xfff3c2)) {
                 setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
             },
-            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.13, y: size.height * 0.25), radius: 46, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.17, y: size.height * 0.28), radius: 46, color: Color(hex: 0xffd27d)) {
                 toggleGroupMode()
             },
-            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.15, y: size.height * 0.82), radius: 50, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.18, y: size.height * 0.46), radius: 52, color: Color(hex: 0xffd27d)) {
                 openMailbox()
             },
-            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.86, y: size.height * 0.82), radius: 50, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.57, y: size.height * 0.82), radius: 50, color: Color(hex: 0xffd27d)) {
                 openSessionNotebook()
             },
-            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.5, y: size.height * 0.58), radius: 74, color: Color(hex: 0xffb45d)) {
-                focusComposer()
-            },
-            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.23, y: size.height * 0.53), radius: 44, color: characters[0].bubbleColor) {
+            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.2, y: size.height * 0.67), radius: 52, color: characters[0].bubbleColor) {
                 store.selectedCharacterID = characters[0].id
             },
-            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.34, y: size.height * 0.73), radius: 44, color: characters[1].bubbleColor) {
+            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.33, y: size.height * 0.58), radius: 44, color: characters[1].bubbleColor) {
                 store.selectedCharacterID = characters[1].id
             },
-            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.66, y: size.height * 0.73), radius: 44, color: characters[2].bubbleColor) {
+            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.5, y: size.height * 0.55), radius: 46, color: characters[2].bubbleColor) {
                 store.selectedCharacterID = characters[2].id
             },
-            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.77, y: size.height * 0.53), radius: 44, color: characters[3].bubbleColor) {
+            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.65, y: size.height * 0.55), radius: 46, color: characters[3].bubbleColor) {
                 store.selectedCharacterID = characters[3].id
             },
-            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.36, y: size.height * 0.39), radius: 44, color: characters[4].bubbleColor) {
+            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.83, y: size.height * 0.55), radius: 46, color: characters[4].bubbleColor) {
                 store.selectedCharacterID = characters[4].id
             },
-            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.64, y: size.height * 0.39), radius: 44, color: characters[5].bubbleColor) {
+            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.79, y: size.height * 0.68), radius: 54, color: characters[5].bubbleColor) {
                 store.selectedCharacterID = characters[5].id
+            },
+            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.5, y: size.height * 0.64), radius: 74, color: Color(hex: 0xffb45d)) {
+                focusComposer()
             },
         ]
     }
@@ -318,7 +346,7 @@ private struct SceneHotspotButton: View {
     var body: some View {
         Button(action: action) {
             Circle()
-                .fill(isHighlighted ? hotspot.color.opacity(0.18) : Color.clear)
+                .fill(isHighlighted ? hotspot.color.opacity(0.18) : Color.white.opacity(0.001))
                 .overlay {
                     Circle()
                         .stroke(hotspot.color.opacity(isHighlighted ? 0.72 : 0), lineWidth: 2)
@@ -1044,6 +1072,7 @@ private struct ComposerBar: View {
     @Binding var draft: String
     let isSending: Bool
     @FocusState.Binding var isFocused: Bool
+    let dismiss: () -> Void
     let send: () -> Void
 
     var body: some View {
@@ -1055,10 +1084,7 @@ private struct ComposerBar: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(Color.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            Button {
-                isFocused = false
-                UIApplication.shared.dismissKeyboard()
-            } label: {
+            Button(action: dismiss) {
                 Image(systemName: "keyboard.chevron.compact.down")
                     .font(.system(size: 23, weight: .semibold))
             }
@@ -1075,16 +1101,6 @@ private struct ComposerBar: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Color(hex: 0x111725).opacity(0.74))
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("完成") {
-                    isFocused = false
-                    UIApplication.shared.dismissKeyboard()
-                }
-                .font(.subheadline.weight(.semibold))
-            }
-        }
     }
 }
 
