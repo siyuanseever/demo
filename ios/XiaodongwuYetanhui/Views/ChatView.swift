@@ -5,6 +5,7 @@ struct ChatView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
     @State private var isMessageDrawerVisible = false
+    @State private var isSessionMenuVisible = false
     @State private var sceneNotice: String?
     @FocusState private var isComposerFocused: Bool
 
@@ -17,19 +18,20 @@ struct ChatView: View {
                 }
 
             VStack(spacing: 0) {
-                ChatTopBar(
-                    isMessageDrawerVisible: $isMessageDrawerVisible,
-                    dismissKeyboard: { isComposerFocused = false }
-                )
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-
                 Spacer(minLength: 10)
 
                 CampfireStage(
                     openMailbox: {
                         isComposerFocused = false
                         isMessageDrawerVisible = true
+                    },
+                    openSessionNotebook: {
+                        isComposerFocused = false
+                        isSessionMenuVisible = true
+                    },
+                    toggleGroupMode: {
+                        store.isGroupMode.toggle()
+                        sceneNotice = store.isGroupMode ? "灯笼亮起，六只小动物会一起听。" : "灯笼变暗，先由一只小动物陪你。"
                     },
                     focusComposer: {
                         isComposerFocused = true
@@ -43,7 +45,7 @@ struct ChatView: View {
 
                 Spacer(minLength: 12)
 
-                ChatStatusStrip(sceneNotice: sceneNotice, openDrawer: { isMessageDrawerVisible = true })
+                ChatStatusStrip(sceneNotice: sceneNotice)
                     .padding(.horizontal, 18)
                     .padding(.bottom, 10)
 
@@ -62,8 +64,7 @@ struct ChatView: View {
                 }
             }
         }
-        .navigationTitle("夜谈")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
         .sheet(isPresented: $isMessageDrawerVisible) {
             MessageDrawerContent()
@@ -71,6 +72,23 @@ struct ChatView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
+        }
+        .confirmationDialog("夜谈小笔记", isPresented: $isSessionMenuVisible, titleVisibility: .visible) {
+            Button(store.isGroupMode ? "收起群聊灯笼" : "点亮群聊灯笼") {
+                store.isGroupMode.toggle()
+                sceneNotice = store.isGroupMode ? "灯笼亮起，六只小动物会一起听。" : "灯笼变暗，先由一只小动物陪你。"
+            }
+            Button("翻开新的一页") {
+                store.startNewSession()
+                sceneNotice = "新的夜谈已经铺好。"
+            }
+            Button("把今晚收进总结") {
+                Task {
+                    await store.closeCurrentSession()
+                }
+            }
+            .disabled(store.isSending)
+            Button("取消", role: .cancel) {}
         }
         .onChange(of: store.isChatCheckInVisible) {
             if store.isChatCheckInVisible { isMessageDrawerVisible = true }
@@ -84,42 +102,11 @@ struct ChatView: View {
     }
 }
 
-private struct ChatTopBar: View {
-    @EnvironmentObject private var store: CompanionStore
-    @Binding var isMessageDrawerVisible: Bool
-    let dismissKeyboard: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("小动物夜谈会")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Color.softPaper)
-                Text(store.isGroupMode ? "六只小动物围在火边听你说" : "\(store.selectedCharacter.name)在火边陪你")
-                    .font(.caption)
-                    .foregroundStyle(Color.softPaper.opacity(0.78))
-            }
-
-            Spacer()
-
-            Button {
-                store.isGroupMode.toggle()
-            } label: {
-                Image(systemName: store.isGroupMode ? "person.3.fill" : "person.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 38, height: 38)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(store.isGroupMode ? Color(hex: 0xffd27d) : Color.softPaper)
-            .background(Color.white.opacity(store.isGroupMode ? 0.22 : 0.14), in: Circle())
-            .accessibilityLabel(store.isGroupMode ? "关闭群聊模式" : "开启群聊模式")
-        }
-    }
-}
-
 private struct CampfireStage: View {
     @EnvironmentObject private var store: CompanionStore
     let openMailbox: () -> Void
+    let openSessionNotebook: () -> Void
+    let toggleGroupMode: () -> Void
     let focusComposer: () -> Void
     let setNotice: (String) -> Void
 
@@ -150,6 +137,12 @@ private struct CampfireStage: View {
 
                 MailboxObject(messageCount: store.messages.count, action: openMailbox)
                     .position(x: geometry.size.width / 2 - side * 0.34, y: geometry.size.height / 2 + side * 0.29)
+
+                NotebookObject(action: openSessionNotebook)
+                    .position(x: geometry.size.width / 2 + side * 0.34, y: geometry.size.height / 2 + side * 0.29)
+
+                GroupLanternObject(isGroupMode: store.isGroupMode, action: toggleGroupMode)
+                    .position(x: geometry.size.width / 2 - side * 0.36, y: geometry.size.height / 2 - side * 0.2)
 
                 CampfireButton(action: focusComposer)
                     .position(x: geometry.size.width / 2, y: geometry.size.height / 2 + side * 0.04)
@@ -210,6 +203,39 @@ private struct MoonAndStars: View {
             CGSize(width: 22, height: 114),
         ]
         return offsets[index]
+    }
+}
+
+private struct GroupLanternObject: View {
+    let isGroupMode: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Capsule()
+                    .fill(Color(hex: 0x4f3527))
+                    .frame(width: 8, height: 54)
+                    .offset(y: -22)
+
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isGroupMode ? Color(hex: 0xffc56e).opacity(0.86) : Color(hex: 0x6e5140).opacity(0.82))
+                    .frame(width: 54, height: 72)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color(hex: 0xffe3b0).opacity(isGroupMode ? 0.78 : 0.32), lineWidth: 2)
+                    }
+                    .shadow(color: Color(hex: 0xffb45d).opacity(isGroupMode ? 0.55 : 0.12), radius: isGroupMode ? 20 : 8)
+
+                Image(systemName: isGroupMode ? "person.3.fill" : "person.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(isGroupMode ? Color.nightInk.opacity(0.78) : Color.softPaper.opacity(0.8))
+            }
+            .frame(width: 82, height: 112)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼")
     }
 }
 
@@ -283,6 +309,44 @@ private struct CampfireButton: View {
     }
 }
 
+private struct NotebookObject: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(hex: 0x7b5a42))
+                    .frame(width: 64, height: 74)
+                    .rotationEffect(.degrees(-7))
+                    .shadow(color: Color.black.opacity(0.24), radius: 10, y: 6)
+
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(hex: 0xd8bd8f))
+                    .frame(width: 50, height: 62)
+                    .rotationEffect(.degrees(-7))
+
+                VStack(spacing: 6) {
+                    Capsule()
+                        .fill(Color(hex: 0x8f6849).opacity(0.7))
+                        .frame(width: 26, height: 3)
+                    Capsule()
+                        .fill(Color(hex: 0x8f6849).opacity(0.5))
+                        .frame(width: 20, height: 3)
+                    Image(systemName: "moon.stars.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x78583d))
+                }
+                .rotationEffect(.degrees(-7))
+            }
+            .frame(width: 92, height: 104)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("打开夜谈小笔记")
+    }
+}
+
 private struct MailboxObject: View {
     let messageCount: Int
     let action: () -> Void
@@ -329,20 +393,9 @@ private struct MailboxObject: View {
 private struct ChatStatusStrip: View {
     @EnvironmentObject private var store: CompanionStore
     let sceneNotice: String?
-    let openDrawer: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button(action: openDrawer) {
-                Label("\(store.messages.count)", systemImage: "bubble.left.and.bubble.right.fill")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 8)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.softPaper)
-            .background(Color.white.opacity(0.14), in: Capsule())
-
+        HStack {
             if store.isSending {
                 Label("正在回应", systemImage: "ellipsis.bubble.fill")
                     .font(.caption.weight(.semibold))
@@ -403,7 +456,6 @@ private struct MessageDrawerContent: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            SessionControlPanel()
                             ChatQuickActions()
                             InteractionOfferShelf()
                             CharacterPicker()
