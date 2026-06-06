@@ -170,7 +170,7 @@ private struct CampfireStage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private static let generatedBackgroundAssetName = "nighttalk-home-bg-v2"
+    private static let generatedBackgroundAssetName = "nighttalk-home-bg-v3"
 
     private func activateHotspot(_ id: String, action: @escaping () -> Void) {
         highlightedHotspotID = id
@@ -303,19 +303,6 @@ private struct GeneratedNightScene: View {
                         .allowsHitTesting(false)
                 }
 
-                ForEach(animalSprites(in: size)) { sprite in
-                    SceneAnimalSpriteButton(
-                        sprite: sprite,
-                        isSelected: store.selectedCharacterID == sprite.character.id || highlightedHotspotID == sprite.character.id
-                    ) {
-                        activateHotspot(sprite.character.id) {
-                            store.selectedCharacterID = sprite.character.id
-                            setNotice("\(sprite.character.name)靠近了一点。")
-                        }
-                    }
-                    .position(sprite.center)
-                }
-
                 ForEach(hotspots(in: size)) { hotspot in
                     SceneHotspotButton(
                         hotspot: hotspot,
@@ -334,36 +321,47 @@ private struct GeneratedNightScene: View {
     }
 
     private func hotspots(in size: CGSize) -> [SceneHotspot] {
+        let characters = CompanionFixtures.characters
         return [
-            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.68, y: size.height * 0.22), radius: 42, color: Color(hex: 0xfff3c2)) {
+            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.69, y: size.height * 0.22), radius: 46, color: Color(hex: 0xfff3c2)) {
                 setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
             },
-            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.1, y: size.height * 0.58), radius: 46, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.09, y: size.height * 0.32), radius: 48, color: Color(hex: 0xffd27d)) {
                 toggleGroupMode()
             },
-            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.14, y: size.height * 0.86), radius: 48, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.12, y: size.height * 0.78), radius: 58, color: Color(hex: 0xffd27d)) {
                 openMailbox()
             },
-            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.86, y: size.height * 0.86), radius: 48, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.76, y: size.height * 0.83), radius: 58, color: Color(hex: 0xffd27d)) {
                 openSessionNotebook()
             },
-            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.5, y: size.height * 0.78), radius: 78, color: Color(hex: 0xffb45d)) {
+            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.2, y: size.height * 0.64), radius: 58, color: characters[0].bubbleColor) {
+                store.selectedCharacterID = characters[0].id
+                setNotice("\(characters[0].name)靠近了一点。")
+            },
+            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.31, y: size.height * 0.54), radius: 58, color: characters[1].bubbleColor) {
+                store.selectedCharacterID = characters[1].id
+                setNotice("\(characters[1].name)靠近了一点。")
+            },
+            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.66, y: size.height * 0.55), radius: 58, color: characters[2].bubbleColor) {
+                store.selectedCharacterID = characters[2].id
+                setNotice("\(characters[2].name)靠近了一点。")
+            },
+            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.78, y: size.height * 0.65), radius: 58, color: characters[3].bubbleColor) {
+                store.selectedCharacterID = characters[3].id
+                setNotice("\(characters[3].name)靠近了一点。")
+            },
+            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.5, y: size.height * 0.48), radius: 58, color: characters[4].bubbleColor) {
+                store.selectedCharacterID = characters[4].id
+                setNotice("\(characters[4].name)靠近了一点。")
+            },
+            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.49, y: size.height * 0.64), radius: 62, color: characters[5].bubbleColor) {
+                store.selectedCharacterID = characters[5].id
+                setNotice("\(characters[5].name)靠近了一点。")
+            },
+            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.5, y: size.height * 0.74), radius: 82, color: Color(hex: 0xffb45d)) {
                 focusComposer()
             },
-        ]
-    }
-
-    private func animalSprites(in size: CGSize) -> [SceneAnimalSprite] {
-        let characters = CompanionFixtures.characters
-        let base = min(size.width * 0.24, 116)
-        let small = min(size.width * 0.2, 98)
-        return [
-            SceneAnimalSprite(character: characters[0], assetName: "mianmian-sheep-alpha.webp", center: CGPoint(x: size.width * 0.18, y: size.height * 0.73), width: base, height: base, tapCornerRadius: 46),
-            SceneAnimalSprite(character: characters[1], assetName: "shishi-turtle-alpha.webp", center: CGPoint(x: size.width * 0.34, y: size.height * 0.66), width: small, height: small, tapCornerRadius: 42),
-            SceneAnimalSprite(character: characters[2], assetName: "momo-crow-alpha.webp", center: CGPoint(x: size.width * 0.66, y: size.height * 0.66), width: small, height: small, tapCornerRadius: 42),
-            SceneAnimalSprite(character: characters[3], assetName: "youyou-rabbit-alpha.webp", center: CGPoint(x: size.width * 0.82, y: size.height * 0.73), width: base, height: base, tapCornerRadius: 46),
-            SceneAnimalSprite(character: characters[4], assetName: "shanshan-butterfly-alpha.webp", center: CGPoint(x: size.width * 0.48, y: size.height * 0.57), width: small, height: small, tapCornerRadius: 44),
-            SceneAnimalSprite(character: characters[5], assetName: "gangan-tiger-alpha.webp", center: CGPoint(x: size.width * 0.5, y: size.height * 0.72), width: base, height: base, tapCornerRadius: 46),
         ]
     }
 }
@@ -375,54 +373,6 @@ private struct SceneHotspot: Identifiable {
     let radius: CGFloat
     let color: Color
     let action: () -> Void
-}
-
-private struct SceneAnimalSprite: Identifiable {
-    let character: CompanionCharacter
-    let assetName: String
-    let center: CGPoint
-    let width: CGFloat
-    let height: CGFloat
-    let tapCornerRadius: CGFloat
-
-    var id: String { character.id }
-}
-
-private struct SceneAnimalSpriteButton: View {
-    let sprite: SceneAnimalSprite
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: sprite.tapCornerRadius, style: .continuous)
-                        .fill(sprite.character.bubbleColor.opacity(0.22))
-                        .frame(width: sprite.width * 0.9, height: sprite.height * 0.84)
-                        .blur(radius: 8)
-                }
-
-                if let image = UIImage(named: sprite.assetName) ?? UIImage(named: sprite.character.avatarName) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: sprite.width, height: sprite.height)
-                        .scaleEffect(isSelected ? 1.05 : 1.0)
-                        .shadow(color: sprite.character.bubbleColor.opacity(isSelected ? 0.75 : 0.34), radius: isSelected ? 18 : 10)
-                } else {
-                    CharacterAvatar(character: sprite.character, size: min(sprite.width, sprite.height) * 0.72)
-                }
-            }
-            .frame(width: sprite.width, height: sprite.height)
-            .contentShape(
-                RoundedRectangle(cornerRadius: sprite.tapCornerRadius, style: .continuous)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("选择\(sprite.character.name)")
-        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: isSelected)
-    }
 }
 
 private struct SceneHotspotButton: View {
