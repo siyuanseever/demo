@@ -295,6 +295,15 @@ private struct GeneratedNightScene: View {
                 LanternGlowOverlay(
                     center: CGPoint(x: size.width * 0.15, y: size.height * 0.25),
                     isActive: store.isGroupMode || highlightedHotspotID == "lantern",
+                    isGroupMode: store.isGroupMode,
+                    isAnimating: ambientPulse
+                )
+                .allowsHitTesting(false)
+
+                AnimalPresenceGlowLayer(
+                    hotspots: animalHotspots(in: size),
+                    selectedCharacterID: store.selectedCharacterID,
+                    isGroupMode: store.isGroupMode,
                     isAnimating: ambientPulse
                 )
                 .allowsHitTesting(false)
@@ -366,6 +375,11 @@ private struct GeneratedNightScene: View {
                 focusComposer()
             },
         ]
+    }
+
+    private func animalHotspots(in size: CGSize) -> [SceneHotspot] {
+        let characterIDs = Set(CompanionFixtures.characters.map(\.id))
+        return hotspots(in: size).filter { characterIDs.contains($0.id) }
     }
 }
 
@@ -522,25 +536,130 @@ private struct CampfireGlowOverlay: View {
 private struct LanternGlowOverlay: View {
     let center: CGPoint
     let isActive: Bool
+    let isGroupMode: Bool
+    let isAnimating: Bool
+
+    private var innerOpacity: Double {
+        if isGroupMode {
+            return 0.34
+        }
+        return isActive ? 0.24 : 0.1
+    }
+
+    private var middleOpacity: Double {
+        if isGroupMode {
+            return 0.14
+        }
+        return isActive ? 0.1 : 0.04
+    }
+
+    private var glowSize: CGFloat {
+        if isGroupMode {
+            return isAnimating ? 142 : 126
+        }
+        return isAnimating ? 108 : 98
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(hex: 0xffe1a0).opacity(innerOpacity),
+                            Color(hex: 0xffb45d).opacity(middleOpacity),
+                            Color.clear,
+                        ],
+                        center: .center,
+                        startRadius: 6,
+                        endRadius: isGroupMode ? 78 : 58
+                    )
+                )
+                .frame(width: glowSize, height: glowSize)
+
+            if isGroupMode {
+                Circle()
+                    .stroke(Color(hex: 0xffe1a0).opacity(0.22), lineWidth: 1)
+                    .frame(width: isAnimating ? 72 : 62, height: isAnimating ? 72 : 62)
+                    .blur(radius: 0.8)
+            }
+        }
+        .position(center)
+        .blendMode(.screen)
+    }
+}
+
+private struct AnimalPresenceGlowLayer: View {
+    let hotspots: [SceneHotspot]
+    let selectedCharacterID: String
+    let isGroupMode: Bool
     let isAnimating: Bool
 
     var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [
-                        Color(hex: 0xffd27d).opacity(isActive ? 0.32 : 0.16),
-                        Color(hex: 0xffb45d).opacity(isActive ? 0.18 : 0.08),
-                        Color.clear,
-                    ],
-                    center: .center,
-                    startRadius: 6,
-                    endRadius: isActive ? 100 : 72
+        ZStack {
+            ForEach(Array(hotspots.enumerated()), id: \.element.id) { index, hotspot in
+                let isSelected = hotspot.id == selectedCharacterID
+                AnimalPresenceGlow(
+                    hotspot: hotspot,
+                    isVisible: isGroupMode || isSelected,
+                    glow: glow(forSelected: isSelected),
+                    scale: scale(forSelected: isSelected),
+                    delay: isGroupMode ? Double(index) * 0.08 : 0
                 )
-            )
-            .frame(width: isAnimating ? 154 : 132, height: isAnimating ? 154 : 132)
-            .position(center)
-            .blendMode(.screen)
+            }
+        }
+    }
+
+    private func glow(forSelected isSelected: Bool) -> Double {
+        if isGroupMode {
+            return isSelected ? 0.28 : 0.18
+        }
+        return isSelected ? 0.3 : 0
+    }
+
+    private func scale(forSelected isSelected: Bool) -> CGFloat {
+        if isGroupMode {
+            return isSelected ? 0.9 : 0.84
+        }
+        return isSelected ? 0.88 : 0.8
+    }
+}
+
+private struct AnimalPresenceGlow: View {
+    let hotspot: SceneHotspot
+    let isVisible: Bool
+    let glow: Double
+    let scale: CGFloat
+    let delay: Double
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            hotspot.color.opacity(glow),
+                            Color(hex: 0xffd27d).opacity(glow * 0.36),
+                            Color.clear,
+                        ],
+                        center: .center,
+                        startRadius: 8,
+                        endRadius: hotspot.radius * 0.62
+                    )
+                )
+                .frame(width: hotspot.radius * 1.28, height: hotspot.radius * 1.28)
+                .blur(radius: 5)
+
+            Circle()
+                .stroke(hotspot.color.opacity(glow * 0.42), lineWidth: 1)
+                .frame(width: hotspot.radius * 0.92, height: hotspot.radius * 0.92)
+                .blur(radius: 1.2)
+        }
+        .scaleEffect(scale)
+        .opacity(isVisible ? 1 : 0)
+        .position(hotspot.center)
+        .blendMode(.screen)
+        .animation(.easeInOut(duration: 0.72).delay(delay), value: isVisible)
     }
 }
 
