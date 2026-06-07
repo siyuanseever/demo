@@ -5,7 +5,8 @@ struct ChatView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
     @State private var isMessageDrawerVisible = false
-    @State private var isSessionMenuVisible = false
+    @State private var isNotebookVisible = false
+    @State private var isSettingsVisible = false
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
     @FocusState private var isComposerFocused: Bool
@@ -30,11 +31,11 @@ struct ChatView: View {
                 },
                 openSessionNotebook: {
                     isComposerFocused = false
-                    isSessionMenuVisible = true
+                    isNotebookVisible = true
                 },
-                toggleGroupMode: {
-                    store.isGroupMode.toggle()
-                    sceneNotice = store.isGroupMode ? "灯笼亮起，六只小动物会一起听。" : "灯笼变暗，先由一只小动物陪你。"
+                openLanternSettings: {
+                    isComposerFocused = false
+                    isSettingsVisible = true
                 },
                 focusComposer: {
                     revealComposer()
@@ -93,22 +94,24 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
         }
-        .confirmationDialog("夜谈小笔记", isPresented: $isSessionMenuVisible, titleVisibility: .visible) {
-            Button(store.isGroupMode ? "收起群聊灯笼" : "点亮群聊灯笼") {
-                store.isGroupMode.toggle()
-                sceneNotice = store.isGroupMode ? "灯笼亮起，六只小动物会一起听。" : "灯笼变暗，先由一只小动物陪你。"
+        .sheet(isPresented: $isNotebookVisible) {
+            ForestNotebookContent {
+                isNotebookVisible = false
+                isMessageDrawerVisible = true
             }
-            Button("翻开新的一页") {
-                store.startNewSession()
-                sceneNotice = "新的夜谈已经铺好。"
+            .environmentObject(store)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .preferredColorScheme(.light)
+        }
+        .sheet(isPresented: $isSettingsVisible) {
+            NavigationStack {
+                SettingsView()
+                    .environmentObject(store)
             }
-            Button("把今晚收进总结") {
-                Task {
-                    await store.closeCurrentSession()
-                }
-            }
-            .disabled(store.isSending)
-            Button("取消", role: .cancel) {}
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .preferredColorScheme(.light)
         }
         .onChange(of: store.isChatCheckInVisible) {
             if store.isChatCheckInVisible { isMessageDrawerVisible = true }
@@ -137,7 +140,7 @@ private struct CampfireStage: View {
 
     let openMailbox: () -> Void
     let openSessionNotebook: () -> Void
-    let toggleGroupMode: () -> Void
+    let openLanternSettings: () -> Void
     let focusComposer: () -> Void
     let setNotice: (String) -> Void
 
@@ -150,7 +153,7 @@ private struct CampfireStage: View {
                         highlightedHotspotID: highlightedHotspotID,
                         openMailbox: openMailbox,
                         openSessionNotebook: openSessionNotebook,
-                        toggleGroupMode: toggleGroupMode,
+                        openLanternSettings: openLanternSettings,
                         focusComposer: focusComposer,
                         setNotice: setNotice,
                         activateHotspot: activateHotspot
@@ -160,7 +163,7 @@ private struct CampfireStage: View {
                         highlightedHotspotID: highlightedHotspotID,
                         openMailbox: { activateHotspot("mailbox", action: openMailbox) },
                         openSessionNotebook: { activateHotspot("notebook", action: openSessionNotebook) },
-                        toggleGroupMode: { activateHotspot("lantern", action: toggleGroupMode) },
+                        openLanternSettings: { activateHotspot("lantern", action: openLanternSettings) },
                         focusComposer: { activateHotspot("campfire", action: focusComposer) },
                         setNotice: setNotice
                     )
@@ -188,7 +191,7 @@ private struct CodeGeneratedNightScene: View {
     let highlightedHotspotID: String?
     let openMailbox: () -> Void
     let openSessionNotebook: () -> Void
-    let toggleGroupMode: () -> Void
+    let openLanternSettings: () -> Void
     let focusComposer: () -> Void
     let setNotice: (String) -> Void
 
@@ -231,7 +234,7 @@ private struct CodeGeneratedNightScene: View {
                     .sceneTouchHalo(isVisible: highlightedHotspotID == "notebook", color: Color(hex: 0xffd27d), radius: 82)
                     .position(x: size.width * 0.86, y: size.height * 0.82)
 
-                GroupLanternObject(isGroupMode: store.isGroupMode, action: toggleGroupMode)
+                GroupLanternObject(isGroupMode: store.isGroupMode, action: openLanternSettings)
                     .sceneTouchHalo(isVisible: highlightedHotspotID == "lantern", color: Color(hex: 0xffd27d), radius: 82)
                     .position(x: size.width * 0.13, y: size.height * 0.25)
 
@@ -263,7 +266,7 @@ private struct GeneratedNightScene: View {
     let highlightedHotspotID: String?
     let openMailbox: () -> Void
     let openSessionNotebook: () -> Void
-    let toggleGroupMode: () -> Void
+    let openLanternSettings: () -> Void
     let focusComposer: () -> Void
     let setNotice: (String) -> Void
     let activateHotspot: (String, @escaping () -> Void) -> Void
@@ -326,8 +329,8 @@ private struct GeneratedNightScene: View {
             SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.67, y: size.height * 0.16), radius: 46, color: Color(hex: 0xfff3c2)) {
                 setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
             },
-            SceneHotspot(id: "lantern", label: store.isGroupMode ? "关闭群聊灯笼" : "点亮群聊灯笼", center: CGPoint(x: size.width * 0.15, y: size.height * 0.25), radius: 52, color: Color(hex: 0xffd27d)) {
-                toggleGroupMode()
+            SceneHotspot(id: "lantern", label: "打开灯笼设置", center: CGPoint(x: size.width * 0.15, y: size.height * 0.25), radius: 52, color: Color(hex: 0xffd27d)) {
+                openLanternSettings()
             },
             SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.19, y: size.height * 0.78), radius: 62, color: Color(hex: 0xffd27d)) {
                 openMailbox()
@@ -917,6 +920,68 @@ private struct MessageDrawerContent: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .preferredColorScheme(.light)
+    }
+}
+
+private struct ForestNotebookContent: View {
+    @State private var selectedSpace: NotebookSpace = .state
+    let openChat: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("笔记本空间", selection: $selectedSpace) {
+                    ForEach(NotebookSpace.allCases) { space in
+                        Label(space.title, systemImage: space.systemImageName)
+                            .tag(space)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 18)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
+
+                selectedSpace.content(openChat: openChat)
+            }
+            .background(WarmBackground())
+            .navigationTitle("森林笔记本")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+private enum NotebookSpace: String, CaseIterable, Identifiable {
+    case state
+    case memory
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .state:
+            return "状态花园"
+        case .memory:
+            return "记忆叶片"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .state:
+            return "heart.text.square.fill"
+        case .memory:
+            return "leaf.fill"
+        }
+    }
+
+    @ViewBuilder
+    func content(openChat: @escaping () -> Void) -> some View {
+        switch self {
+        case .state:
+            StateOverviewView(openChat: openChat)
+        case .memory:
+            MemoryListView()
+        }
     }
 }
 
