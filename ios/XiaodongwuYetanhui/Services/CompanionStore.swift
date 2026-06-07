@@ -388,9 +388,6 @@ final class CompanionStore: ObservableObject {
     }
 
     private static func describe(_ error: Error) -> String {
-        if let error = error as? CustomStringConvertible {
-            return error.description
-        }
-        return (error as NSError).localizedDescription
+        return error.localizedDescription
     }
 }
