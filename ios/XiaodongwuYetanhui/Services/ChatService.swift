@@ -150,7 +150,7 @@ final class ChatService {
         let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
         request.httpMethod = "POST"
-        request.timeoutInterval = 12
+        request.timeoutInterval = 90
         request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         return request

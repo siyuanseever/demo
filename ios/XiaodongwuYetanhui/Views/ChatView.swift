@@ -859,9 +859,7 @@ private struct MessageDrawerContent: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            ChatQuickActions()
-                            InteractionOfferShelf()
-                            CharacterPicker()
+                            SessionControlPanel()
                             if let loadError = store.loadError {
                                 SoftPanel {
                                     Label(loadError, systemImage: "externaldrive.badge.questionmark")
@@ -876,7 +874,7 @@ private struct MessageDrawerContent: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            ForEach(store.messages) { message in
+                            ForEach(store.messages.reversed()) { message in
                                 MessageBubble(message: message)
                                     .id(message.id)
                             }
@@ -895,14 +893,21 @@ private struct MessageDrawerContent: View {
                             if store.isSending {
                                 TypingIndicator(character: store.selectedCharacter)
                             }
+                            InteractionOfferShelf()
+                            ChatQuickActions()
                         }
                         .padding(18)
                     }
                     .scrollDismissesKeyboard(.interactively)
+                    .onAppear {
+                        if let firstID = store.messages.last?.id {
+                            proxy.scrollTo(firstID, anchor: .top)
+                        }
+                    }
                     .onChange(of: store.messages.count) {
-                        if let lastID = store.messages.last?.id {
+                        if let firstID = store.messages.last?.id {
                             withAnimation(.snappy) {
-                                proxy.scrollTo(lastID, anchor: .bottom)
+                                proxy.scrollTo(firstID, anchor: .top)
                             }
                         }
                     }

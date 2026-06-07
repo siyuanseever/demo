@@ -14,7 +14,7 @@ struct StateOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(title: "状态花园", subtitle: "把长期对话留下的轨迹，整理成可以回看的状态。")
-                    SnapshotGrid(snapshot: store.snapshot)
+                    SnapshotGrid(snapshot: store.snapshot, openChat: openChat)
                     CareMomentPanel(careMoments: store.careMoments)
                     RecommendationHistoryPanel(
                         recommendations: store.recommendationHistory,
@@ -232,10 +232,15 @@ private struct RecommendationHistoryCard: View {
 
 private struct SnapshotGrid: View {
     let snapshot: DashboardSnapshot
+    let openChat: () -> Void
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            StatTile(title: "会话", value: snapshot.sessionCount, icon: "moon.stars.fill")
+            Button(action: openChat) {
+                StatTile(title: "会话", value: snapshot.sessionCount, icon: "moon.stars.fill")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看会话")
             StatTile(title: "消息", value: snapshot.messageCount, icon: "text.bubble.fill")
             StatTile(title: "记忆", value: snapshot.memoryCount, icon: "leaf.fill")
             StatTile(title: "总结", value: snapshot.journalCount, icon: "book.closed.fill")

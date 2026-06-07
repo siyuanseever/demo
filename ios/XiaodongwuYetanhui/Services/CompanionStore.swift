@@ -39,13 +39,13 @@ final class CompanionStore: ObservableObject {
         careMoments = loadCareMoments()
         recommendationHistory = loadRecommendations()
         latestRecommendation = recommendationHistory.first
+        messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         load()
     }
 
     func load() {
         do {
             let database = try SQLiteDatabase()
-            messages = database.recentMessages()
             memories = database.memories()
             journals = database.journals()
             snapshot = DashboardSnapshot(
@@ -57,15 +57,9 @@ final class CompanionStore: ObservableObject {
             loadError = nil
         } catch {
             loadError = "暂时没有读到本地数据库，先进入原型体验。"
-            messages = [
-                ChatMessage(
-                    id: UUID().uuidString,
-                    role: .assistant,
-                    content: "晚上好。我在这里。你可以先说一点点，不需要整理好。",
-                    characterID: selectedCharacterID,
-                    createdAt: ""
-                )
-            ]
+            if messages.isEmpty {
+                messages = [Self.greetingMessage(characterID: selectedCharacterID)]
+            }
         }
         refreshInteractionOffers()
     }
