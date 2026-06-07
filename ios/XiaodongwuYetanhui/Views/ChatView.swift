@@ -405,35 +405,46 @@ private struct AmbientFireflies: View {
     let size: CGSize
     let isAnimating: Bool
 
-    private let fireflies = [
-        FireflySpec(x: 0.14, y: 0.42, delay: 0.0, scale: 0.8),
-        FireflySpec(x: 0.25, y: 0.36, delay: 0.4, scale: 0.65),
-        FireflySpec(x: 0.72, y: 0.31, delay: 0.8, scale: 0.72),
-        FireflySpec(x: 0.88, y: 0.44, delay: 0.2, scale: 0.9),
-        FireflySpec(x: 0.42, y: 0.47, delay: 0.7, scale: 0.6),
-        FireflySpec(x: 0.63, y: 0.76, delay: 0.3, scale: 0.7),
-        FireflySpec(x: 0.19, y: 0.78, delay: 0.9, scale: 0.62),
-    ]
+    private let fireflies = FireflySpec.farLayer + FireflySpec.middleLayer + FireflySpec.nearLayer
 
     var body: some View {
         TimelineView(.animation) { timeline in
             let time = timeline.date.timeIntervalSinceReferenceDate
             ZStack {
                 ForEach(Array(fireflies.enumerated()), id: \.offset) { index, spec in
-                    let phase = time * 0.75 + spec.delay * 4.0 + Double(index)
-                    Circle()
-                        .fill(Color(hex: 0xffd27d).opacity(0.48 + 0.26 * sin(phase)))
-                        .frame(width: 5 * spec.scale, height: 5 * spec.scale)
-                        .blur(radius: 0.6)
-                        .shadow(color: Color(hex: 0xffd27d).opacity(0.7), radius: 7)
-                        .position(
-                            x: size.width * spec.x + CGFloat(sin(phase * 0.8)) * 8,
-                            y: size.height * spec.y + CGFloat(cos(phase * 0.7)) * 10
-                        )
+                    let phase = time * spec.speed + spec.delay * 4.0 + Double(index) * 0.63
+                    let glow = spec.opacityBase + spec.opacityRange * (0.5 + 0.5 * sin(phase * spec.twinkleSpeed))
+                    let xDrift = CGFloat(sin(phase * spec.horizontalFlow)) * spec.drift.width
+                    let yDrift = CGFloat(cos(phase * spec.verticalFlow)) * spec.drift.height
+                    FireflyDot(spec: spec, glow: glow)
+                        .position(x: size.width * spec.x + xDrift, y: size.height * spec.y + yDrift)
                 }
             }
-            .opacity(isAnimating ? 1 : 0.8)
+            .opacity(isAnimating ? 1 : 0.88)
         }
+    }
+}
+
+private struct FireflyDot: View {
+    let spec: FireflySpec
+    let glow: Double
+
+    private var warmGlow: Double {
+        min(0.98, glow + 0.3)
+    }
+
+    private var paleGlow: Double {
+        min(0.82, glow + 0.12)
+    }
+
+    var body: some View {
+        Circle()
+            .fill(Color(hex: 0xffd27d).opacity(glow))
+            .frame(width: spec.diameter, height: spec.diameter)
+            .blur(radius: spec.blur)
+            .shadow(color: Color(hex: 0xffd27d).opacity(warmGlow), radius: spec.shadowRadius)
+            .shadow(color: Color(hex: 0xfff0b8).opacity(paleGlow), radius: spec.shadowRadius * 0.48)
+            .blendMode(.screen)
     }
 }
 
@@ -441,7 +452,38 @@ private struct FireflySpec {
     let x: CGFloat
     let y: CGFloat
     let delay: Double
-    let scale: CGFloat
+    let diameter: CGFloat
+    let drift: CGSize
+    let speed: Double
+    let twinkleSpeed: Double
+    let horizontalFlow: Double
+    let verticalFlow: Double
+    let opacityBase: Double
+    let opacityRange: Double
+    let blur: CGFloat
+    let shadowRadius: CGFloat
+
+    static let farLayer = [
+        FireflySpec(x: 0.12, y: 0.23, delay: 0.1, diameter: 2.0, drift: CGSize(width: 5, height: 7), speed: 0.24, twinkleSpeed: 0.9, horizontalFlow: 0.8, verticalFlow: 0.65, opacityBase: 0.12, opacityRange: 0.24, blur: 0.4, shadowRadius: 4),
+        FireflySpec(x: 0.22, y: 0.34, delay: 0.6, diameter: 2.4, drift: CGSize(width: 6, height: 5), speed: 0.2, twinkleSpeed: 0.82, horizontalFlow: 0.7, verticalFlow: 0.78, opacityBase: 0.1, opacityRange: 0.22, blur: 0.45, shadowRadius: 4),
+        FireflySpec(x: 0.44, y: 0.27, delay: 0.2, diameter: 1.8, drift: CGSize(width: 4, height: 6), speed: 0.18, twinkleSpeed: 0.86, horizontalFlow: 0.72, verticalFlow: 0.66, opacityBase: 0.1, opacityRange: 0.2, blur: 0.4, shadowRadius: 3),
+        FireflySpec(x: 0.76, y: 0.28, delay: 0.8, diameter: 2.2, drift: CGSize(width: 6, height: 8), speed: 0.22, twinkleSpeed: 0.92, horizontalFlow: 0.64, verticalFlow: 0.72, opacityBase: 0.11, opacityRange: 0.24, blur: 0.45, shadowRadius: 4),
+        FireflySpec(x: 0.9, y: 0.38, delay: 0.4, diameter: 2.0, drift: CGSize(width: 5, height: 7), speed: 0.2, twinkleSpeed: 0.8, horizontalFlow: 0.78, verticalFlow: 0.68, opacityBase: 0.1, opacityRange: 0.2, blur: 0.42, shadowRadius: 3),
+    ]
+
+    static let middleLayer = [
+        FireflySpec(x: 0.16, y: 0.44, delay: 0.0, diameter: 4.2, drift: CGSize(width: 10, height: 13), speed: 0.38, twinkleSpeed: 1.0, horizontalFlow: 0.84, verticalFlow: 0.73, opacityBase: 0.28, opacityRange: 0.42, blur: 0.65, shadowRadius: 8),
+        FireflySpec(x: 0.32, y: 0.49, delay: 0.5, diameter: 3.6, drift: CGSize(width: 13, height: 11), speed: 0.35, twinkleSpeed: 0.94, horizontalFlow: 0.76, verticalFlow: 0.8, opacityBase: 0.24, opacityRange: 0.38, blur: 0.6, shadowRadius: 8),
+        FireflySpec(x: 0.55, y: 0.42, delay: 0.9, diameter: 4.0, drift: CGSize(width: 11, height: 14), speed: 0.34, twinkleSpeed: 0.98, horizontalFlow: 0.82, verticalFlow: 0.69, opacityBase: 0.25, opacityRange: 0.4, blur: 0.62, shadowRadius: 9),
+        FireflySpec(x: 0.82, y: 0.48, delay: 0.25, diameter: 4.8, drift: CGSize(width: 12, height: 12), speed: 0.4, twinkleSpeed: 1.04, horizontalFlow: 0.7, verticalFlow: 0.86, opacityBase: 0.3, opacityRange: 0.42, blur: 0.68, shadowRadius: 9),
+        FireflySpec(x: 0.69, y: 0.69, delay: 0.65, diameter: 3.8, drift: CGSize(width: 13, height: 10), speed: 0.36, twinkleSpeed: 0.96, horizontalFlow: 0.74, verticalFlow: 0.76, opacityBase: 0.25, opacityRange: 0.36, blur: 0.6, shadowRadius: 8),
+    ]
+
+    static let nearLayer = [
+        FireflySpec(x: 0.25, y: 0.62, delay: 0.15, diameter: 6.6, drift: CGSize(width: 18, height: 20), speed: 0.55, twinkleSpeed: 1.18, horizontalFlow: 0.86, verticalFlow: 0.74, opacityBase: 0.48, opacityRange: 0.48, blur: 0.82, shadowRadius: 15),
+        FireflySpec(x: 0.52, y: 0.58, delay: 0.75, diameter: 5.8, drift: CGSize(width: 22, height: 16), speed: 0.5, twinkleSpeed: 1.12, horizontalFlow: 0.72, verticalFlow: 0.88, opacityBase: 0.42, opacityRange: 0.46, blur: 0.8, shadowRadius: 14),
+        FireflySpec(x: 0.78, y: 0.73, delay: 0.35, diameter: 6.2, drift: CGSize(width: 20, height: 18), speed: 0.58, twinkleSpeed: 1.22, horizontalFlow: 0.8, verticalFlow: 0.7, opacityBase: 0.46, opacityRange: 0.5, blur: 0.84, shadowRadius: 16),
+    ]
 }
 
 private struct CampfireGlowOverlay: View {
