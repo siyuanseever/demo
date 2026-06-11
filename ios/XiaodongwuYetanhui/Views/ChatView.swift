@@ -4,9 +4,8 @@ import UIKit
 struct ChatView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
-    @State private var isMessageDrawerVisible = false
     @State private var isNotebookVisible = false
-    @State private var isSettingsVisible = false
+    @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
     @FocusState private var isComposerFocused: Bool
@@ -26,16 +25,14 @@ struct ChatView: View {
 
             CampfireStage(
                 openMailbox: {
-                    isComposerFocused = false
-                    isMessageDrawerVisible = true
+                    openNotebook(.chat)
                 },
                 openSessionNotebook: {
-                    isComposerFocused = false
-                    isNotebookVisible = true
+                    openNotebook(.chat)
                 },
                 openLanternSettings: {
                     isComposerFocused = false
-                    isSettingsVisible = true
+                    sceneNotice = "路灯轻轻亮了一下。"
                 },
                 focusComposer: {
                     revealComposer()
@@ -87,40 +84,21 @@ struct ChatView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .sheet(isPresented: $isMessageDrawerVisible) {
-            MessageDrawerContent()
+        .sheet(isPresented: $isNotebookVisible) {
+            ForestNotebookContent(selectedSpace: $notebookSpace)
                 .environmentObject(store)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
         }
-        .sheet(isPresented: $isNotebookVisible) {
-            ForestNotebookContent {
-                isNotebookVisible = false
-                isMessageDrawerVisible = true
-            }
-            .environmentObject(store)
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .preferredColorScheme(.light)
-        }
-        .sheet(isPresented: $isSettingsVisible) {
-            NavigationStack {
-                SettingsView()
-                    .environmentObject(store)
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .preferredColorScheme(.light)
-        }
         .onChange(of: store.isChatCheckInVisible) {
-            if store.isChatCheckInVisible { isMessageDrawerVisible = true }
+            if store.isChatCheckInVisible { openNotebook(.chat) }
         }
         .onChange(of: store.isMonsterCareGameVisible) {
-            if store.isMonsterCareGameVisible { isMessageDrawerVisible = true }
+            if store.isMonsterCareGameVisible { openNotebook(.chat) }
         }
         .onChange(of: store.isRecommendationVisible) {
-            if store.isRecommendationVisible { isMessageDrawerVisible = true }
+            if store.isRecommendationVisible { openNotebook(.chat) }
         }
     }
 
@@ -131,6 +109,12 @@ struct ChatView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             isComposerFocused = true
         }
+    }
+
+    private func openNotebook(_ space: NotebookSpace) {
+        isComposerFocused = false
+        notebookSpace = space
+        isNotebookVisible = true
     }
 }
 
@@ -173,7 +157,7 @@ private struct CampfireStage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private static let generatedBackgroundAssetName = "nighttalk-home-bg-v6"
+    private static let generatedBackgroundAssetName = "sensen-home-rabbit-quiet-v1"
 
     private func activateHotspot(_ id: String, action: @escaping () -> Void) {
         highlightedHotspotID = id
@@ -261,6 +245,8 @@ private struct CodeGeneratedNightScene: View {
 private struct GeneratedNightScene: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var ambientPulse = false
+    @State private var isStreetlampLit = false
+    @State private var litQuietObjectIDs: Set<String> = []
 
     let background: UIImage
     let highlightedHotspotID: String?
@@ -285,28 +271,21 @@ private struct GeneratedNightScene: View {
                 AmbientFireflies(size: size, isAnimating: ambientPulse)
                     .allowsHitTesting(false)
 
-                CampfireGlowOverlay(
-                    center: CGPoint(x: size.width * 0.49, y: size.height * 0.63),
-                    isActive: highlightedHotspotID == "campfire",
-                    isAnimating: ambientPulse
-                )
-                .allowsHitTesting(false)
-
                 LanternGlowOverlay(
-                    center: CGPoint(x: size.width * 0.15, y: size.height * 0.25),
-                    isActive: store.isGroupMode || highlightedHotspotID == "lantern",
-                    isGroupMode: store.isGroupMode,
+                    center: CGPoint(x: size.width * 0.16, y: size.height * 0.22),
+                    isActive: isStreetlampLit || highlightedHotspotID == "streetlamp",
+                    isGroupMode: false,
                     isAnimating: ambientPulse
                 )
                 .allowsHitTesting(false)
 
-                AnimalPresenceGlowLayer(
-                    hotspots: animalHotspots(in: size),
-                    selectedCharacterID: store.selectedCharacterID,
-                    isGroupMode: store.isGroupMode,
-                    isAnimating: ambientPulse
-                )
-                .allowsHitTesting(false)
+                QuietObjectGlowLayer(hotspots: quietObjectHotspots(in: size), litObjectIDs: litQuietObjectIDs)
+                    .allowsHitTesting(false)
+
+                RabbitWhisperBubble(message: rabbitWhisper) {
+                    openMailbox()
+                }
+                .position(x: size.width * 0.62, y: size.height * 0.34)
 
                 if let highlightedHotspotID,
                    let hotspot = hotspots(in: size).first(where: { $0.id == highlightedHotspotID })
@@ -333,53 +312,49 @@ private struct GeneratedNightScene: View {
     }
 
     private func hotspots(in size: CGSize) -> [SceneHotspot] {
-        let characters = CompanionFixtures.characters
         return [
-            SceneHotspot(id: "moon", label: "月亮和天气", center: CGPoint(x: size.width * 0.67, y: size.height * 0.16), radius: 46, color: Color(hex: 0xfff3c2)) {
-                setNotice("今晚的天空很安静。后续这里会接入天气和月相。")
-            },
-            SceneHotspot(id: "lantern", label: "打开灯笼设置", center: CGPoint(x: size.width * 0.15, y: size.height * 0.25), radius: 52, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "streetlamp", label: isStreetlampLit ? "关掉路灯" : "点亮路灯", center: CGPoint(x: size.width * 0.16, y: size.height * 0.22), radius: 46, color: Color(hex: 0xffd27d)) {
+                isStreetlampLit.toggle()
                 openLanternSettings()
             },
-            SceneHotspot(id: "mailbox", label: "打开夜谈信箱，\(store.messages.count)条消息", center: CGPoint(x: size.width * 0.19, y: size.height * 0.78), radius: 62, color: Color(hex: 0xffd27d)) {
-                openMailbox()
-            },
-            SceneHotspot(id: "notebook", label: "打开夜谈小笔记", center: CGPoint(x: size.width * 0.72, y: size.height * 0.78), radius: 64, color: Color(hex: 0xffd27d)) {
+            SceneHotspot(id: "notebook", label: "打开森林笔记本", center: CGPoint(x: size.width * 0.78, y: size.height * 0.82), radius: 70, color: Color(hex: 0xffd27d)) {
                 openSessionNotebook()
             },
-            SceneHotspot(id: characters[0].id, label: "选择\(characters[0].name)", center: CGPoint(x: size.width * 0.25, y: size.height * 0.6), radius: 66, color: characters[0].bubbleColor) {
-                store.selectedCharacterID = characters[0].id
-                setNotice("\(characters[0].name)靠近了一点。")
-            },
-            SceneHotspot(id: characters[1].id, label: "选择\(characters[1].name)", center: CGPoint(x: size.width * 0.34, y: size.height * 0.47), radius: 58, color: characters[1].bubbleColor) {
-                store.selectedCharacterID = characters[1].id
-                setNotice("\(characters[1].name)靠近了一点。")
-            },
-            SceneHotspot(id: characters[2].id, label: "选择\(characters[2].name)", center: CGPoint(x: size.width * 0.72, y: size.height * 0.35), radius: 66, color: characters[2].bubbleColor) {
-                store.selectedCharacterID = characters[2].id
-                setNotice("\(characters[2].name)靠近了一点。")
-            },
-            SceneHotspot(id: characters[3].id, label: "选择\(characters[3].name)", center: CGPoint(x: size.width * 0.75, y: size.height * 0.6), radius: 64, color: characters[3].bubbleColor) {
-                store.selectedCharacterID = characters[3].id
-                setNotice("\(characters[3].name)靠近了一点。")
-            },
-            SceneHotspot(id: characters[4].id, label: "选择\(characters[4].name)", center: CGPoint(x: size.width * 0.25, y: size.height * 0.34), radius: 54, color: characters[4].bubbleColor) {
-                store.selectedCharacterID = characters[4].id
-                setNotice("\(characters[4].name)靠近了一点。")
-            },
-            SceneHotspot(id: characters[5].id, label: "选择\(characters[5].name)", center: CGPoint(x: size.width * 0.57, y: size.height * 0.54), radius: 64, color: characters[5].bubbleColor) {
-                store.selectedCharacterID = characters[5].id
-                setNotice("\(characters[5].name)靠近了一点。")
-            },
-            SceneHotspot(id: "campfire", label: "点篝火开始输入", center: CGPoint(x: size.width * 0.49, y: size.height * 0.63), radius: 82, color: Color(hex: 0xffb45d)) {
+            SceneHotspot(id: "rabbit", label: "摸摸悠悠", center: CGPoint(x: size.width * 0.48, y: size.height * 0.52), radius: 96, color: Color(hex: 0xf4b8a8)) {
+                store.selectedCharacterID = "youyou-rabbit"
+                setNotice("悠悠轻轻点头：我在。")
                 focusComposer()
+            },
+        ] + quietObjectHotspots(in: size)
+    }
+
+    private func quietObjectHotspots(in size: CGSize) -> [SceneHotspot] {
+        [
+            SceneHotspot(id: "quiet-speaker-left-top", label: "让小音箱轻轻亮起", center: CGPoint(x: size.width * 0.19, y: size.height * 0.62), radius: 34, color: Color(hex: 0xffd27d)) {
+                toggleQuietObject("quiet-speaker-left-top")
+            },
+            SceneHotspot(id: "quiet-speaker-left-bottom", label: "让小音箱轻轻亮起", center: CGPoint(x: size.width * 0.28, y: size.height * 0.78), radius: 34, color: Color(hex: 0xf4b8a8)) {
+                toggleQuietObject("quiet-speaker-left-bottom")
+            },
+            SceneHotspot(id: "quiet-speaker-right-top", label: "让小音箱轻轻亮起", center: CGPoint(x: size.width * 0.72, y: size.height * 0.61), radius: 34, color: Color(hex: 0xffd27d)) {
+                toggleQuietObject("quiet-speaker-right-top")
+            },
+            SceneHotspot(id: "quiet-speaker-right-bottom", label: "让小音箱轻轻亮起", center: CGPoint(x: size.width * 0.62, y: size.height * 0.78), radius: 34, color: Color(hex: 0xf4b8a8)) {
+                toggleQuietObject("quiet-speaker-right-bottom")
             },
         ]
     }
 
-    private func animalHotspots(in size: CGSize) -> [SceneHotspot] {
-        let characterIDs = Set(CompanionFixtures.characters.map(\.id))
-        return hotspots(in: size).filter { characterIDs.contains($0.id) }
+    private var rabbitWhisper: String {
+        store.messages.last(where: { $0.role != .user })?.content ?? "我在这里，慢慢说。"
+    }
+
+    private func toggleQuietObject(_ id: String) {
+        if litQuietObjectIDs.contains(id) {
+            litQuietObjectIDs.remove(id)
+        } else {
+            litQuietObjectIDs.insert(id)
+        }
     }
 }
 
@@ -390,6 +365,75 @@ private struct SceneHotspot: Identifiable {
     let radius: CGFloat
     let color: Color
     let action: () -> Void
+}
+
+private struct RabbitWhisperBubble: View {
+    let message: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text("…")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.warmBrown.opacity(0.88))
+                Text(message)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Color.nightInk.opacity(0.86))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(width: 206, alignment: .leading)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.42), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.1), radius: 14, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("打开悠悠的最近回复")
+    }
+}
+
+private struct QuietObjectGlowLayer: View {
+    let hotspots: [SceneHotspot]
+    let litObjectIDs: Set<String>
+
+    var body: some View {
+        ZStack {
+            ForEach(hotspots) { hotspot in
+                QuietObjectGlow(hotspot: hotspot, isLit: litObjectIDs.contains(hotspot.id))
+            }
+        }
+    }
+}
+
+private struct QuietObjectGlow: View {
+    let hotspot: SceneHotspot
+    let isLit: Bool
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        hotspot.color.opacity(isLit ? 0.24 : 0),
+                        Color(hex: 0xffd27d).opacity(isLit ? 0.08 : 0),
+                        Color.clear,
+                    ],
+                    center: .center,
+                    startRadius: 4,
+                    endRadius: hotspot.radius * 0.72
+                )
+            )
+            .frame(width: hotspot.radius * 1.45, height: hotspot.radius * 1.45)
+            .blur(radius: 4)
+            .position(hotspot.center)
+            .blendMode(.screen)
+            .animation(.easeInOut(duration: 0.3), value: isLit)
+    }
 }
 
 private struct SceneHotspotButton: View {
@@ -1085,8 +1129,7 @@ private struct MessageDrawerContent: View {
 }
 
 private struct ForestNotebookContent: View {
-    @State private var selectedSpace: NotebookSpace = .state
-    let openChat: () -> Void
+    @Binding var selectedSpace: NotebookSpace
 
     var body: some View {
         NavigationStack {
@@ -1102,48 +1145,65 @@ private struct ForestNotebookContent: View {
                 .padding(.top, 14)
                 .padding(.bottom, 8)
 
-                selectedSpace.content(openChat: openChat)
+                notebookContent
             }
             .background(WarmBackground())
             .navigationTitle("森林笔记本")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
+
+    @ViewBuilder
+    private var notebookContent: some View {
+        switch selectedSpace {
+        case .chat:
+            MessageDrawerContent()
+        case .state:
+            StateOverviewView {
+                selectedSpace = .chat
+            }
+        case .memory:
+            MemoryListView()
+        case .settings:
+            SettingsView()
+        }
+    }
 }
 
 private enum NotebookSpace: String, CaseIterable, Identifiable {
+    case chat
     case state
     case memory
+    case settings
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .chat:
+            return "信箱"
         case .state:
-            return "状态花园"
+            return "状态"
         case .memory:
-            return "记忆叶片"
+            return "记忆"
+        case .settings:
+            return "设置"
         }
     }
 
     var systemImageName: String {
         switch self {
+        case .chat:
+            return "envelope.fill"
         case .state:
             return "heart.text.square.fill"
         case .memory:
             return "leaf.fill"
+        case .settings:
+            return "gearshape.fill"
         }
     }
 
-    @ViewBuilder
-    func content(openChat: @escaping () -> Void) -> some View {
-        switch self {
-        case .state:
-            StateOverviewView(openChat: openChat)
-        case .memory:
-            MemoryListView()
-        }
-    }
 }
 
 private struct SessionControlPanel: View {
