@@ -5,6 +5,7 @@ struct ChatView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
     @State private var isNotebookVisible = false
+    @State private var isCompanionChatVisible = false
     @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
@@ -12,7 +13,7 @@ struct ChatView: View {
 
     var body: some View {
         SensenHomePage(
-            openChat: { openNotebook(.chat) },
+            openChat: { isCompanionChatVisible = true },
             openForest: { openNotebook(.state) },
             openNotebook: { openNotebook(.memory) },
             openMe: { openNotebook(.settings) }
@@ -25,6 +26,11 @@ struct ChatView: View {
                 .environmentObject(store)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .preferredColorScheme(.light)
+        }
+        .fullScreenCover(isPresented: $isCompanionChatVisible) {
+            CompanionChatPage()
+                .environmentObject(store)
                 .preferredColorScheme(.light)
         }
         .onChange(of: store.isChatCheckInVisible) {
@@ -101,7 +107,7 @@ private struct SensenHomePage: View {
 
 private enum SensenFonts {
     static func handwritten(size: CGFloat) -> Font {
-        .custom("HanziPenSC-W3", size: size)
+        .custom("HannotateSC-W5", size: size)
     }
 }
 
@@ -126,7 +132,7 @@ private struct SensenTopBar: View {
                     .font(.caption)
                     .foregroundStyle(Color(hex: 0xa8b987))
                 Text("森森物语")
-                    .font(SensenFonts.handwritten(size: 22))
+                    .font(SensenFonts.handwritten(size: 18))
                     .foregroundStyle(Color.warmBrown)
                 Image(systemName: "leaf.fill")
                     .font(.caption)
@@ -138,7 +144,7 @@ private struct SensenTopBar: View {
             Button(action: openMe) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 21, weight: .medium))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundStyle(Color.warmBrown)
                     Circle()
                         .fill(Color(hex: 0xf4a4a0))
@@ -157,7 +163,7 @@ private struct SensenHeroSection: View {
     let openChat: () -> Void
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 7) {
             ZStack(alignment: .topLeading) {
                 BundleImage(
                     name: "sensen-home-hero-rabbit-v2",
@@ -170,44 +176,43 @@ private struct SensenHeroSection: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("晚上好")
-                            .font(SensenFonts.handwritten(size: 32))
+                            .font(SensenFonts.handwritten(size: 27))
                             .foregroundStyle(Color.warmBrown)
                         Image(systemName: "star.fill")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Color(hex: 0xffd27d))
                     }
 
                     Text("今天过得怎么样呢？\n和忧忧兔聊一聊吧")
-                        .font(SensenFonts.handwritten(size: 16))
-                        .lineSpacing(5)
+                        .font(SensenFonts.handwritten(size: 14))
+                        .lineSpacing(4)
                         .foregroundStyle(Color.warmBrown.opacity(0.82))
                 }
-                .padding(.top, 18)
-                .padding(.leading, 18)
+                .padding(.top, 16)
+                .padding(.leading, 16)
             }
 
             Button(action: openChat) {
-                HStack(spacing: 14) {
+                HStack(spacing: 12) {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 28, height: 28)
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(width: 25, height: 25)
                         .background(Color.white.opacity(0.86), in: Circle())
                     Text("开始聊聊")
-                        .font(SensenFonts.handwritten(size: 21))
+                        .font(SensenFonts.handwritten(size: 18))
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 15, weight: .bold))
                 }
                 .foregroundStyle(Color.white)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
                 .background(Color(hex: 0xb7a0d4), in: Capsule())
                 .shadow(color: Color(hex: 0xb7a0d4).opacity(0.28), radius: 12, y: 7)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("开始和忧忧兔聊天")
-            .offset(y: 8)
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, 4)
     }
 }
 
@@ -220,9 +225,7 @@ private struct CompanionActionSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("今天的小陪伴 叶")
-                .font(SensenFonts.handwritten(size: 18))
-                .foregroundStyle(Color.warmBrown)
+            SectionTitle(text: "今天的小陪伴")
 
             HStack(spacing: 10) {
                 ForEach(items) { item in
@@ -262,12 +265,12 @@ private struct CompanionActionCard: View {
                 }
 
                 Text(item.title)
-                    .font(SensenFonts.handwritten(size: 15))
+                    .font(SensenFonts.handwritten(size: 13))
                     .foregroundStyle(Color.warmBrown)
                     .multilineTextAlignment(.center)
 
                 Text(item.subtitle)
-                    .font(SensenFonts.handwritten(size: 11))
+                    .font(SensenFonts.handwritten(size: 9.5))
                     .foregroundStyle(Color.warmBrown.opacity(0.68))
                     .lineLimit(3)
                     .multilineTextAlignment(.center)
@@ -303,9 +306,7 @@ private struct MoodCheckSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("此刻心情 叶")
-                .font(SensenFonts.handwritten(size: 18))
-                .foregroundStyle(Color.warmBrown)
+            SectionTitle(text: "此刻心情")
 
             HStack(spacing: 8) {
                 ForEach(Array(moods.enumerated()), id: \.offset) { index, mood in
@@ -355,7 +356,7 @@ private struct EncouragementCard: View {
                 .frame(width: 38)
 
             Text("你已经很努力了，\n慢慢来，一切都会好起来的。")
-                .font(SensenFonts.handwritten(size: 16))
+                .font(SensenFonts.handwritten(size: 14))
                 .lineSpacing(4)
                 .foregroundStyle(Color.warmBrown.opacity(0.84))
 
@@ -399,7 +400,7 @@ private struct SensenBottomBar: View {
                 )
                 .frame(width: 58, height: 58)
                 .clipShape(Circle())
-                .padding(7)
+                .padding(5)
                 .background(Color(hex: 0xfff3ee), in: Circle())
                 .shadow(color: Color(hex: 0xf4b8a8).opacity(0.28), radius: 18, y: 8)
             }
@@ -431,9 +432,9 @@ private struct BottomBarButton: View {
         Button(action: action) {
             VStack(spacing: 5) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 18, weight: .medium))
                 Text(title)
-                    .font(SensenFonts.handwritten(size: 11))
+                    .font(SensenFonts.handwritten(size: 10))
             }
             .foregroundStyle(isSelected ? Color(hex: 0xf28f86) : Color.warmBrown.opacity(0.72))
             .frame(maxWidth: .infinity)
@@ -465,6 +466,142 @@ private struct BundleImage: View {
                     .foregroundStyle(Color.warmBrown.opacity(0.5))
                     .padding(12)
             }
+        }
+    }
+}
+
+private struct SectionTitle: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(text)
+                .font(SensenFonts.handwritten(size: 15))
+                .foregroundStyle(Color.warmBrown)
+            BundleImage(
+                name: "sensen-emoji-yoyo-bashful-v1",
+                contentMode: .fill,
+                fallbackSystemImage: "leaf.fill"
+            )
+            .frame(width: 21, height: 21)
+            .clipShape(Circle())
+        }
+    }
+}
+
+private struct CompanionChatPage: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: CompanionStore
+    @State private var draft = ""
+    @FocusState private var isInputFocused: Bool
+
+    var body: some View {
+        ZStack {
+            Color(hex: 0xfffbf3).ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Color.warmBrown)
+                            .frame(width: 42, height: 42)
+                            .background(Color.white.opacity(0.68), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Text("忧忧兔")
+                        .font(SensenFonts.handwritten(size: 19))
+                        .foregroundStyle(Color.warmBrown)
+
+                    Spacer()
+
+                    Button {
+                        store.startNewSession()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Color.warmBrown)
+                            .frame(width: 42, height: 42)
+                            .background(Color.white.opacity(0.68), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+
+                BundleImage(
+                    name: "sensen-emoji-yoyo-bashful-v1",
+                    contentMode: .fit,
+                    fallbackSystemImage: "hare.fill"
+                )
+                .frame(maxWidth: 260, maxHeight: 260)
+                .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+                .shadow(color: Color(hex: 0xb7a0d4).opacity(0.18), radius: 24, y: 10)
+
+                Text(latestCompanionText)
+                    .font(SensenFonts.handwritten(size: 16))
+                    .lineSpacing(5)
+                    .foregroundStyle(Color.warmBrown.opacity(0.86))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 26)
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    TextField("慢慢说，我在听。", text: $draft, axis: .vertical)
+                        .font(SensenFonts.handwritten(size: 16))
+                        .lineLimit(1...4)
+                        .focused($isInputFocused)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 13)
+                        .background(Color.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+
+                    HStack(spacing: 12) {
+                        Button(action: {}) {
+                            Label("语音", systemImage: "mic.fill")
+                                .font(SensenFonts.handwritten(size: 15))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color(hex: 0xb7a0d4))
+
+                        Button {
+                            sendDraft()
+                        } label: {
+                            Label(store.isSending ? "发送中" : "发送", systemImage: "paperplane.fill")
+                                .font(SensenFonts.handwritten(size: 15))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(hex: 0xb7a0d4))
+                        .disabled(store.isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .padding(18)
+                .background(Color.white.opacity(0.45), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .padding(.horizontal, 18)
+                .padding(.bottom, 12)
+            }
+        }
+    }
+
+    private var latestCompanionText: String {
+        store.messages.last(where: { $0.role != .user })?.content ?? "我在这里。你不用急着整理好，先把这一刻交给我。"
+    }
+
+    private func sendDraft() {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        draft = ""
+        isInputFocused = false
+        UIApplication.shared.dismissKeyboard()
+        Task {
+            await store.sendDraft(text)
         }
     }
 }

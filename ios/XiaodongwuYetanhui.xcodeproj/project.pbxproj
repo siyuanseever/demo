@@ -41,6 +41,7 @@
 		000000000000000000000138 /* sensen-home-hero-rabbit-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000328 /* sensen-home-hero-rabbit-v2.png */; };
 		000000000000000000000139 /* sensen-prop-lantern-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000329 /* sensen-prop-lantern-v1.png */; };
 		000000000000000000000140 /* sensen-rabbit-flat-icon-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000330 /* sensen-rabbit-flat-icon-v1.png */; };
+		000000000000000000000141 /* sensen-emoji-yoyo-bashful-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000331 /* sensen-emoji-yoyo-bashful-v1.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -85,6 +86,7 @@
 		000000000000000000000328 /* sensen-home-hero-rabbit-v2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-home-hero-rabbit-v2.png"; path = "../app/static/sensen-home-hero-rabbit-v2.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000329 /* sensen-prop-lantern-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-prop-lantern-v1.png"; path = "../app/static/sensen-prop-lantern-v1.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000330 /* sensen-rabbit-flat-icon-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-rabbit-flat-icon-v1.png"; path = "../app/static/sensen-rabbit-flat-icon-v1.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000331 /* sensen-emoji-yoyo-bashful-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-emoji-yoyo-bashful-v1.png"; path = "../app/static/sensen-emoji-yoyo-bashful-v1.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
@@ -198,6 +200,7 @@
 				000000000000000000000328 /* sensen-home-hero-rabbit-v2.png */,
 				000000000000000000000329 /* sensen-prop-lantern-v1.png */,
 				000000000000000000000330 /* sensen-rabbit-flat-icon-v1.png */,
+				000000000000000000000331 /* sensen-emoji-yoyo-bashful-v1.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -300,6 +303,7 @@
 				000000000000000000000138 /* sensen-home-hero-rabbit-v2.png in Resources */,
 				000000000000000000000139 /* sensen-prop-lantern-v1.png in Resources */,
 				000000000000000000000140 /* sensen-rabbit-flat-icon-v1.png in Resources */,
+				000000000000000000000141 /* sensen-emoji-yoyo-bashful-v1.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
