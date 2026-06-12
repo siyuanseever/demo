@@ -91,7 +91,7 @@ private struct SensenHomePage: View {
             }
             .scrollIndicators(.hidden)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        .overlay(alignment: .bottom) {
             SensenBottomBar(
                 openHome: {},
                 openForest: openForest,
@@ -99,8 +99,7 @@ private struct SensenHomePage: View {
                 openNotebook: openNotebook,
                 openMe: openMe
             )
-            .padding(.horizontal, 18)
-            .padding(.bottom, 8)
+            .ignoresSafeArea(.container, edges: .bottom)
         }
     }
 }
@@ -391,13 +390,14 @@ private struct SensenBottomBar: View {
             BottomBarButton(title: "我的", systemImage: "person", isSelected: false, action: openMe)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.78), in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(Color(hex: 0xeadfcd).opacity(0.74), lineWidth: 1)
+        .padding(.top, 9)
+        .padding(.bottom, 22)
+        .background(Color(hex: 0xfffbf3).opacity(0.98))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color(hex: 0xeadfcd).opacity(0.72))
+                .frame(height: 1)
         }
-        .shadow(color: Color(hex: 0xb19a83).opacity(0.14), radius: 18, y: 8)
     }
 }
 
@@ -472,6 +472,10 @@ private struct CompanionChatPage: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
+    @State private var isHistoryVisible = false
+    @State private var isExitPromptVisible = false
+    @State private var isSummaryResultVisible = false
+    @State private var isClosingSession = false
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -481,7 +485,7 @@ private struct CompanionChatPage: View {
             VStack(spacing: 16) {
                 HStack {
                     Button {
-                        dismiss()
+                        isExitPromptVisible = true
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .semibold))
@@ -499,16 +503,31 @@ private struct CompanionChatPage: View {
 
                     Spacer()
 
-                    Button {
-                        store.startNewSession()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color.warmBrown)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.68), in: Circle())
+                    HStack(spacing: 8) {
+                        Button {
+                            isHistoryVisible = true
+                        } label: {
+                            Image(systemName: "tray.full.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.warmBrown)
+                                .frame(width: 40, height: 40)
+                                .background(Color.white.opacity(0.68), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("查看本次消息")
+
+                        Button {
+                            store.startNewSession()
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Color.warmBrown)
+                                .frame(width: 40, height: 40)
+                                .background(Color.white.opacity(0.68), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("新的对话")
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
@@ -567,6 +586,34 @@ private struct CompanionChatPage: View {
                 .padding(.bottom, 12)
             }
         }
+        .sheet(isPresented: $isHistoryVisible) {
+            CurrentConversationHistoryView()
+                .environmentObject(store)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .preferredColorScheme(.light)
+        }
+        .confirmationDialog("离开前要总结这次对话吗？", isPresented: $isExitPromptVisible, titleVisibility: .visible) {
+            Button(isClosingSession ? "正在总结..." : "结束并总结") {
+                summarizeAndExit()
+            }
+            .disabled(isClosingSession)
+
+            Button("直接返回", role: .destructive) {
+                dismiss()
+            }
+
+            Button("继续聊一会儿", role: .cancel) {}
+        } message: {
+            Text("如果结束并总结，系统会整理这次对话，生成日记和记忆。")
+        }
+        .alert("本次对话总结", isPresented: $isSummaryResultVisible) {
+            Button("回到首页") {
+                dismiss()
+            }
+        } message: {
+            Text(store.sessionNotice ?? "这次对话已经整理好了。")
+        }
     }
 
     private var latestCompanionText: String {
@@ -581,6 +628,54 @@ private struct CompanionChatPage: View {
         UIApplication.shared.dismissKeyboard()
         Task {
             await store.sendDraft(text)
+        }
+    }
+
+    private func summarizeAndExit() {
+        guard !isClosingSession else { return }
+        isClosingSession = true
+        Task {
+            await store.closeCurrentSession()
+            isClosingSession = false
+            isSummaryResultVisible = true
+        }
+    }
+}
+
+private struct CurrentConversationHistoryView: View {
+    @EnvironmentObject private var store: CompanionStore
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                WarmBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionHeader(
+                            title: "本次消息",
+                            subtitle: "只看当前正在和忧忧兔说的话。"
+                        )
+
+                        if store.messages.isEmpty {
+                            EmptyHintView(systemImage: "tray", title: "还没有消息", detail: "等你说第一句话，这里会留下本次对话。")
+                        } else {
+                            ForEach(store.messages) { message in
+                                MessageBubble(message: message)
+                            }
+                        }
+
+                        if let sessionNotice = store.sessionNotice {
+                            Text(sessionNotice)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .padding(18)
+                }
+            }
+            .navigationTitle("本次消息")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
