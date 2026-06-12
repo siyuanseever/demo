@@ -11,79 +11,15 @@ struct ChatView: View {
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
-        ZStack {
-            NightCampBackground()
-                .onTapGesture {
-                    isComposerFocused = false
-                    if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        withAnimation(.snappy) {
-                            isComposerVisible = false
-                        }
-                    }
-                    UIApplication.shared.dismissKeyboard()
-                }
-
-            CampfireStage(
-                openMailbox: {
-                    openNotebook(.chat)
-                },
-                openSessionNotebook: {
-                    openNotebook(.chat)
-                },
-                openLanternSettings: {
-                    isComposerFocused = false
-                    sceneNotice = "路灯轻轻亮了一下。"
-                },
-                focusComposer: {
-                    revealComposer()
-                    sceneNotice = "篝火在听。可以直接说一句。"
-                },
-                setNotice: { notice in
-                    sceneNotice = notice
-                }
-            )
-            .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                Spacer()
-
-                ChatStatusStrip(sceneNotice: sceneNotice)
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 10)
-            }
-        }
+        SensenHomePage(
+            openChat: { openNotebook(.chat) },
+            openForest: { openNotebook(.state) },
+            openNotebook: { openNotebook(.memory) },
+            openMe: { openNotebook(.settings) }
+        )
+        .environmentObject(store)
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if isComposerVisible {
-                ComposerBar(
-                    draft: $draft,
-                    isSending: store.isSending,
-                    isFocused: $isComposerFocused,
-                    dismiss: {
-                        isComposerFocused = false
-                        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            withAnimation(.snappy) {
-                                isComposerVisible = false
-                            }
-                        }
-                        UIApplication.shared.dismissKeyboard()
-                    }
-                ) {
-                    let text = draft
-                    draft = ""
-                    isComposerFocused = false
-                    withAnimation(.snappy) {
-                        isComposerVisible = false
-                    }
-                    UIApplication.shared.dismissKeyboard()
-                    Task {
-                        await store.sendDraft(text)
-                    }
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
         .sheet(isPresented: $isNotebookVisible) {
             ForestNotebookContent(selectedSpace: $notebookSpace)
                 .environmentObject(store)
@@ -115,6 +51,421 @@ struct ChatView: View {
         isComposerFocused = false
         notebookSpace = space
         isNotebookVisible = true
+    }
+}
+
+private struct SensenHomePage: View {
+    @EnvironmentObject private var store: CompanionStore
+    @State private var selectedMoodIndex = 2
+
+    let openChat: () -> Void
+    let openForest: () -> Void
+    let openNotebook: () -> Void
+    let openMe: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color(hex: 0xfffbf3).ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    SensenTopBar(openMe: openMe)
+                        .padding(.top, 2)
+
+                    SensenHeroSection(openChat: openChat)
+
+                    CompanionActionSection()
+
+                    MoodCheckSection(selectedMoodIndex: $selectedMoodIndex)
+
+                    EncouragementCard()
+                        .padding(.bottom, 98)
+                }
+                .padding(.horizontal, 18)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SensenBottomBar(
+                openHome: {},
+                openForest: openForest,
+                openChat: openChat,
+                openNotebook: openNotebook,
+                openMe: openMe
+            )
+            .padding(.horizontal, 18)
+            .padding(.bottom, 8)
+        }
+    }
+}
+
+private enum SensenFonts {
+    static func handwritten(size: CGFloat) -> Font {
+        .custom("HanziPenSC-W3", size: size)
+    }
+}
+
+private struct SensenTopBar: View {
+    let openMe: () -> Void
+
+    var body: some View {
+        HStack {
+            Button(action: openMe) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(Color.warmBrown)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("打开菜单")
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Image(systemName: "leaf.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: 0xa8b987))
+                Text("森森物语")
+                    .font(SensenFonts.handwritten(size: 22))
+                    .foregroundStyle(Color.warmBrown)
+                Image(systemName: "leaf.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: 0xc99f8d))
+            }
+
+            Spacer()
+
+            Button(action: openMe) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 21, weight: .medium))
+                        .foregroundStyle(Color.warmBrown)
+                    Circle()
+                        .fill(Color(hex: 0xf4a4a0))
+                        .frame(width: 9, height: 9)
+                        .offset(x: 3, y: -3)
+                }
+                .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("通知")
+        }
+    }
+}
+
+private struct SensenHeroSection: View {
+    let openChat: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ZStack(alignment: .topLeading) {
+                BundleImage(
+                    name: "sensen-home-hero-rabbit-v2",
+                    contentMode: .fit,
+                    fallbackSystemImage: "moon.stars.fill"
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("晚上好")
+                            .font(SensenFonts.handwritten(size: 32))
+                            .foregroundStyle(Color.warmBrown)
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(hex: 0xffd27d))
+                    }
+
+                    Text("今天过得怎么样呢？\n和忧忧兔聊一聊吧")
+                        .font(SensenFonts.handwritten(size: 16))
+                        .lineSpacing(5)
+                        .foregroundStyle(Color.warmBrown.opacity(0.82))
+                }
+                .padding(.top, 18)
+                .padding(.leading, 18)
+            }
+
+            Button(action: openChat) {
+                HStack(spacing: 14) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.86), in: Circle())
+                    Text("开始聊聊")
+                        .font(SensenFonts.handwritten(size: 21))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 18, weight: .bold))
+                }
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 10)
+                .background(Color(hex: 0xb7a0d4), in: Capsule())
+                .shadow(color: Color(hex: 0xb7a0d4).opacity(0.28), radius: 12, y: 7)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("开始和忧忧兔聊天")
+            .offset(y: 8)
+        }
+        .padding(.bottom, 12)
+    }
+}
+
+private struct CompanionActionSection: View {
+    private let items = [
+        CompanionActionItem(title: "一盏灯的温度", subtitle: "像夜晚的灯光，给你安心与光亮", imageName: "sensen-prop-lantern-v1", tint: Color(hex: 0xffdf9f)),
+        CompanionActionItem(title: "记录心情", subtitle: "写下你的心事，整理内心的声音", imageName: nil, tint: Color(hex: 0xd8c4e8)),
+        CompanionActionItem(title: "放松一下", subtitle: "慢慢来，没关系，你已经很棒了", imageName: nil, tint: Color(hex: 0xf8c5b8)),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("今天的小陪伴 叶")
+                .font(SensenFonts.handwritten(size: 18))
+                .foregroundStyle(Color.warmBrown)
+
+            HStack(spacing: 10) {
+                ForEach(items) { item in
+                    CompanionActionCard(item: item)
+                }
+            }
+        }
+    }
+}
+
+private struct CompanionActionItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let imageName: String?
+    let tint: Color
+}
+
+private struct CompanionActionCard: View {
+    let item: CompanionActionItem
+
+    var body: some View {
+        Button(action: {}) {
+            VStack(spacing: 8) {
+                if let imageName = item.imageName {
+                    BundleImage(
+                        name: imageName,
+                        contentMode: .fit,
+                        fallbackSystemImage: "lamp.table.fill"
+                    )
+                    .frame(height: 44)
+                } else {
+                    Image(systemName: item.title == "记录心情" ? "book.pages.fill" : "cup.and.saucer.fill")
+                        .font(.system(size: 32, weight: .regular))
+                        .foregroundStyle(item.tint)
+                        .frame(height: 44)
+                }
+
+                Text(item.title)
+                    .font(SensenFonts.handwritten(size: 15))
+                    .foregroundStyle(Color.warmBrown)
+                    .multilineTextAlignment(.center)
+
+                Text(item.subtitle)
+                    .font(SensenFonts.handwritten(size: 11))
+                    .foregroundStyle(Color.warmBrown.opacity(0.68))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.center)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 22, height: 22)
+                    .background(item.tint.opacity(0.88), in: Circle())
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, minHeight: 152)
+            .background(item.tint.opacity(0.17), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(item.tint.opacity(0.24), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MoodCheckSection: View {
+    @Binding var selectedMoodIndex: Int
+
+    private let moods = [
+        ("很糟糕", "face.dashed"),
+        ("有点难过", "face.smiling.inverse"),
+        ("一般般", "face.smiling"),
+        ("还不错", "face.smiling.fill"),
+        ("很好", "sparkles"),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("此刻心情 叶")
+                .font(SensenFonts.handwritten(size: 18))
+                .foregroundStyle(Color.warmBrown)
+
+            HStack(spacing: 8) {
+                ForEach(Array(moods.enumerated()), id: \.offset) { index, mood in
+                    Button {
+                        selectedMoodIndex = index
+                    } label: {
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(moodColor(index).opacity(selectedMoodIndex == index ? 0.48 : 0.24))
+                                    .frame(width: 48, height: 48)
+                                Image(systemName: mood.1)
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundStyle(Color.warmBrown.opacity(0.72))
+                            }
+                            Text(mood.0)
+                                .font(SensenFonts.handwritten(size: 11))
+                                .foregroundStyle(Color.warmBrown.opacity(0.78))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.78)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
+            }
+        }
+    }
+
+    private func moodColor(_ index: Int) -> Color {
+        [Color(hex: 0xd8e2ed), Color(hex: 0xe5d6e9), Color(hex: 0xf1dfbf), Color(hex: 0xf5d5c9), Color(hex: 0xf7e3a4)][index]
+    }
+}
+
+private struct EncouragementCard: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: "camera.macro")
+                .font(.system(size: 27, weight: .light))
+                .foregroundStyle(Color(hex: 0xb7c99a))
+                .frame(width: 38)
+
+            Text("你已经很努力了，\n慢慢来，一切都会好起来的。")
+                .font(SensenFonts.handwritten(size: 16))
+                .lineSpacing(4)
+                .foregroundStyle(Color.warmBrown.opacity(0.84))
+
+            Spacer()
+
+            Button(action: {}) {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(Color(hex: 0xf4a4a0))
+                    .frame(width: 36, height: 36)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("喜欢这句话")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
+        }
+    }
+}
+
+private struct SensenBottomBar: View {
+    let openHome: () -> Void
+    let openForest: () -> Void
+    let openChat: () -> Void
+    let openNotebook: () -> Void
+    let openMe: () -> Void
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            BottomBarButton(title: "首页", systemImage: "house.fill", isSelected: true, action: openHome)
+            BottomBarButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
+
+            Button(action: openChat) {
+                BundleImage(
+                    name: "sensen-rabbit-flat-icon-v1",
+                    contentMode: .fill,
+                    fallbackSystemImage: "hare.fill"
+                )
+                .frame(width: 58, height: 58)
+                .clipShape(Circle())
+                .padding(7)
+                .background(Color(hex: 0xfff3ee), in: Circle())
+                .shadow(color: Color(hex: 0xf4b8a8).opacity(0.28), radius: 18, y: 8)
+            }
+            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("忧忧兔")
+
+            BottomBarButton(title: "心事本", systemImage: "book.closed", isSelected: false, action: openNotebook)
+            BottomBarButton(title: "我的", systemImage: "person", isSelected: false, action: openMe)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.78), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color(hex: 0xeadfcd).opacity(0.74), lineWidth: 1)
+        }
+        .shadow(color: Color(hex: 0xb19a83).opacity(0.14), radius: 18, y: 8)
+    }
+}
+
+private struct BottomBarButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .medium))
+                Text(title)
+                    .font(SensenFonts.handwritten(size: 11))
+            }
+            .foregroundStyle(isSelected ? Color(hex: 0xf28f86) : Color.warmBrown.opacity(0.72))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct BundleImage: View {
+    enum ContentMode {
+        case fit
+        case fill
+    }
+
+    let name: String
+    let contentMode: ContentMode
+    let fallbackSystemImage: String
+
+    var body: some View {
+        Group {
+            if let image = UIImage(named: name) ?? UIImage(named: "\(name).png") {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode == .fit ? .fit : .fill)
+            } else {
+                Image(systemName: fallbackSystemImage)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Color.warmBrown.opacity(0.5))
+                    .padding(12)
+            }
+        }
     }
 }
 
@@ -320,9 +671,9 @@ private struct GeneratedNightScene: View {
             SceneHotspot(id: "notebook", label: "打开森林笔记本", center: CGPoint(x: size.width * 0.78, y: size.height * 0.82), radius: 70, color: Color(hex: 0xffd27d)) {
                 openSessionNotebook()
             },
-            SceneHotspot(id: "rabbit", label: "摸摸悠悠", center: CGPoint(x: size.width * 0.48, y: size.height * 0.52), radius: 96, color: Color(hex: 0xf4b8a8)) {
-                store.selectedCharacterID = "youyou-rabbit"
-                setNotice("悠悠轻轻点头：我在。")
+            SceneHotspot(id: "rabbit", label: "摸摸忧忧", center: CGPoint(x: size.width * 0.48, y: size.height * 0.52), radius: 96, color: Color(hex: 0xf4b8a8)) {
+                store.selectedCharacterID = "youyou_rabbit"
+                setNotice("忧忧轻轻点头：我在。")
                 focusComposer()
             },
         ] + quietObjectHotspots(in: size)
@@ -393,7 +744,7 @@ private struct RabbitWhisperBubble: View {
             .shadow(color: Color.black.opacity(0.1), radius: 14, y: 6)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("打开悠悠的最近回复")
+        .accessibilityLabel("打开忧忧的最近回复")
     }
 }
 
