@@ -36,12 +36,22 @@ struct KnowledgeCard: Identifiable, Hashable {
     let concept: String
 }
 
+struct SessionSummary: Identifiable, Hashable {
+    let id: String
+    let createdAt: String
+    let endedAt: String
+    let messageCount: Int
+    let preview: String
+}
+
 struct MemoryEntry: Identifiable, Hashable {
     let id: String
     let category: String
     let subcategory: String
     let content: String
     let evidence: String
+    let keywords: [String]
+    let sourceSessionID: String
     let importance: Int
     let updatedAt: String
 }

@@ -5,6 +5,7 @@ import Combine
 final class CompanionStore: ObservableObject {
     @Published var selectedCharacterID = "sensen_deer"
     @Published var messages: [ChatMessage] = []
+    @Published var sessions: [SessionSummary] = []
     @Published var memories: [MemoryEntry] = []
     @Published var journals: [JournalEntry] = []
     @Published var snapshot = DashboardSnapshot()
@@ -46,6 +47,7 @@ final class CompanionStore: ObservableObject {
     func load() {
         do {
             let database = try SQLiteDatabase()
+            sessions = database.sessions()
             memories = database.memories()
             journals = database.journals()
             snapshot = DashboardSnapshot(
@@ -57,11 +59,24 @@ final class CompanionStore: ObservableObject {
             loadError = nil
         } catch {
             loadError = "暂时没有读到本地数据库，先进入原型体验。"
+            sessions = []
             if messages.isEmpty {
                 messages = [Self.greetingMessage(characterID: selectedCharacterID)]
             }
         }
         refreshInteractionOffers()
+    }
+
+    func openSession(_ sessionID: String) {
+        do {
+            let database = try SQLiteDatabase()
+            let loadedMessages = database.messages(sessionID: sessionID)
+            messages = loadedMessages.isEmpty ? [Self.greetingMessage(characterID: selectedCharacterID)] : loadedMessages
+            sessionNotice = "已打开历史会话。继续发送时会进入当前夜谈。"
+            chatNotice = nil
+        } catch {
+            sessionNotice = "暂时无法打开这个会话：\(Self.describe(error))"
+        }
     }
 
     func sendDraft(_ text: String) async {

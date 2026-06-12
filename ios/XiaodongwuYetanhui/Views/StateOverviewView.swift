@@ -3,9 +3,11 @@ import SwiftUI
 struct StateOverviewView: View {
     @EnvironmentObject private var store: CompanionStore
     let openChat: () -> Void
+    let openSessions: () -> Void
 
-    init(openChat: @escaping () -> Void = {}) {
+    init(openChat: @escaping () -> Void = {}, openSessions: @escaping () -> Void = {}) {
         self.openChat = openChat
+        self.openSessions = openSessions
     }
 
     var body: some View {
@@ -14,7 +16,7 @@ struct StateOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(title: "状态花园", subtitle: "把长期对话留下的轨迹，整理成可以回看的状态。")
-                    SnapshotGrid(snapshot: store.snapshot, openChat: openChat)
+                    SnapshotGrid(snapshot: store.snapshot, openSessions: openSessions)
                     CareMomentPanel(careMoments: store.careMoments)
                     RecommendationHistoryPanel(
                         recommendations: store.recommendationHistory,
@@ -232,11 +234,11 @@ private struct RecommendationHistoryCard: View {
 
 private struct SnapshotGrid: View {
     let snapshot: DashboardSnapshot
-    let openChat: () -> Void
+    let openSessions: () -> Void
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            Button(action: openChat) {
+            Button(action: openSessions) {
                 StatTile(title: "会话", value: snapshot.sessionCount, icon: "moon.stars.fill")
             }
             .buttonStyle(.plain)

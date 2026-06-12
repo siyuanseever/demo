@@ -191,28 +191,7 @@ private struct SensenHeroSection: View {
                 .padding(.top, 16)
                 .padding(.leading, 16)
             }
-
-            Button(action: openChat) {
-                HStack(spacing: 12) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(width: 25, height: 25)
-                        .background(Color.white.opacity(0.86), in: Circle())
-                    Text("开始聊聊")
-                        .font(SensenFonts.handwritten(size: 18))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 15, weight: .bold))
-                }
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 8)
-                .background(Color(hex: 0xb7a0d4), in: Capsule())
-                .shadow(color: Color(hex: 0xb7a0d4).opacity(0.28), radius: 12, y: 7)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("开始和忧忧兔聊天")
         }
-        .padding(.bottom, 4)
     }
 }
 
@@ -1616,7 +1595,123 @@ private struct MessageDrawerContent: View {
     }
 }
 
+private struct SessionHistoryView: View {
+    @EnvironmentObject private var store: CompanionStore
+    let openSession: (String) -> Void
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader(
+                        title: "历史会话",
+                        subtitle: "按时间回看已经留下的夜谈。可以先查看内容，再决定是否接着聊。"
+                    )
+
+                    if store.sessions.isEmpty {
+                        EmptyHintView(systemImage: "clock.arrow.circlepath", title: "还没有历史会话", detail: "当本地数据库里有 sessions 时，这里会显示每一次夜谈。")
+                    } else {
+                        ForEach(store.sessions) { session in
+                            NavigationLink {
+                                SessionDetailView(session: session, openSession: openSession)
+                            } label: {
+                                SessionHistoryCard(session: session)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("会话")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SessionHistoryCard: View {
+    let session: SessionSummary
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label(session.createdAt.isEmpty ? "未标记时间" : session.createdAt, systemImage: "moon.stars.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.warmBrown)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(session.messageCount) 条")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(session.preview.isEmpty ? "这次会话暂时没有预览。" : session.preview)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.nightInk)
+                    .lineLimit(3)
+
+                Text(session.endedAt.isEmpty ? "可继续对话" : "已结束：\(session.endedAt)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct SessionDetailView: View {
+    let session: SessionSummary
+    let openSession: (String) -> Void
+
+    @State private var messages: [ChatMessage] = []
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    SoftPanel {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("会话内容", systemImage: "text.bubble.fill")
+                                .font(.headline)
+                                .foregroundStyle(Color.warmBrown)
+                            Text(session.createdAt)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                openSession(session.id)
+                            } label: {
+                                Label("继续对话", systemImage: "arrow.up.right.circle.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.warmBrown)
+                        }
+                    }
+
+                    if messages.isEmpty {
+                        EmptyHintView(systemImage: "bubble.left.and.text.bubble.right", title: "没有读到消息", detail: "这次会话暂时没有消息记录。")
+                    } else {
+                        ForEach(messages) { message in
+                            MessageBubble(message: message)
+                        }
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("会话详情")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            guard messages.isEmpty else { return }
+            messages = (try? SQLiteDatabase().messages(sessionID: session.id)) ?? []
+        }
+    }
+}
+
 private struct ForestNotebookContent: View {
+    @EnvironmentObject private var store: CompanionStore
     @Binding var selectedSpace: NotebookSpace
 
     var body: some View {
@@ -1646,12 +1741,21 @@ private struct ForestNotebookContent: View {
         switch selectedSpace {
         case .chat:
             MessageDrawerContent()
-        case .state:
-            StateOverviewView {
+        case .sessions:
+            SessionHistoryView { sessionID in
                 selectedSpace = .chat
+                store.openSession(sessionID)
             }
+        case .state:
+            StateOverviewView(
+                openChat: { selectedSpace = .chat },
+                openSessions: { selectedSpace = .sessions }
+            )
         case .memory:
-            MemoryListView()
+            MemoryListView { sessionID in
+                selectedSpace = .chat
+                store.openSession(sessionID)
+            }
         case .settings:
             SettingsView()
         }
@@ -1660,6 +1764,7 @@ private struct ForestNotebookContent: View {
 
 private enum NotebookSpace: String, CaseIterable, Identifiable {
     case chat
+    case sessions
     case state
     case memory
     case settings
@@ -1670,6 +1775,8 @@ private enum NotebookSpace: String, CaseIterable, Identifiable {
         switch self {
         case .chat:
             return "信箱"
+        case .sessions:
+            return "会话"
         case .state:
             return "状态"
         case .memory:
@@ -1683,6 +1790,8 @@ private enum NotebookSpace: String, CaseIterable, Identifiable {
         switch self {
         case .chat:
             return "envelope.fill"
+        case .sessions:
+            return "clock.arrow.circlepath"
         case .state:
             return "heart.text.square.fill"
         case .memory:

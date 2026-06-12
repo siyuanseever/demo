@@ -48,10 +48,61 @@ final class SQLiteDatabase {
         }
     }
 
+    func sessions(limit: Int = 80) -> [SessionSummary] {
+        rows(
+            sql: """
+            SELECT
+                sessions.id,
+                sessions.created_at,
+                sessions.ended_at,
+                COUNT(messages.id) AS message_count,
+                COALESCE(
+                    (
+                        SELECT content
+                        FROM messages AS preview_messages
+                        WHERE preview_messages.session_id = sessions.id
+                        ORDER BY preview_messages.created_at DESC
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS preview
+            FROM sessions
+            LEFT JOIN messages ON messages.session_id = sessions.id
+            GROUP BY sessions.id
+            ORDER BY sessions.created_at DESC
+            LIMIT ?
+            """,
+            bindings: [String(limit)]
+        )
+        .map { row in
+            SessionSummary(
+                id: row["id"] ?? UUID().uuidString,
+                createdAt: row["created_at"] ?? "",
+                endedAt: row["ended_at"] ?? "",
+                messageCount: Int(row["message_count"] ?? "0") ?? 0,
+                preview: row["preview"] ?? ""
+            )
+        }
+    }
+
+    func messages(sessionID: String, limit: Int = 120) -> [ChatMessage] {
+        rows(
+            sql: """
+            SELECT id, role, content, metadata, created_at
+            FROM messages
+            WHERE session_id = ?
+            ORDER BY created_at ASC
+            LIMIT ?
+            """,
+            bindings: [sessionID, String(limit)]
+        )
+        .map { Self.chatMessage(from: $0) }
+    }
+
     func memories(limit: Int = 80) -> [MemoryEntry] {
         rows(
             sql: """
-            SELECT id, category, subcategory, content, evidence, importance, updated_at
+            SELECT id, category, subcategory, content, evidence, keywords, source_session_id, importance, updated_at
             FROM memories
             WHERE status = 'active'
             ORDER BY importance DESC, updated_at DESC
@@ -66,6 +117,8 @@ final class SQLiteDatabase {
                 subcategory: row["subcategory"] ?? "general",
                 content: row["content"] ?? "",
                 evidence: row["evidence"] ?? "",
+                keywords: Self.stringArray(from: row["keywords"] ?? "[]"),
+                sourceSessionID: row["source_session_id"] ?? "",
                 importance: Int(row["importance"] ?? "0") ?? 0,
                 updatedAt: row["updated_at"] ?? ""
             )
@@ -153,6 +206,31 @@ final class SQLiteDatabase {
     private static func knowledgeCards(from value: Any?) -> [KnowledgeCard] {
         guard let ids = value as? [String] else { return [] }
         return ids.map { KnowledgeCard(id: $0, title: $0, concept: "") }
+    }
+
+    private static func stringArray(from jsonString: String) -> [String] {
+        guard
+            let data = jsonString.data(using: .utf8),
+            let values = try? JSONSerialization.jsonObject(with: data) as? [String]
+        else {
+            return []
+        }
+        return values
+    }
+
+    private static func chatMessage(from row: [String: String]) -> ChatMessage {
+        let metadata = metadataObject(from: row["metadata"] ?? "{}")
+        return ChatMessage(
+            id: row["id"] ?? UUID().uuidString,
+            role: MessageRole(rawValue: row["role"] ?? "") ?? .assistant,
+            content: row["content"] ?? "",
+            characterID: metadata["character_id"] as? String,
+            createdAt: row["created_at"] ?? "",
+            groupRole: metadata["group_role"] as? String ?? "",
+            action: metadata["action"] as? String ?? "",
+            routeSummary: routeSummary(from: metadata["route_plan"] as? [String: Any]),
+            knowledgeCards: knowledgeCards(from: metadata["knowledge_card_ids"])
+        )
     }
 
     private static func routeSummary(from plan: [String: Any]?) -> String? {
