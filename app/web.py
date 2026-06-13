@@ -1956,16 +1956,20 @@ HTML = """<!doctype html>
     }
 
     function renderMemoryCard(item) {
+      const keywords = item.keywords || [];
+      const status = item.status || "active";
       return `
         <article class="card">
-          <h3>${escapeHtml(item.content)}</h3>
-          <div class="meta">${escapeHtml(item.category)} / ${escapeHtml(item.subcategory || "general")}</div>
-          <div class="meta">status: ${escapeHtml(item.status || "active")} · importance: ${item.importance} · confidence: ${item.confidence}</div>
+          <h3>记忆 ${escapeHtml(shortId(item.id))}</h3>
+          <div class="meta">category: ${escapeHtml(item.category || "uncategorized")} / ${escapeHtml(item.subcategory || "general")}</div>
+          <div class="meta">status: ${escapeHtml(status)} · importance: ${escapeHtml(item.importance ?? "-")} · confidence: ${escapeHtml(item.confidence ?? "-")}</div>
           <div class="meta">${escapeHtml(memoryDateLabel(item))}</div>
           <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
-          <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
-          <div class="content">证据：${escapeHtml(item.evidence)}</div>
-          ${item.merge_note ? `<div class="meta">merge note: ${escapeHtml(item.merge_note)}</div>` : ""}
+          ${item.merged_into_id ? `<div class="meta">merged into: ${escapeHtml(shortId(item.merged_into_id))}</div>` : ""}
+          <div class="content"><b>内容</b>\n${escapeHtml(item.content || "无内容")}</div>
+          <div class="content"><b>关键词</b><br>${keywords.length ? keywords.map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("") : '<span class="meta">无关键词</span>'}</div>
+          <div class="content"><b>证据</b>\n${escapeHtml(item.evidence || "无证据")}</div>
+          ${item.merge_note ? `<div class="content"><b>合并记录</b>\n${escapeHtml(item.merge_note)}</div>` : ""}
           <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
         </article>
       `;
@@ -2033,9 +2037,10 @@ HTML = """<!doctype html>
     }
 
     function renderJournals(items) {
-      renderList(items, item => `
-        ${renderJournalCard(item, { showSessionButton: true })}
-      `);
+      dataList.className = "grid";
+      dataList.innerHTML = items.length
+        ? items.map(item => renderJournalCard(item, { showSessionButton: true })).join("")
+        : '<div class="empty">还没有总结日记。</div>';
     }
 
     function renderJournalCard(item, options = {}) {
@@ -2245,11 +2250,34 @@ HTML = """<!doctype html>
       dataList.innerHTML = '<div class="empty">加载 session 详情...</div>';
       try {
         const data = await get("/api/session_detail?id=" + encodeURIComponent(sessionId));
-        dataList.className = "grid";
-        dataList.innerHTML = [
-          `<article class="card"><h3>Messages</h3><div class="content">${data.messages.map(m => `<b>${escapeHtml(speakerName(m))}</b>\\n${escapeHtml(m.content)}`).join("\\n\\n")}</div></article>`,
-          `<article class="card"><h3>Journals</h3><div class="content">${data.journals.map(j => escapeHtml(j.summary)).join("\\n\\n") || "无"}</div></article>`
-        ].join("");
+        const messages = data.messages || [];
+        const journals = data.journals || [];
+        const memories = data.memories || [];
+        dataList.className = "stack";
+        dataList.innerHTML = `
+          <section>
+            <h2 class="group-title">Session ${escapeHtml(shortId(sessionId))} 详情</h2>
+            <div class="meta">${messages.length} messages · ${journals.length} journals · ${memories.length} memories</div>
+          </section>
+          <section>
+            <h2 class="group-title">对话记录</h2>
+            <div class="grid">
+              <article class="card"><div class="content">${messages.map(m => `<b>${escapeHtml(speakerName(m))}</b>\\n${escapeHtml(m.content)}`).join("\\n\\n") || "无"}</div></article>
+            </div>
+          </section>
+          <section>
+            <h2 class="group-title">总结日记 · ${journals.length}</h2>
+            <div class="grid">
+              ${journals.length ? journals.map(item => renderJournalCard(item)).join("") : '<div class="empty">这个 Session 还没有总结日记。</div>'}
+            </div>
+          </section>
+          <section>
+            <h2 class="group-title">提取 / 合并后的记忆 · ${memories.length}</h2>
+            <div class="grid">
+              ${memories.length ? memories.map(renderMemoryCard).join("") : '<div class="empty">这个 Session 还没有关联记忆。</div>'}
+            </div>
+          </section>
+        `;
       } catch (error) {
         dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
       }
@@ -2262,6 +2290,7 @@ HTML = """<!doctype html>
       try {
         const data = await get("/api/session_detail?id=" + encodeURIComponent(sessionId));
         const journals = data.journals || [];
+        const memories = data.memories || [];
         dataList.className = "stack";
         dataList.innerHTML = `
           <section>
@@ -2270,6 +2299,12 @@ HTML = """<!doctype html>
             <button type="button" onclick="loadData('sessions')">返回 Sessions</button>
             <div class="grid">
               ${journals.length ? journals.map(item => renderJournalCard(item)).join("") : '<div class="empty">这个 Session 还没有总结日记。结束并总结后会出现在这里。</div>'}
+            </div>
+          </section>
+          <section>
+            <h2 class="group-title">同一 Session 提取 / 合并后的记忆 · ${memories.length}</h2>
+            <div class="grid">
+              ${memories.length ? memories.map(renderMemoryCard).join("") : '<div class="empty">这个 Session 还没有关联记忆。</div>'}
             </div>
           </section>
         `;
@@ -2490,6 +2525,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "messages": messages,
                 "journals": store.list_journals(session_id=session_id),
+                "memories": store.list_memories(session_id=session_id),
             }
         )
 

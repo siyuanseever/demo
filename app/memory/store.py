@@ -645,20 +645,40 @@ class Store:
                 )
             return [message_row_to_dict(row) for row in cursor.fetchall()]
 
-    def list_memories(self, limit: int = 200) -> list[dict[str, Any]]:
+    def list_memories(
+        self,
+        *,
+        session_id: str | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
         with self.connect() as conn:
-            cursor = conn.execute(
-                """
-                SELECT
-                    id, user_id, category, subcategory, keywords, status,
-                    content, evidence, confidence, importance, source_session_id,
-                    merged_into_id, merge_note, created_at, updated_at
-                FROM memories
-                ORDER BY category ASC, importance DESC, updated_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            )
+            if session_id:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        id, user_id, category, subcategory, keywords, status,
+                        content, evidence, confidence, importance, source_session_id,
+                        merged_into_id, merge_note, created_at, updated_at
+                    FROM memories
+                    WHERE source_session_id = ?
+                    ORDER BY importance DESC, updated_at DESC
+                    LIMIT ?
+                    """,
+                    (session_id, limit),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT
+                        id, user_id, category, subcategory, keywords, status,
+                        content, evidence, confidence, importance, source_session_id,
+                        merged_into_id, merge_note, created_at, updated_at
+                    FROM memories
+                    ORDER BY category ASC, importance DESC, updated_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
             memories = [row_to_dict(row) for row in cursor.fetchall()]
         for memory in memories:
             try:
