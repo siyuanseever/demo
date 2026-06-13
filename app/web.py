@@ -1917,6 +1917,7 @@ HTML = """<!doctype html>
             <span class="pill">${item.journal_count} journals</span>
           </div>
           <button type="button" onclick="window.loadSession('${escapeHtml(item.id)}')">查看详情</button>
+          <button type="button" onclick="window.loadSessionJournals('${escapeHtml(item.id)}')">查看总结日记</button>
           <button type="button" onclick="window.continueSession('${escapeHtml(item.id)}')">继续对话</button>
         </article>
       `);
@@ -2033,16 +2034,28 @@ HTML = """<!doctype html>
 
     function renderJournals(items) {
       renderList(items, item => `
-        <article class="card">
-          <h3>Journal ${escapeHtml(shortId(item.session_id))}</h3>
-          <div class="meta">session: ${escapeHtml(item.session_id)}</div>
-          <div class="meta">created: ${escapeHtml(item.created_at)}</div>
-          <div class="content">${escapeHtml(item.summary)}</div>
-          <div>${(item.keywords || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
-          <div class="meta">下一步：${escapeHtml(item.suggested_next_step)}</div>
-          <button type="button" onclick="window.loadSession('${escapeHtml(item.session_id)}')">查看关联 Session</button>
-        </article>
+        ${renderJournalCard(item, { showSessionButton: true })}
       `);
+    }
+
+    function renderJournalCard(item, options = {}) {
+      const emotionCurve = item.emotion_curve || [];
+      const keywords = item.keywords || [];
+      const insights = item.insights || [];
+      return `
+        <article class="card">
+          <h3>总结日记 ${escapeHtml(shortId(item.session_id))}</h3>
+          <div class="meta">session: ${escapeHtml(item.session_id)}</div>
+          <div class="meta">created: ${escapeHtml(item.created_at || "-")}</div>
+          <div class="meta">mood: ${escapeHtml(item.mood_score ?? "未标注")} · dominant emotion: ${escapeHtml(item.dominant_emotion || "未标注")}</div>
+          <div class="content"><b>总结</b>\n${escapeHtml(item.summary || "无总结")}</div>
+          <div class="content"><b>关键词</b><br>${keywords.length ? keywords.map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("") : '<span class="meta">无关键词</span>'}</div>
+          <div class="content"><b>情绪曲线</b><br>${emotionCurve.length ? emotionCurve.map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("") : '<span class="meta">无情绪曲线</span>'}</div>
+          <div class="content"><b>洞察</b>\n${insights.length ? insights.map(item => "- " + escapeHtml(item)).join("\\n") : "无"}</div>
+          <div class="content"><b>下一步</b>\n${escapeHtml(item.suggested_next_step || "无")}</div>
+          ${options.showSessionButton ? `<button type="button" onclick="window.loadSession('${escapeHtml(item.session_id)}')">查看关联 Session</button>` : ""}
+        </article>
+      `;
     }
 
     function trendLabel(trend) {
@@ -2237,6 +2250,29 @@ HTML = """<!doctype html>
           `<article class="card"><h3>Messages</h3><div class="content">${data.messages.map(m => `<b>${escapeHtml(speakerName(m))}</b>\\n${escapeHtml(m.content)}`).join("\\n\\n")}</div></article>`,
           `<article class="card"><h3>Journals</h3><div class="content">${data.journals.map(j => escapeHtml(j.summary)).join("\\n\\n") || "无"}</div></article>`
         ].join("");
+      } catch (error) {
+        dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
+      }
+    }
+
+    window.loadSessionJournals = async function(sessionId) {
+      dataButtons.forEach(button => button.classList.remove("active"));
+      dataList.className = "";
+      dataList.innerHTML = '<div class="empty">加载总结日记...</div>';
+      try {
+        const data = await get("/api/session_detail?id=" + encodeURIComponent(sessionId));
+        const journals = data.journals || [];
+        dataList.className = "stack";
+        dataList.innerHTML = `
+          <section>
+            <h2 class="group-title">Session ${escapeHtml(shortId(sessionId))} 的总结日记 · ${journals.length}</h2>
+            <button type="button" onclick="window.loadSession('${escapeHtml(sessionId)}')">查看对话详情</button>
+            <button type="button" onclick="loadData('sessions')">返回 Sessions</button>
+            <div class="grid">
+              ${journals.length ? journals.map(item => renderJournalCard(item)).join("") : '<div class="empty">这个 Session 还没有总结日记。结束并总结后会出现在这里。</div>'}
+            </div>
+          </section>
+        `;
       } catch (error) {
         dataList.innerHTML = '<div class="empty">' + escapeHtml(error.message) + '</div>';
       }
