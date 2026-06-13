@@ -3,11 +3,26 @@ import SwiftUI
 struct StateOverviewView: View {
     @EnvironmentObject private var store: CompanionStore
     let openChat: () -> Void
+    let openMessages: () -> Void
     let openSessions: () -> Void
+    let openMemory: () -> Void
+    let openJournals: () -> Void
+    let openSourceSession: (String) -> Void
 
-    init(openChat: @escaping () -> Void = {}, openSessions: @escaping () -> Void = {}) {
+    init(
+        openChat: @escaping () -> Void = {},
+        openMessages: @escaping () -> Void = {},
+        openSessions: @escaping () -> Void = {},
+        openMemory: @escaping () -> Void = {},
+        openJournals: @escaping () -> Void = {},
+        openSourceSession: @escaping (String) -> Void = { _ in }
+    ) {
         self.openChat = openChat
+        self.openMessages = openMessages
         self.openSessions = openSessions
+        self.openMemory = openMemory
+        self.openJournals = openJournals
+        self.openSourceSession = openSourceSession
     }
 
     var body: some View {
@@ -16,7 +31,14 @@ struct StateOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(title: "状态花园", subtitle: "把长期对话留下的轨迹，整理成可以回看的状态。")
-                    SnapshotGrid(snapshot: store.snapshot, openSessions: openSessions)
+                    SnapshotGrid(
+                        snapshot: store.snapshot,
+                        openMessages: openMessages,
+                        openSessions: openSessions,
+                        openMemory: openMemory,
+                        openJournals: openJournals
+                    )
+                    StateProfilePanel(profiles: store.stateProfiles, openSourceSession: openSourceSession)
                     CareMomentPanel(careMoments: store.careMoments)
                     RecommendationHistoryPanel(
                         recommendations: store.recommendationHistory,
@@ -234,7 +256,10 @@ private struct RecommendationHistoryCard: View {
 
 private struct SnapshotGrid: View {
     let snapshot: DashboardSnapshot
+    let openMessages: () -> Void
     let openSessions: () -> Void
+    let openMemory: () -> Void
+    let openJournals: () -> Void
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
@@ -243,9 +268,21 @@ private struct SnapshotGrid: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("查看会话")
-            StatTile(title: "消息", value: snapshot.messageCount, icon: "text.bubble.fill")
-            StatTile(title: "记忆", value: snapshot.memoryCount, icon: "leaf.fill")
-            StatTile(title: "总结", value: snapshot.journalCount, icon: "book.closed.fill")
+            Button(action: openMessages) {
+                StatTile(title: "消息", value: snapshot.messageCount, icon: "text.bubble.fill")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看消息")
+            Button(action: openMemory) {
+                StatTile(title: "记忆", value: snapshot.memoryCount, icon: "leaf.fill")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看记忆")
+            Button(action: openJournals) {
+                StatTile(title: "总结", value: snapshot.journalCount, icon: "book.closed.fill")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看总结")
         }
     }
 }
@@ -272,6 +309,85 @@ private struct StatTile: View {
                     .foregroundStyle(Color.warmBrown)
             }
         }
+    }
+}
+
+private struct StateProfilePanel: View {
+    let profiles: [StateProfile]
+    let openSourceSession: (String) -> Void
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("长期状态画像", systemImage: "person.text.rectangle.fill")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(profiles.count)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                if profiles.isEmpty {
+                    EmptyHintView(systemImage: "person.text.rectangle", title: "还没有状态画像", detail: "结束并总结几次会话后，长期状态会在这里慢慢形成。")
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(profiles.prefix(5)) { profile in
+                            StateProfileRow(profile: profile, openSourceSession: openSourceSession)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct StateProfileRow: View {
+    let profile: StateProfile
+    let openSourceSession: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(profile.domain)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.nightInk)
+                    Text([profile.stage, profile.trend].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("强度 \(profile.intensity)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.warmBrown)
+            }
+
+            Text(profile.summary.isEmpty ? "这条状态暂时没有摘要。" : profile.summary)
+                .font(.callout)
+                .foregroundStyle(Color.nightInk.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !profile.supportStrategy.isEmpty {
+                Text(profile.supportStrategy)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !profile.sourceSessionID.isEmpty {
+                Button {
+                    openSourceSession(profile.sourceSessionID)
+                } label: {
+                    Label("查看来源会话", systemImage: "arrow.up.right.circle.fill")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.warmBrown)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

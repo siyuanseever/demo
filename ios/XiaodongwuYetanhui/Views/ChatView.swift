@@ -22,7 +22,10 @@ struct ChatView: View {
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
         .sheet(isPresented: $isNotebookVisible) {
-            ForestNotebookContent(selectedSpace: $notebookSpace)
+            ForestNotebookContent(
+                selectedSpace: $notebookSpace,
+                continueSession: continueHistoricalSession
+            )
                 .environmentObject(store)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -57,6 +60,14 @@ struct ChatView: View {
         isComposerFocused = false
         notebookSpace = space
         isNotebookVisible = true
+    }
+
+    private func continueHistoricalSession(_ sessionID: String) {
+        store.openSession(sessionID)
+        isNotebookVisible = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            isCompanionChatVisible = true
+        }
     }
 }
 
@@ -1736,6 +1747,38 @@ private struct SessionHistoryView: View {
     }
 }
 
+private struct RecentMessagesView: View {
+    @State private var messages: [ChatMessage] = []
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader(
+                        title: "消息流",
+                        subtitle: "按最近时间回看数据库里保存的夜谈消息。"
+                    )
+
+                    if messages.isEmpty {
+                        EmptyHintView(systemImage: "text.bubble", title: "还没有读到消息", detail: "当本地数据库里有 messages 时，这里会显示最近的对话内容。")
+                    } else {
+                        ForEach(messages.reversed()) { message in
+                            MessageBubble(message: message)
+                        }
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("消息")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            messages = (try? SQLiteDatabase().recentMessages(limit: 120)) ?? []
+        }
+    }
+}
+
 private struct SessionHistoryCard: View {
     let session: SessionSummary
 
@@ -1761,6 +1804,130 @@ private struct SessionHistoryCard: View {
                 Text(session.endedAt.isEmpty ? "可继续对话" : "已结束：\(session.endedAt)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct JournalHistoryView: View {
+    @EnvironmentObject private var store: CompanionStore
+    let openSession: (String) -> Void
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader(
+                        title: "会话总结",
+                        subtitle: "结束夜谈后生成的日记、心情和下一步建议会放在这里。"
+                    )
+
+                    if store.journals.isEmpty {
+                        EmptyHintView(systemImage: "book.closed", title: "暂无总结", detail: "当 Web 后端结束会话并写入 journals 后，这里会显示总结内容。")
+                    } else {
+                        ForEach(store.journals) { journal in
+                            JournalHistoryCard(journal: journal, openSession: openSession)
+                        }
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("总结")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct JournalHistoryCard: View {
+    let journal: JournalEntry
+    let openSession: (String) -> Void
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    Label(journal.dominantEmotion.isEmpty ? "会话总结" : journal.dominantEmotion, systemImage: "book.pages.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.warmBrown)
+                    Spacer()
+                    Text(journal.createdAt)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                Text(journal.summary.isEmpty ? "这条总结暂时没有正文。" : journal.summary)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.nightInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !journal.keywords.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 7) {
+                            ForEach(journal.keywords, id: \.self) { keyword in
+                                Text(keyword)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.warmBrown)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Color.white.opacity(0.66), in: Capsule())
+                            }
+                        }
+                    }
+                }
+
+                HStack {
+                    Label("心情 \(journal.moodScore)", systemImage: "waveform.path.ecg")
+                    Spacer()
+                    if !journal.sessionID.isEmpty {
+                        Button {
+                            openSession(journal.sessionID)
+                        } label: {
+                            Label("来源会话", systemImage: "arrow.up.right.circle.fill")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.warmBrown)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+                if !journal.emotionCurve.isEmpty {
+                    JournalDetailBlock(title: "情绪轨迹", items: journal.emotionCurve)
+                }
+
+                if !journal.insights.isEmpty {
+                    JournalDetailBlock(title: "理解线索", items: journal.insights)
+                }
+
+                if !journal.suggestedNextStep.isEmpty {
+                    Text(journal.suggestedNextStep)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                }
+            }
+        }
+    }
+}
+
+private struct JournalDetailBlock: View {
+    let title: String
+    let items: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.warmBrown)
+            ForEach(items, id: \.self) { item in
+                Text("· \(item)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -1819,12 +1986,13 @@ private struct SessionDetailView: View {
 private struct ForestNotebookContent: View {
     @EnvironmentObject private var store: CompanionStore
     @Binding var selectedSpace: NotebookSpace
+    let continueSession: (String) -> Void
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("笔记本空间", selection: $selectedSpace) {
-                    ForEach(NotebookSpace.allCases) { space in
+                    ForEach(NotebookSpace.primarySpaces) { space in
                         Label(space.title, systemImage: space.systemImageName)
                             .tag(space)
                     }
@@ -1847,21 +2015,25 @@ private struct ForestNotebookContent: View {
         switch selectedSpace {
         case .chat:
             MessageDrawerContent()
+        case .messages:
+            RecentMessagesView()
         case .sessions:
-            SessionHistoryView { sessionID in
-                selectedSpace = .chat
-                store.openSession(sessionID)
-            }
+            SessionHistoryView(openSession: continueSession)
         case .state:
             StateOverviewView(
                 openChat: { selectedSpace = .chat },
-                openSessions: { selectedSpace = .sessions }
+                openMessages: { selectedSpace = .messages },
+                openSessions: { selectedSpace = .sessions },
+                openMemory: { selectedSpace = .memory },
+                openJournals: { selectedSpace = .journals },
+                openSourceSession: continueSession
             )
         case .memory:
             MemoryListView { sessionID in
-                selectedSpace = .chat
-                store.openSession(sessionID)
+                continueSession(sessionID)
             }
+        case .journals:
+            JournalHistoryView(openSession: continueSession)
         case .settings:
             SettingsView()
         }
@@ -1870,23 +2042,33 @@ private struct ForestNotebookContent: View {
 
 private enum NotebookSpace: String, CaseIterable, Identifiable {
     case chat
+    case messages
     case sessions
     case state
     case memory
+    case journals
     case settings
 
     var id: String { rawValue }
+
+    static var primarySpaces: [NotebookSpace] {
+        [.chat, .state, .memory, .settings]
+    }
 
     var title: String {
         switch self {
         case .chat:
             return "信箱"
+        case .messages:
+            return "消息"
         case .sessions:
             return "会话"
         case .state:
             return "状态"
         case .memory:
             return "记忆"
+        case .journals:
+            return "总结"
         case .settings:
             return "设置"
         }
@@ -1896,12 +2078,16 @@ private enum NotebookSpace: String, CaseIterable, Identifiable {
         switch self {
         case .chat:
             return "envelope.fill"
+        case .messages:
+            return "text.bubble.fill"
         case .sessions:
             return "clock.arrow.circlepath"
         case .state:
             return "heart.text.square.fill"
         case .memory:
             return "leaf.fill"
+        case .journals:
+            return "book.closed.fill"
         case .settings:
             return "gearshape.fill"
         }

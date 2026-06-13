@@ -8,6 +8,7 @@ final class CompanionStore: ObservableObject {
     @Published var sessions: [SessionSummary] = []
     @Published var memories: [MemoryEntry] = []
     @Published var journals: [JournalEntry] = []
+    @Published var stateProfiles: [StateProfile] = []
     @Published var snapshot = DashboardSnapshot()
     @Published var loadError: String?
     @Published var isSending = false
@@ -50,6 +51,7 @@ final class CompanionStore: ObservableObject {
             sessions = database.sessions()
             memories = database.memories()
             journals = database.journals()
+            stateProfiles = database.stateProfiles()
             snapshot = DashboardSnapshot(
                 sessionCount: database.count(table: "sessions"),
                 messageCount: database.count(table: "messages"),
@@ -60,6 +62,9 @@ final class CompanionStore: ObservableObject {
         } catch {
             loadError = "暂时没有读到本地数据库，先进入原型体验。"
             sessions = []
+            memories = []
+            journals = []
+            stateProfiles = []
             if messages.isEmpty {
                 messages = [Self.greetingMessage(characterID: selectedCharacterID)]
             }

@@ -58,11 +58,29 @@ struct MemoryEntry: Identifiable, Hashable {
 
 struct JournalEntry: Identifiable, Hashable {
     let id: String
+    let sessionID: String
     let summary: String
+    let emotionCurve: [String]
+    let keywords: [String]
+    let insights: [String]
     let dominantEmotion: String
     let moodScore: Int
     let suggestedNextStep: String
     let createdAt: String
+}
+
+struct StateProfile: Identifiable, Hashable {
+    let id: String
+    let domain: String
+    let stage: String
+    let summary: String
+    let intensity: Int
+    let trend: String
+    let confidence: Double
+    let evidence: String
+    let supportStrategy: String
+    let sourceSessionID: String
+    let updatedAt: String
 }
 
 struct DashboardSnapshot {

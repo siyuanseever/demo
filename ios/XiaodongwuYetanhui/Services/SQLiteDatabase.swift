@@ -128,7 +128,7 @@ final class SQLiteDatabase {
     func journals(limit: Int = 20) -> [JournalEntry] {
         rows(
             sql: """
-            SELECT id, summary, dominant_emotion, mood_score, suggested_next_step, created_at
+            SELECT id, session_id, summary, emotion_curve, keywords, insights, dominant_emotion, mood_score, suggested_next_step, created_at
             FROM journals
             ORDER BY created_at DESC
             LIMIT ?
@@ -138,11 +138,42 @@ final class SQLiteDatabase {
         .map { row in
             JournalEntry(
                 id: row["id"] ?? UUID().uuidString,
+                sessionID: row["session_id"] ?? "",
                 summary: row["summary"] ?? "",
+                emotionCurve: Self.stringArray(from: row["emotion_curve"] ?? "[]"),
+                keywords: Self.stringArray(from: row["keywords"] ?? "[]"),
+                insights: Self.stringArray(from: row["insights"] ?? "[]"),
                 dominantEmotion: row["dominant_emotion"] ?? "",
                 moodScore: Int(row["mood_score"] ?? "0") ?? 0,
                 suggestedNextStep: row["suggested_next_step"] ?? "",
                 createdAt: row["created_at"] ?? ""
+            )
+        }
+    }
+
+    func stateProfiles(limit: Int = 40) -> [StateProfile] {
+        rows(
+            sql: """
+            SELECT id, domain, stage, summary, intensity, trend, confidence, evidence, support_strategy, source_session_id, updated_at
+            FROM user_state_profiles
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            bindings: [String(limit)]
+        )
+        .map { row in
+            StateProfile(
+                id: row["id"] ?? UUID().uuidString,
+                domain: row["domain"] ?? "状态",
+                stage: row["stage"] ?? "",
+                summary: row["summary"] ?? "",
+                intensity: Int(row["intensity"] ?? "0") ?? 0,
+                trend: row["trend"] ?? "",
+                confidence: Double(row["confidence"] ?? "0") ?? 0,
+                evidence: row["evidence"] ?? "",
+                supportStrategy: row["support_strategy"] ?? "",
+                sourceSessionID: row["source_session_id"] ?? "",
+                updatedAt: row["updated_at"] ?? ""
             )
         }
     }
@@ -183,14 +214,75 @@ final class SQLiteDatabase {
             create: true
         )
         let writableURL = documentsURL.appendingPathComponent("app.db")
-        if fileManager.fileExists(atPath: writableURL.path) {
-            return writableURL
-        }
         guard let bundledURL = Bundle.main.url(forResource: "app", withExtension: "db") else {
             throw DatabaseError.missingBundledDatabase
         }
+
+        if fileManager.fileExists(atPath: writableURL.path) {
+            if shouldRefreshWritableDatabase(writableURL: writableURL, bundledURL: bundledURL) {
+                try replaceWritableDatabase(at: writableURL, with: bundledURL, fileManager: fileManager)
+            }
+            return writableURL
+        }
+
         try fileManager.copyItem(at: bundledURL, to: writableURL)
         return writableURL
+    }
+
+    private static func shouldRefreshWritableDatabase(writableURL: URL, bundledURL: URL) -> Bool {
+        guard let bundledTimestamp = latestStoredTimestamp(at: bundledURL) else {
+            return false
+        }
+        guard let writableTimestamp = latestStoredTimestamp(at: writableURL) else {
+            return true
+        }
+        return bundledTimestamp > writableTimestamp
+    }
+
+    private static func replaceWritableDatabase(at writableURL: URL, with bundledURL: URL, fileManager: FileManager) throws {
+        let temporaryURL = writableURL.deletingLastPathComponent().appendingPathComponent("app.db.next")
+        if fileManager.fileExists(atPath: temporaryURL.path) {
+            try fileManager.removeItem(at: temporaryURL)
+        }
+        try fileManager.copyItem(at: bundledURL, to: temporaryURL)
+        try fileManager.removeItem(at: writableURL)
+        try fileManager.moveItem(at: temporaryURL, to: writableURL)
+    }
+
+    private static func latestStoredTimestamp(at databaseURL: URL) -> String? {
+        var database: OpaquePointer?
+        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            sqlite3_close(database)
+            return nil
+        }
+        defer { sqlite3_close(database) }
+
+        return scalarString(
+            database: database,
+            sql: """
+            SELECT MAX(value) AS latest
+            FROM (
+                SELECT MAX(created_at) AS value FROM sessions
+                UNION ALL SELECT MAX(created_at) FROM messages
+                UNION ALL SELECT MAX(updated_at) FROM memories
+                UNION ALL SELECT MAX(created_at) FROM journals
+            )
+            """
+        )
+    }
+
+    private static func scalarString(database: OpaquePointer?, sql: String) -> String? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_step(statement) == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else {
+            return nil
+        }
+        let value = String(cString: text)
+        return value.isEmpty ? nil : value
     }
 
     private static func metadataObject(from jsonString: String) -> [String: Any] {
