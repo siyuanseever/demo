@@ -70,36 +70,53 @@ private struct SensenHomePage: View {
     let openMe: () -> Void
 
     var body: some View {
-        ZStack {
-            Color(hex: 0xfffbf3).ignoresSafeArea()
+        GeometryReader { geometry in
+            let safeTop = geometry.safeAreaInsets.top
+            let safeBottom = geometry.safeAreaInsets.bottom
+            let bottomBarHeight = max(70, min(82, geometry.size.height * 0.085 + safeBottom))
+            let contentHeight = max(520, geometry.size.height - bottomBarHeight)
+            let heroHeight = contentHeight * 0.44
+            let actionHeight = contentHeight * 0.22
+            let moodHeight = contentHeight * 0.15
+            let encouragementHeight = contentHeight * 0.1
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+            ZStack(alignment: .bottom) {
+                Color(hex: 0xfffbf3).ignoresSafeArea()
+
+                VStack(alignment: .leading, spacing: 8) {
                     SensenTopBar(openMe: openMe)
-                        .padding(.top, 2)
+                        .frame(height: 36)
+                        .padding(.top, max(2, safeTop * 0.18))
 
                     SensenHeroSection(openChat: openChat)
+                        .frame(height: heroHeight)
 
                     CompanionActionSection()
+                        .frame(height: actionHeight)
 
                     MoodCheckSection(selectedMoodIndex: $selectedMoodIndex)
+                        .frame(height: moodHeight)
 
                     EncouragementCard()
-                        .padding(.bottom, 98)
+                        .frame(height: encouragementHeight)
+
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 16)
+                .frame(width: geometry.size.width, height: contentHeight, alignment: .top)
+                .frame(maxHeight: .infinity, alignment: .top)
+
+                SensenBottomBar(
+                    openHome: {},
+                    openForest: openForest,
+                    openChat: openChat,
+                    openNotebook: openNotebook,
+                    openMe: openMe,
+                    bottomInset: safeBottom
+                )
+                .frame(height: bottomBarHeight)
+                .ignoresSafeArea(.container, edges: .bottom)
             }
-            .scrollIndicators(.hidden)
-        }
-        .overlay(alignment: .bottom) {
-            SensenBottomBar(
-                openHome: {},
-                openForest: openForest,
-                openChat: openChat,
-                openNotebook: openNotebook,
-                openMe: openMe
-            )
-            .ignoresSafeArea(.container, edges: .bottom)
         }
     }
 }
@@ -117,9 +134,9 @@ private struct SensenTopBar: View {
         HStack {
             Button(action: openMe) {
                 Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 21, weight: .medium))
                     .foregroundStyle(Color.warmBrown)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 36, height: 36)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("打开菜单")
@@ -128,13 +145,13 @@ private struct SensenTopBar: View {
 
             HStack(spacing: 8) {
                 Image(systemName: "leaf.fill")
-                    .font(.caption)
+                    .font(.system(size: 10))
                     .foregroundStyle(Color(hex: 0xa8b987))
                 Text("森森物语")
-                    .font(SensenFonts.handwritten(size: 18))
+                    .font(SensenFonts.handwritten(size: 16))
                     .foregroundStyle(Color.warmBrown)
                 Image(systemName: "leaf.fill")
-                    .font(.caption)
+                    .font(.system(size: 10))
                     .foregroundStyle(Color(hex: 0xc99f8d))
             }
 
@@ -143,14 +160,14 @@ private struct SensenTopBar: View {
             Button(action: openMe) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "bell")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(Color.warmBrown)
                     Circle()
                         .fill(Color(hex: 0xf4a4a0))
                         .frame(width: 9, height: 9)
                         .offset(x: 3, y: -3)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 36, height: 36)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("通知")
@@ -162,34 +179,31 @@ private struct SensenHeroSection: View {
     let openChat: () -> Void
 
     var body: some View {
-        VStack(spacing: 7) {
-            ZStack(alignment: .topLeading) {
-                BundleImage(
-                    name: "sensen-home-hero-rabbit-v2",
-                    contentMode: .fit,
-                    fallbackSystemImage: "moon.stars.fill"
-                )
-                .frame(maxWidth: .infinity)
-                .padding(.top, 2)
+        ZStack(alignment: .topLeading) {
+            BundleImage(
+                name: "sensen-home-hero-rabbit-v2",
+                contentMode: .fit,
+                fallbackSystemImage: "moon.stars.fill"
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("晚上好")
-                            .font(SensenFonts.handwritten(size: 27))
-                            .foregroundStyle(Color.warmBrown)
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color(hex: 0xffd27d))
-                    }
-
-                    Text("今天过得怎么样呢？\n和忧忧兔聊一聊吧")
-                        .font(SensenFonts.handwritten(size: 14))
-                        .lineSpacing(4)
-                        .foregroundStyle(Color.warmBrown.opacity(0.82))
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("晚上好")
+                        .font(SensenFonts.handwritten(size: 25))
+                        .foregroundStyle(Color.warmBrown)
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0xffd27d))
                 }
-                .padding(.top, 16)
-                .padding(.leading, 16)
+
+                Text("今天过得怎么样呢？\n和忧忧兔聊一聊吧")
+                    .font(SensenFonts.handwritten(size: 13))
+                    .lineSpacing(3)
+                    .foregroundStyle(Color.warmBrown.opacity(0.82))
             }
+            .padding(.top, 10)
+            .padding(.leading, 14)
         }
     }
 }
@@ -202,10 +216,10 @@ private struct CompanionActionSection: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 8) {
             SectionTitle(text: "今天的小陪伴")
 
-            HStack(spacing: 10) {
+            HStack(spacing: 9) {
                 ForEach(items) { item in
                     CompanionActionCard(item: item)
                 }
@@ -227,43 +241,43 @@ private struct CompanionActionCard: View {
 
     var body: some View {
         Button(action: {}) {
-            VStack(spacing: 8) {
+            VStack(spacing: 5) {
                 if let imageName = item.imageName {
                     BundleImage(
                         name: imageName,
                         contentMode: .fit,
                         fallbackSystemImage: "lamp.table.fill"
                     )
-                    .frame(height: 44)
+                    .frame(height: 32)
                 } else {
                     Image(systemName: item.title == "记录心情" ? "book.pages.fill" : "cup.and.saucer.fill")
-                        .font(.system(size: 32, weight: .regular))
+                        .font(.system(size: 24, weight: .regular))
                         .foregroundStyle(item.tint)
-                        .frame(height: 44)
+                        .frame(height: 32)
                 }
 
                 Text(item.title)
-                    .font(SensenFonts.handwritten(size: 13))
+                    .font(SensenFonts.handwritten(size: 12))
                     .foregroundStyle(Color.warmBrown)
                     .multilineTextAlignment(.center)
 
                 Text(item.subtitle)
-                    .font(SensenFonts.handwritten(size: 9.5))
+                    .font(SensenFonts.handwritten(size: 8.5))
                     .foregroundStyle(Color.warmBrown.opacity(0.68))
-                    .lineLimit(3)
+                    .lineLimit(2)
                     .multilineTextAlignment(.center)
 
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.white)
-                    .frame(width: 22, height: 22)
+                    .frame(width: 18, height: 18)
                     .background(item.tint.opacity(0.88), in: Circle())
             }
-            .padding(10)
-            .frame(maxWidth: .infinity, minHeight: 152)
-            .background(item.tint.opacity(0.17), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(item.tint.opacity(0.17), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(item.tint.opacity(0.24), lineWidth: 1)
             }
         }
@@ -283,21 +297,20 @@ private struct MoodCheckSection: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 9) {
             SectionTitle(text: "此刻心情")
-
             HStack(spacing: 8) {
                 ForEach(Array(moods.enumerated()), id: \.offset) { index, mood in
                     Button {
                         selectedMoodIndex = index
                     } label: {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 5) {
                             ZStack {
                                 Circle()
                                     .fill(moodColor(index).opacity(selectedMoodIndex == index ? 0.48 : 0.24))
-                                    .frame(width: 48, height: 48)
+                                    .frame(width: 38, height: 38)
                                 Image(systemName: mood.1)
-                                    .font(.system(size: 20, weight: .medium))
+                                    .font(.system(size: 16, weight: .medium))
                                     .foregroundStyle(Color.warmBrown.opacity(0.72))
                             }
                             Text(mood.0)
@@ -311,12 +324,13 @@ private struct MoodCheckSection: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .padding(12)
-            .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
-            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
         }
     }
 
@@ -329,13 +343,13 @@ private struct EncouragementCard: View {
     var body: some View {
         HStack(spacing: 16) {
             Image(systemName: "camera.macro")
-                .font(.system(size: 27, weight: .light))
+                .font(.system(size: 22, weight: .light))
                 .foregroundStyle(Color(hex: 0xb7c99a))
-                .frame(width: 38)
+                .frame(width: 30)
 
             Text("你已经很努力了，\n慢慢来，一切都会好起来的。")
-                .font(SensenFonts.handwritten(size: 14))
-                .lineSpacing(4)
+                .font(SensenFonts.handwritten(size: 12.5))
+                .lineSpacing(2)
                 .foregroundStyle(Color.warmBrown.opacity(0.84))
 
             Spacer()
@@ -343,16 +357,16 @@ private struct EncouragementCard: View {
             Button(action: {}) {
                 Image(systemName: "heart.fill")
                     .foregroundStyle(Color(hex: 0xf4a4a0))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("喜欢这句话")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
         }
     }
@@ -364,9 +378,10 @@ private struct SensenBottomBar: View {
     let openChat: () -> Void
     let openNotebook: () -> Void
     let openMe: () -> Void
+    let bottomInset: CGFloat
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 0) {
+        HStack(alignment: .center, spacing: 0) {
             BottomBarButton(title: "首页", systemImage: "house.fill", isSelected: true, action: openHome)
             BottomBarButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
 
@@ -376,9 +391,9 @@ private struct SensenBottomBar: View {
                     contentMode: .fill,
                     fallbackSystemImage: "hare.fill"
                 )
-                .frame(width: 58, height: 58)
+                .frame(width: 46, height: 46)
                 .clipShape(Circle())
-                .padding(5)
+                .padding(4)
                 .background(Color(hex: 0xfff3ee), in: Circle())
                 .shadow(color: Color(hex: 0xf4b8a8).opacity(0.28), radius: 18, y: 8)
             }
@@ -390,8 +405,8 @@ private struct SensenBottomBar: View {
             BottomBarButton(title: "我的", systemImage: "person", isSelected: false, action: openMe)
         }
         .padding(.horizontal, 8)
-        .padding(.top, 9)
-        .padding(.bottom, 22)
+        .padding(.top, 6)
+        .padding(.bottom, max(6, bottomInset))
         .background(Color(hex: 0xfffbf3).opacity(0.98))
         .overlay(alignment: .top) {
             Rectangle()
@@ -411,9 +426,9 @@ private struct BottomBarButton: View {
         Button(action: action) {
             VStack(spacing: 5) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 16, weight: .medium))
                 Text(title)
-                    .font(SensenFonts.handwritten(size: 10))
+                    .font(SensenFonts.handwritten(size: 9))
             }
             .foregroundStyle(isSelected ? Color(hex: 0xf28f86) : Color.warmBrown.opacity(0.72))
             .frame(maxWidth: .infinity)
@@ -455,15 +470,11 @@ private struct SectionTitle: View {
     var body: some View {
         HStack(spacing: 7) {
             Text(text)
-                .font(SensenFonts.handwritten(size: 15))
+                .font(SensenFonts.handwritten(size: 13))
                 .foregroundStyle(Color.warmBrown)
-            BundleImage(
-                name: "sensen-emoji-yoyo-bashful-v1",
-                contentMode: .fill,
-                fallbackSystemImage: "leaf.fill"
-            )
-            .frame(width: 21, height: 21)
-            .clipShape(Circle())
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color(hex: 0xa8b987))
         }
     }
 }
