@@ -30,4 +30,4 @@ JSON schema：
 - confidence 为 0-1。
 - subcategory 要服务心理陪伴，例如 freeze_response、shame、career、boundary、support_need。
 - keywords 要帮助后续检索和合并，优先使用用户原话中的心理关键词。
-- content 要像“小动物们能长期记住的心理线索”，而不是通用 CRM 用户画像。
+- content 要像“森森兔能长期记住的心理线索”，而不是通用 CRM 用户画像。

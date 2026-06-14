@@ -5,7 +5,13 @@ import uuid
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
-from app.characters import CHARACTERS, auto_select_character, get_character
+from app.characters import (
+    CHARACTERS,
+    auto_select_character,
+    expression_options,
+    get_character,
+    normalize_expression_id,
+)
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
 from app.memory.schema import MEMORY_CATEGORIES, STATE_PROFILE_DOMAINS, STATE_PROFILE_TRENDS
@@ -15,18 +21,8 @@ from app.memory.store import Store
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
 
 
-ROLE_ACTIONS = {
-    "soft_lean": "轻轻贴近",
-    "tilt_head": "歪头看向你",
-    "slow_nod": "慢慢点头",
-    "warm_glow": "轻轻发亮",
-    "steady_guard": "安静守住",
-    "small_breath": "陪你呼一口气",
-}
-
 RISK_LEVELS = {"low", "medium", "high"}
 RESPONSE_MODES = {"stabilize", "validate", "insight", "boundary", "action", "mixed"}
-GROUP_RESPONSE_ORDER = ("empathy", "need", "main", "anchor")
 
 
 def read_prompt(name: str) -> str:
@@ -98,19 +94,9 @@ def render_character_options() -> str:
         lines.append(
             f"- {profile.id}: {profile.name}（{profile.animal}）"
             f"；气质：{profile.tagline}；声音：{profile.voice}"
+            f"；可用表情：{expression_options(profile)}"
         )
     return "\n".join(lines)
-
-
-def _normalize_role_id(value: str | None, fallback_id: str, used: set[str]) -> str:
-    if value in CHARACTERS and value not in used:
-        used.add(value)
-        return value
-    for character_id in CHARACTERS:
-        if character_id not in used:
-            used.add(character_id)
-            return character_id
-    return fallback_id
 
 
 def _short_text(value: object, fallback: str, limit: int) -> str:
@@ -136,41 +122,13 @@ def _normalize_query_terms(value: object, limit: int = 6) -> list[str]:
     return terms[:limit]
 
 
-def _role_payload(raw_plan: dict, key: str, legacy_key: str | None = None) -> dict:
-    payload = raw_plan.get(key)
-    if not isinstance(payload, dict) and legacy_key:
-        payload = raw_plan.get(legacy_key)
-    return payload if isinstance(payload, dict) else {}
-
-
-def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
+def normalize_response_plan(raw_plan: dict, fallback_character_id: str) -> dict:
     if not isinstance(raw_plan, dict):
         raw_plan = {}
-    used: set[str] = set()
-    main_id = _normalize_role_id(
-        _role_payload(raw_plan, "main").get("character_id") or fallback_main_id,
-        fallback_main_id,
-        used,
-    )
-    empathy_id = _normalize_role_id(
-        _role_payload(raw_plan, "empathy", "empathic").get("character_id"),
-        fallback_main_id,
-        used,
-    )
-    need_id = _normalize_role_id(
-        _role_payload(raw_plan, "need", "pinpoint").get("character_id"),
-        fallback_main_id,
-        used,
-    )
-    anchor_id = _normalize_role_id(
-        _role_payload(raw_plan, "anchor").get("character_id"),
-        fallback_main_id,
-        used,
-    )
-    empathy_payload = _role_payload(raw_plan, "empathy", "empathic")
-    need_payload = _role_payload(raw_plan, "need", "pinpoint")
-    main_payload = _role_payload(raw_plan, "main")
-    anchor_payload = _role_payload(raw_plan, "anchor")
+    character_id = str(raw_plan.get("character_id") or raw_plan.get("form_id") or fallback_character_id).strip()
+    if character_id not in CHARACTERS:
+        character_id = fallback_character_id if fallback_character_id in CHARACTERS else auto_select_character("").id
+    expression_id = normalize_expression_id(character_id, raw_plan.get("expression_id"))
     return {
         "user_state": _short_text(raw_plan.get("user_state"), "需要进一步理解用户此刻状态。", 60),
         "core_need": _short_text(raw_plan.get("core_need"), "被接住，并获得一点清晰感。", 60),
@@ -184,173 +142,50 @@ def normalize_role_plan(raw_plan: dict, fallback_main_id: str) -> dict:
             "先承接，再给出克制的心理学解释；避免替用户下过重结论。",
             140,
         ),
-        "empathy": {
-            "character_id": empathy_id,
-            "intent": str(empathy_payload.get("intent") or "先接住用户表层情绪。")[:80],
-        },
-        "need": {
-            "character_id": need_id,
-            "intent": str(need_payload.get("intent") or "点明用户背后真正需要什么。")[:80],
-        },
-        "main": {
-            "character_id": main_id,
-            "intent": str(main_payload.get("intent") or "结合心理学视角做主要回应。")[:80],
-        },
-        "anchor": {
-            "character_id": anchor_id,
-            "intent": str(anchor_payload.get("intent") or "留下一句轻而稳的收束话。")[:80],
-        },
+        "character_id": character_id,
+        "expression_id": expression_id,
         "reason": str(raw_plan.get("reason") or "根据用户当前表达的情绪强度、问题类型和需要的支持方式选择。")[:160],
     }
 
 
 def render_role_plan(route_plan: dict | None) -> str:
     if not route_plan:
-        return "本轮是单角色回复。不要加入其他动物的短句。"
-    empathy = get_character(route_plan["empathy"]["character_id"])
-    need = get_character(route_plan["need"]["character_id"])
-    main = get_character(route_plan["main"]["character_id"])
-    anchor = get_character(route_plan["anchor"]["character_id"])
-    return (
-        "本轮是四角色协作回复，但最终只输出一条结构化消息。\n"
-        "本轮策略规划：\n"
-        f"- 用户状态：{route_plan['user_state']}\n"
-        f"- 核心需要：{route_plan['core_need']}\n"
-        f"- 风险等级：{route_plan['risk_level']}\n"
-        f"- 回复模式：{route_plan['response_mode']}\n"
-        f"- 知识需求：{'、'.join(route_plan['knowledge_needs']) if route_plan['knowledge_needs'] else '暂无明确知识卡需求'}\n"
-        f"- 写作提醒：{route_plan['response_guidance']}\n"
-        f"1. 共情承接：{empathy.name}。先用一句很短的话描述并接住用户当前感受，不分析。"
-        f"意图：{route_plan['empathy']['intent']}\n"
-        f"2. 需求点明：{need.name}。随后用一句短话点明用户背后的需要、渴望或保护性动机。"
-        f"意图：{route_plan['need']['intent']}\n"
-        f"3. 主回复：{main.name}。由它承担主要心理陪伴和解释。"
-        f"意图：{route_plan['main']['intent']}\n"
-        f"4. 收束锚点：{anchor.name}。最后留下一句很短、可带走的鼓励或提醒。"
-        f"意图：{route_plan['anchor']['intent']}\n"
-        "总长度仍要克制，不要让动物互相聊天。"
-    )
+        return "本轮是手动形态回复。不要加入其他动物或其他形态的短句。"
+    if "character_id" in route_plan:
+        character = get_character(route_plan["character_id"])
+        expression_id = normalize_expression_id(character.id, route_plan.get("expression_id"))
+        expression = (character.expressions or {}).get(expression_id, {})
+        return (
+            "本轮是单一兔子形态回复，不要加入多角色短句，也不要让不同形态互相聊天。\n"
+            "本轮策略规划：\n"
+            f"- 用户状态：{route_plan['user_state']}\n"
+            f"- 核心需要：{route_plan['core_need']}\n"
+            f"- 风险等级：{route_plan['risk_level']}\n"
+            f"- 回复模式：{route_plan['response_mode']}\n"
+            f"- 选择形态：{character.name}（{character.animal}）\n"
+            f"- 选择表情：{expression_id}（{expression.get('label', expression_id)}）\n"
+            f"- 知识需求：{'、'.join(route_plan['knowledge_needs']) if route_plan['knowledge_needs'] else '暂无明确知识卡需求'}\n"
+            f"- 写作提醒：{route_plan['response_guidance']}\n"
+            f"- 选择理由：{route_plan['reason']}\n"
+        )
+    return "本轮是单一兔子形态回复。"
 
 
-def render_group_response_instruction(route_plan: dict) -> str:
-    empathy = get_character(route_plan["empathy"]["character_id"])
-    need = get_character(route_plan["need"]["character_id"])
-    main = get_character(route_plan["main"]["character_id"])
-    anchor = get_character(route_plan["anchor"]["character_id"])
+def render_rabbit_response_instruction(route_plan: dict) -> str:
+    character = get_character(route_plan["character_id"])
+    expression_id = normalize_expression_id(character.id, route_plan.get("expression_id"))
     return (
         "\n\n本轮必须输出 JSON，不要输出 Markdown，不要输出 JSON 以外的正文。\n"
         "JSON schema：\n"
         "{\n"
-        '  "empathy_action": "动作 id，只能从 soft_lean, slow_nod, warm_glow, steady_guard, small_breath 中选择",\n'
-        '  "empathy_text": "共情承接短句，24 字以内",\n'
-        '  "need_action": "动作 id，只能从 tilt_head, slow_nod, steady_guard, warm_glow 中选择",\n'
-        '  "need_text": "需求点明短句，45 字以内",\n'
-        '  "main_reply": "主回复正文，3-6 段，克制但有深度",\n'
-        '  "anchor_action": "动作 id，只能从 warm_glow, steady_guard, small_breath, slow_nod 中选择",\n'
-        '  "anchor_text": "收束锚点短句，32 字以内"\n'
+        '  "reply": "最终回复正文，3-7 段，克制但有心理陪伴深度",\n'
+        '  "expression_id": "最终表情 id，必须是当前形态可用表情之一"\n'
         "}\n"
-        f"empathy_text 必须由「{empathy.name}」说出，只描述并接住用户感受；不要写角色名字，不要写动作描写。\n"
-        f"need_text 必须由「{need.name}」说出，只点明用户背后的需要、渴望或保护性动机；不要写角色名字，不要写动作描写。\n"
-        f"main_reply 必须由「{main.name}」说出，承担主要心理陪伴。\n"
-        f"anchor_text 必须由「{anchor.name}」说出，只留一句很短的收束锚点；不要写角色名字，不要写动作描写。\n"
-        "动作只能放进 *_action 字段。不要在任何 *_text 字段里写“歪头看你、轻轻贴近你、点点头”这类动作。"
+        f"当前形态只能是「{character.name}」，不要切换成其他形态说话。\n"
+        f"建议表情是 {expression_id}。如果最终回复的情绪更适合当前形态的另一个可用表情，可以改 expression_id。\n"
+        f"当前形态可用表情：{expression_options(character)}。\n"
+        "reply 字段里不要写角色名，不要写动作括号，不要写“表情：xxx”。"
     )
-
-
-def normalize_action(value: str | None, fallback: str) -> str:
-    return value if value in ROLE_ACTIONS else fallback
-
-
-def clean_short_text(text: str, character_name: str) -> str:
-    cleaned = text.strip()
-    for separator in ("：", ":", "，", ","):
-        prefix = f"{character_name}{separator}"
-        if cleaned.startswith(prefix):
-            cleaned = cleaned[len(prefix):].strip()
-    if cleaned.startswith(character_name):
-        cleaned = cleaned[len(character_name):].strip(" ：:，,。")
-    action_phrases = [
-        "歪头看你",
-        "歪着头看你",
-        "轻轻贴近你",
-        "轻轻靠近你",
-        "慢慢点头",
-        "点点头",
-        "轻轻点头",
-        "轻轻发亮",
-        "安静守住",
-        "陪你呼一口气",
-    ]
-    changed = True
-    while changed:
-        changed = False
-        for phrase in action_phrases:
-            if cleaned.startswith(phrase):
-                cleaned = cleaned[len(phrase):].strip(" ：:，,。")
-                changed = True
-    return cleaned
-
-
-def normalize_group_response(raw: dict, route_plan: dict) -> dict:
-    empathy = get_character(route_plan["empathy"]["character_id"])
-    need = get_character(route_plan["need"]["character_id"])
-    anchor = get_character(route_plan["anchor"]["character_id"])
-    return {
-        "empathy": {
-            "character_id": route_plan["empathy"]["character_id"],
-            "action": normalize_action(raw.get("empathy_action") or raw.get("empathic_action"), "soft_lean"),
-            "text": clean_short_text(
-                str(raw.get("empathy_text") or raw.get("empathic_text") or "我在这里，先陪你停一下。"),
-                empathy.name,
-            )[:120],
-        },
-        "need": {
-            "character_id": route_plan["need"]["character_id"],
-            "action": normalize_action(raw.get("need_action") or raw.get("pinpoint_action"), "tilt_head"),
-            "text": clean_short_text(
-                str(raw.get("need_text") or raw.get("pinpoint_text") or "你可能很想知道，自己真正需要的是什么。"),
-                need.name,
-            )[:180],
-        },
-        "main": {
-            "character_id": route_plan["main"]["character_id"],
-            "action": normalize_action(raw.get("main_action"), "small_breath"),
-            "text": str(raw.get("main_reply") or raw.get("reply") or "")[:4000],
-        },
-        "anchor": {
-            "character_id": route_plan["anchor"]["character_id"],
-            "action": normalize_action(raw.get("anchor_action"), "warm_glow"),
-            "text": clean_short_text(
-                str(raw.get("anchor_text") or "你不用靠完美，才配得上安稳。"),
-                anchor.name,
-            )[:160],
-        },
-    }
-
-
-def render_group_transcript(group_response: dict) -> str:
-    lines = []
-    for key in GROUP_RESPONSE_ORDER:
-        item = group_response[key]
-        character = get_character(item["character_id"])
-        lines.append(f"{character.name}：{item['text']}")
-    return "\n\n".join(lines)
-
-
-def group_response_messages(group_response: dict) -> list[dict]:
-    messages = []
-    for index, key in enumerate(GROUP_RESPONSE_ORDER):
-        item = group_response[key]
-        messages.append(
-            {
-                "group_role": key,
-                "group_index": index,
-                "character_id": item["character_id"],
-                "action": item.get("action", ""),
-                "text": item["text"],
-            }
-        )
-    return messages
 
 
 def preview_text(text: str, limit: int = 3000) -> str:
@@ -383,7 +218,7 @@ class ConversationOrchestrator:
         started_at = time.monotonic()
         route_plan = None
         debug_trace = {
-            "mode": "group_auto" if character_id == "auto" else "single_character",
+            "mode": "rabbit_auto" if character_id == "auto" else "manual_rabbit_form",
             "steps": [],
             "llm_calls": [],
         }
@@ -395,15 +230,16 @@ class ConversationOrchestrator:
                 state_profiles=state_profiles,
                 debug_trace=debug_trace,
             )
-            character = get_character(route_plan["main"]["character_id"])
+            character = get_character(route_plan["character_id"])
             debug_trace["steps"].append({
                 "name": "turn_planner",
                 "status": "done",
-                "summary": "已完成本轮状态、需求、回复模式与角色分工规划。",
+                "summary": "已完成本轮状态、需求、回复模式、兔子形态与表情规划。",
                 "output": route_plan,
             })
         else:
             character = get_character(character_id)
+            route_plan = None
             debug_trace["steps"].append({
                 "name": "manual_character",
                 "status": "done",
@@ -417,18 +253,23 @@ class ConversationOrchestrator:
         )
         self.store.add_message(session_id, "user", user_text)
         if detect_crisis(user_text):
+            expression_id = normalize_expression_id(character.id, "concerned")
             self.store.add_message(
                 session_id,
                 "assistant",
                 CRISIS_RESPONSE,
                 model="safety",
-                metadata={"character_id": character.id},
+                metadata={"character_id": character.id, "expression_id": expression_id},
             )
             self.logger.info("reply safety session=%s", session_id)
             return {
                 "reply": CRISIS_RESPONSE,
                 "knowledge_cards": [],
                 "character": character.to_public_dict(),
+                "expression": {
+                    "id": expression_id,
+                    **((character.expressions or {}).get(expression_id, {})),
+                },
                 "route_plan": route_plan,
                 "debug_trace": {
                     **debug_trace,
@@ -496,7 +337,7 @@ class ConversationOrchestrator:
             role_plan=render_role_plan(route_plan),
         )
         if route_plan:
-            system_prompt += render_group_response_instruction(route_plan)
+            system_prompt += render_rabbit_response_instruction(route_plan)
         llm_messages = [{"role": "system", "content": system_prompt}]
         llm_messages.append({"role": "user", "content": user_text})
 
@@ -509,68 +350,52 @@ class ConversationOrchestrator:
             thinking="disabled",
         )
         generation_call = {
-            "name": "group_response" if route_plan else "single_reply",
+            "name": "rabbit_response" if route_plan else "single_reply",
             "model": response.model,
             "elapsed_sec": round(time.monotonic() - generation_started_at, 2),
             "response_format": "json_object" if route_plan else "text",
             "raw_output": preview_text(response.content),
         }
-        group_response = None
         reply_content = response.content
+        expression_id = character.default_expression_id
         if route_plan:
             try:
-                group_response = normalize_group_response(json.loads(response.content), route_plan)
-                reply_content = render_group_transcript(group_response)
-                generation_call["parsed_output"] = group_response
+                payload = json.loads(response.content)
+                reply_content = str(payload.get("reply") or "").strip() or response.content
+                expression_id = normalize_expression_id(character.id, payload.get("expression_id") or route_plan.get("expression_id"))
+                generation_call["parsed_output"] = {
+                    "reply": preview_text(reply_content),
+                    "expression_id": expression_id,
+                }
             except (TypeError, json.JSONDecodeError):
-                self.logger.exception("group response parse failed; falling back to raw reply")
+                expression_id = normalize_expression_id(character.id, route_plan.get("expression_id"))
+                self.logger.exception("rabbit response parse failed; falling back to raw reply")
                 generation_call["parse_error"] = "JSON 解析失败，已回退为原始文本。"
+        else:
+            expression_id = normalize_expression_id(character.id, None)
         debug_trace["llm_calls"].append(generation_call)
         debug_trace["steps"].append({
             "name": "generate_reply",
             "status": "done",
-            "summary": "已生成回复内容。" if not route_plan else "已生成四角色结构化回复。",
+            "summary": "已生成回复内容。" if not route_plan else "已生成兔子形态结构化回复。",
             "output": {
                 "main_character": character.name,
+                "expression_id": expression_id,
                 "reply_chars": len(reply_content),
-                "group_message_count": len(group_response_messages(group_response)) if group_response else 0,
             },
         })
-        if group_response:
-            group_id = str(uuid.uuid4())
-            stored_group_messages = group_response_messages(group_response)
-            knowledge_card_ids = [card.get("id", "") for card in knowledge_cards if card.get("id")]
-            for item in stored_group_messages:
-                metadata = {
-                    "character_id": item["character_id"],
-                    "route_plan": route_plan,
-                    "group_id": group_id,
-                    "group_role": item["group_role"],
-                    "group_index": item["group_index"],
-                    "group_size": len(stored_group_messages),
-                    "action": item["action"],
-                }
-                if item["group_role"] == "main" and knowledge_card_ids:
-                    metadata["knowledge_card_ids"] = knowledge_card_ids
-                self.store.add_message(
-                    session_id,
-                    "assistant",
-                    item["text"],
-                    model=response.model,
-                    metadata=metadata,
-                )
-        else:
-            self.store.add_message(
-                session_id,
-                "assistant",
-                reply_content,
-                model=response.model,
-                metadata={
-                    "character_id": character.id,
-                    "route_plan": route_plan,
-                    "knowledge_card_ids": [card.get("id", "") for card in knowledge_cards if card.get("id")],
-                },
-            )
+        self.store.add_message(
+            session_id,
+            "assistant",
+            reply_content,
+            model=response.model,
+            metadata={
+                "character_id": character.id,
+                "expression_id": expression_id,
+                "route_plan": route_plan,
+                "knowledge_card_ids": [card.get("id", "") for card in knowledge_cards if card.get("id")],
+            },
+        )
         self.logger.info(
             "reply done session=%s elapsed=%.2fs model=%s reply_chars=%s",
             session_id,
@@ -579,22 +404,14 @@ class ConversationOrchestrator:
             len(reply_content),
         )
         return {
-            "reply": group_response["main"]["text"] if group_response else reply_content,
-            "group_messages": (
-                [
-                    {
-                        "role": key,
-                        "text": group_response[key]["text"],
-                        "action": group_response[key].get("action", ""),
-                        "character": get_character(group_response[key]["character_id"]).to_public_dict(),
-                    }
-                    for key in GROUP_RESPONSE_ORDER
-                ]
-                if group_response
-                else []
-            ),
+            "reply": reply_content,
+            "group_messages": [],
             "knowledge_cards": knowledge_cards,
             "character": character.to_public_dict(),
+            "expression": {
+                "id": expression_id,
+                **((character.expressions or {}).get(expression_id, {})),
+            },
             "route_plan": route_plan,
             "debug_trace": {
                 **debug_trace,
@@ -655,7 +472,7 @@ class ConversationOrchestrator:
                     "error": "本轮策略规划失败，已回退到关键词规则。",
                     "fallback_character_id": fallback.id,
                 })
-        return normalize_role_plan(raw_plan, fallback.id)
+        return normalize_response_plan(raw_plan, fallback.id)
 
     def close_session(self, session_id: str) -> dict:
         started_at = time.monotonic()

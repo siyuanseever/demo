@@ -23,43 +23,24 @@ class FakeClient:
                         "core_need": "被理解，并把内在模式理清楚",
                         "risk_level": "low",
                         "response_mode": "insight",
+                        "character_id": "yoran",
+                        "expression_id": "serene",
                         "knowledge_needs": ["严苛的内在批判者", "创伤性向内归因", "全能控制感"],
                         "memory_queries": ["道德感", "自我苛责", "完美主义", "欲望压抑"],
                         "knowledge_queries": ["过度道德化", "严苛内在批判者", "创伤性向内归因"],
                         "response_guidance": "先承认这种模式曾经保护过用户，再温和区分保护与伤害。",
-                        "empathy": {
-                            "character_id": "youyou_rabbit",
-                            "intent": "先轻轻接住难受",
-                        },
-                        "need": {
-                            "character_id": "huahua_fox",
-                            "intent": "点明想被理解",
-                        },
-                        "main": {
-                            "character_id": "sensen_deer",
-                            "intent": "温柔地整理感受",
-                        },
-                        "anchor": {
-                            "character_id": "shanshan_butterfly",
-                            "intent": "留下轻一点的锚点",
-                        },
-                        "reason": "fake 模式：固定返回四角色分工。",
+                        "reason": "fake 模式：固定返回悠然兔平静表情。",
                     },
                     ensure_ascii=False,
                 )
-            elif "empathy_text" in system and "need_text" in system:
+            elif '"reply"' in system and "expression_id" in system:
                 content = json.dumps(
                     {
-                        "empathy_action": "soft_lean",
-                        "empathy_text": "感受到你心里的困惑和痛。",
-                        "need_action": "tilt_head",
-                        "need_text": "你可能很想确认：不完美的自己也能被爱。",
-                        "main_reply": (
+                        "reply": (
                             "我听见了。你说的不是一个简单的“今天不开心”，而像是心里有一团东西一直没有被好好放下来。\n\n"
                             "我们可以先不急着解决它，只把它看清楚一点：它是在身体里更紧，还是在关系里更委屈？先分清这一点，就已经是在往内心走近。"
                         ),
-                        "anchor_action": "warm_glow",
-                        "anchor_text": "你不用靠完美，才配得上安稳。",
+                        "expression_id": "serene",
                     },
                     ensure_ascii=False,
                 )

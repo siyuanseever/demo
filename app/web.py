@@ -1219,9 +1219,9 @@ HTML = """<!doctype html>
           <div class="cozy-text">回到对话</div>
         </button>
       </div>
-      <div class="sidebar-section-title current-role-title">当前角色</div>
-      <section id="selectedAnimalCard" class="selected-animal-card" aria-label="当前小动物"></section>
-      <div id="characterStrip" class="character-strip" aria-label="选择陪伴角色"></div>
+      <div class="sidebar-section-title current-role-title">当前形态</div>
+      <section id="selectedAnimalCard" class="selected-animal-card" aria-label="当前兔子形态"></section>
+      <div id="characterStrip" class="character-strip" aria-label="选择兔子形态"></div>
       <div class="sidebar-section-title settings-title">设置</div>
       <div class="settings-list" aria-label="设置入口">
         <button class="settings-item" type="button">
@@ -1240,11 +1240,11 @@ HTML = """<!doctype html>
     </aside>
     <section id="messages" class="view"></section>
     <aside id="animalPanel" class="animal-panel">
-      <h2 class="panel-title">小动物状态</h2>
+      <h2 class="panel-title">兔子形态</h2>
       <button id="groupToggle" class="group-toggle" type="button" aria-pressed="false">
         <span>
-          <span class="toggle-label">群聊自动</span>
-          <span class="toggle-note">让小动物们自动推选谁来回应</span>
+          <span class="toggle-label">自动形态</span>
+          <span class="toggle-note">让 DeepSeek 选择形态和表情</span>
         </span>
         <span id="groupTogglePill" class="toggle-pill">关</span>
       </button>
@@ -1307,19 +1307,25 @@ HTML = """<!doctype html>
     let memoryViewMode = "taxonomy";
     let lastDebugTrace = null;
     const CHARACTERS = __CHARACTERS_JSON__;
-    let activeCharacterId = localStorage.getItem("xiaolu.character") || "sensen_deer";
+    const LEGACY_CHARACTER_ALIASES = {
+      sensen_deer: "yoyo",
+      youyou_rabbit: "yoyo",
+      gugu_bear: "momo",
+      gangan_tiger: "momo",
+      huahua_fox: "yoran",
+      shanshan_butterfly: "yoran"
+    };
+    let activeCharacterId = localStorage.getItem("xiaolu.character") || "yoyo";
     let replyMode = localStorage.getItem("xiaolu.replyMode") || "manual";
     const defaultAnimalState = {
-      sensen_deer: { mood: "柔软", need: "想听你慢慢说", face: "☁️" },
-      gugu_bear: { mood: "稳稳的", need: "正在守着节奏", face: "🪨" },
-      huahua_fox: { mood: "清醒", need: "在观察线索", face: "🔎" },
-      youyou_rabbit: { mood: "低低的", need: "愿意陪你难过", face: "🌧️" },
-      shanshan_butterfly: { mood: "亮亮的", need: "想带来一点空气", face: "✨" },
-      gangan_tiger: { mood: "坚定", need: "准备保护边界", face: "🔥" }
+      yoyo: { mood: "在倾听", need: "先陪你把感受放下来", face: "🌙" },
+      momo: { mood: "准备好", need: "陪你慢慢试试看", face: "☁️" },
+      yoran: { mood: "很平静", need: "帮你把感受和行动放在一起", face: "✨" }
     };
     let animalState = JSON.parse(JSON.stringify(defaultAnimalState));
 
     function currentCharacter() {
+      activeCharacterId = LEGACY_CHARACTER_ALIASES[activeCharacterId] || activeCharacterId;
       const character = CHARACTERS.find(item => item.id === activeCharacterId);
       if (character) return character;
       activeCharacterId = CHARACTERS[0].id;
@@ -1328,11 +1334,30 @@ HTML = """<!doctype html>
     }
 
     function characterById(characterId) {
-      return CHARACTERS.find(item => item.id === characterId) || CHARACTERS[0];
+      const normalizedId = LEGACY_CHARACTER_ALIASES[characterId] || characterId;
+      return CHARACTERS.find(item => item.id === normalizedId) || CHARACTERS[0];
+    }
+
+    function expressionFor(character, expressionId = "") {
+      const expressions = character.expressions || {};
+      const selectedId = expressionId && expressions[expressionId]
+        ? expressionId
+        : (character.default_expression_id || Object.keys(expressions)[0] || "");
+      return {
+        id: selectedId,
+        ...(expressions[selectedId] || {}),
+      };
     }
 
     function routePlanSummary(plan) {
-      if (!plan || !plan.main) return "";
+      if (!plan) return "";
+      if (plan.character_id) {
+        const character = characterById(plan.character_id);
+        const expression = expressionFor(character, plan.expression_id);
+        const mode = plan.response_mode ? ` · ${plan.response_mode}` : "";
+        return `本轮规划${mode}：${character.name} · ${expression.label || expression.id || "默认表情"}；${plan.reason || "根据用户此刻状态自动选择"}`;
+      }
+      if (!plan.main) return "";
       const empathy = characterById((plan.empathy || plan.empathic)?.character_id);
       const need = characterById((plan.need || plan.pinpoint)?.character_id);
       const main = characterById(plan.main?.character_id);
@@ -1348,13 +1373,74 @@ HTML = """<!doctype html>
 
     function renderTurnPlan(plan) {
       if (!plan) return "";
+      const needs = Array.isArray(plan.knowledge_needs) ? plan.knowledge_needs : [];
+      const memoryQueries = Array.isArray(plan.memory_queries) ? plan.memory_queries : [];
+      const knowledgeQueries = Array.isArray(plan.knowledge_queries) ? plan.knowledge_queries : [];
+      if (plan.character_id) {
+        const character = characterById(plan.character_id);
+        const expression = expressionFor(character, plan.expression_id);
+        return `
+          <div class="dev-section">
+            <h3>本轮策略规划</h3>
+            <div class="dev-plan-grid">
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">用户状态</div>
+                <div class="dev-plan-value">${escapeHtml(plan.user_state || "-")}</div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">核心需要</div>
+                <div class="dev-plan-value">${escapeHtml(plan.core_need || "-")}</div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">风险等级</div>
+                <div class="dev-plan-value">${escapeHtml(plan.risk_level || "-")}</div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">回复模式</div>
+                <div class="dev-plan-value">${escapeHtml(plan.response_mode || "-")}</div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">兔子形态</div>
+                <div class="dev-plan-value">${escapeHtml(character.name)} · ${escapeHtml(character.animal || "")}</div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">表情</div>
+                <div class="dev-plan-value">${escapeHtml(expression.id || "-")} · ${escapeHtml(expression.label || "-")}</div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">知识需要</div>
+                <div class="dev-tags">
+                  ${needs.length ? needs.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
+                </div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">记忆检索词</div>
+                <div class="dev-tags">
+                  ${memoryQueries.length ? memoryQueries.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
+                </div>
+              </div>
+              <div class="dev-plan-cell">
+                <div class="dev-plan-label">知识检索词</div>
+                <div class="dev-tags">
+                  ${knowledgeQueries.length ? knowledgeQueries.map(item => `<span class="dev-tag">${escapeHtml(item)}</span>`).join("") : '<span class="dev-plan-value">暂无</span>'}
+                </div>
+              </div>
+            </div>
+            <div class="dev-item" style="margin-top: 7px;">
+              <div class="dev-plan-label">写作提醒</div>
+              <div class="dev-plan-value">${escapeHtml(plan.response_guidance || "-")}</div>
+            </div>
+            <div class="dev-item" style="margin-top: 7px;">
+              <div class="dev-plan-label">选择理由</div>
+              <div class="dev-plan-value">${escapeHtml(plan.reason || "-")}</div>
+            </div>
+          </div>
+        `;
+      }
       const empathy = characterById((plan.empathy || plan.empathic)?.character_id);
       const need = characterById((plan.need || plan.pinpoint)?.character_id);
       const main = characterById(plan.main?.character_id);
       const anchor = plan.anchor ? characterById(plan.anchor?.character_id) : null;
-      const needs = Array.isArray(plan.knowledge_needs) ? plan.knowledge_needs : [];
-      const memoryQueries = Array.isArray(plan.memory_queries) ? plan.memory_queries : [];
-      const knowledgeQueries = Array.isArray(plan.knowledge_queries) ? plan.knowledge_queries : [];
       return `
         <div class="dev-section">
           <h3>本轮策略规划</h3>
@@ -1515,7 +1601,7 @@ HTML = """<!doctype html>
         return { mood: "在思考", need: "帮你看清线索", face: "🧐" };
       }
       if (content.includes("开心") || content.includes("希望") || content.includes("试试") || content.includes("轻一点") || content.includes("亮")) {
-        return { mood: "亮了一点", need: "想陪你往前飞", face: "🌟" };
+        return { mood: "亮了一点", need: "想陪你往前走一点", face: "🌟" };
       }
       return {
         mood: defaultAnimalState[characterId]?.mood || "在听",
@@ -1590,6 +1676,7 @@ HTML = """<!doctype html>
 
     function addMessage(role, text, knowledgeCards = [], characterId = null, options = {}) {
       const character = characterId ? characterById(characterId) : CHARACTERS[0];
+      const expression = role === "user" ? null : expressionFor(character, options.expressionId || options.expression_id || "");
       const groupRole = options.groupRole || "";
       const action = options.action || "";
       const row = document.createElement("div");
@@ -1600,9 +1687,10 @@ HTML = """<!doctype html>
         avatarWrap.className = "avatar-wrap";
         if (action) avatarWrap.dataset.action = action;
         let avatar;
-        if (character.avatar_path) {
+        const avatarPath = expression?.path || character.avatar_path;
+        if (avatarPath) {
           avatar = document.createElement("img");
-          avatar.src = character.avatar_path;
+          avatar.src = avatarPath;
           avatar.style.background = character.bubble_color || "#fff";
           avatar.style.borderColor = character.bubble_color || "rgba(255, 255, 255, 0.9)";
         } else {
@@ -1635,7 +1723,7 @@ HTML = """<!doctype html>
       face.textContent = role === "user" ? "🫧" : (animalState[character.id]?.face || character.emoji || "🍃");
       const name = document.createElement("div");
       name.className = "name";
-      name.textContent = role === "user" ? "你" : character.name;
+      name.textContent = role === "user" ? "你" : `${character.name}${expression?.label ? " · " + expression.label : ""}`;
       head.appendChild(face);
       head.appendChild(name);
       const body = document.createElement("div");
@@ -1783,7 +1871,7 @@ HTML = """<!doctype html>
       if (!text) return;
       input.value = "";
       const sendingCharacterId = replyMode === "auto" ? "auto" : activeCharacterId;
-      const thinkingName = replyMode === "auto" ? "小动物们" : currentCharacter().name;
+      const thinkingName = replyMode === "auto" ? "森森兔" : currentCharacter().name;
       setBusy(true);
       try {
         const currentSessionId = await ensureSession();
@@ -1796,7 +1884,7 @@ HTML = """<!doctype html>
         if (replyMode === "auto" && routeSummary) {
           addSystem(routeSummary);
         } else if (replyMode === "auto" && data.character?.name) {
-          addSystem("群聊自动选择：" + data.character.name);
+          addSystem("自动形态选择：" + data.character.name);
         }
         if (data.character?.id) {
           activeCharacterId = data.character.id;
@@ -1815,11 +1903,11 @@ HTML = """<!doctype html>
               item.text,
               index === cardTargetIndex ? knowledgeCards : [],
               item.character?.id || activeCharacterId,
-              { groupRole: item.role, action: item.action || "" }
+              { groupRole: item.role, action: item.action || "", expressionId: item.expression?.id || item.expression_id || "" }
             );
           });
         } else {
-          addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId);
+          addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId, { expressionId: data.expression?.id || "" });
         }
       } catch (error) {
         addSystem(error.message);
@@ -2325,7 +2413,7 @@ HTML = """<!doctype html>
             message.content,
             message.knowledge_cards || [],
             message.character_id || null,
-            { groupRole: message.group_role || "", action: message.action || "" }
+            { groupRole: message.group_role || "", action: message.action || "", expressionId: message.expression_id || "" }
           );
         }
         switchMainView("chat");
