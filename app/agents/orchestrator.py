@@ -66,6 +66,25 @@ def render_state_profiles(profiles: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def render_state_profile_history(versions: list[dict]) -> str:
+    if not versions:
+        return "暂无长期状态历史版本。"
+    lines = []
+    for version in versions[:18]:
+        evidence = version.get("evidence", [])
+        if isinstance(evidence, list):
+            evidence_text = "；".join(str(item) for item in evidence[:2])
+        else:
+            evidence_text = ""
+        lines.append(
+            f"- {version.get('created_at', '')} [{version.get('domain', '')}] "
+            f"{version.get('stage', '')}（趋势：{version.get('trend', '')}；"
+            f"强度：{version.get('intensity', '-')}/10；action：{version.get('action', '')}；"
+            f"证据：{evidence_text or '暂无'}）"
+        )
+    return "\n".join(lines)
+
+
 def message_character_name(row) -> str:
     metadata = {}
     try:
@@ -477,6 +496,32 @@ class ConversationOrchestrator:
     def close_session(self, session_id: str) -> dict:
         started_at = time.monotonic()
         self.logger.info("close_session start session=%s", session_id)
+        existing_session = self.store.get_session(session_id)
+        existing_journals = self.store.list_journals(session_id=session_id, limit=1)
+        latest_message_at = self.store.latest_message_at(session_id)
+        latest_journal_at = existing_journals[0]["created_at"] if existing_journals else None
+        has_new_messages = bool(
+            latest_message_at
+            and latest_journal_at
+            and latest_message_at > latest_journal_at
+        )
+        if existing_session and existing_session.get("ended_at") and existing_journals and not has_new_messages:
+            memories = self.store.list_memories(session_id=session_id)
+            memory_events = self.store.list_memory_events(session_id=session_id)
+            self.logger.info(
+                "close_session reuse session=%s elapsed=%.2fs memories=%s memory_events=%s",
+                session_id,
+                time.monotonic() - started_at,
+                len(memories),
+                len(memory_events),
+            )
+            return {
+                "journal": existing_journals[0],
+                "memories": memories,
+                "memory_events": memory_events,
+                "state_profiles": [],
+                "reused": True,
+            }
         messages = self.store.get_session_messages(session_id)
         transcript = "\n".join(
             f"{row['role']}: {row['content']}" for row in messages
@@ -498,7 +543,12 @@ class ConversationOrchestrator:
             len(memory_results),
             len(state_profile_results),
         )
-        return {"journal": journal, "memories": memory_results, "state_profiles": state_profile_results}
+        return {
+            "journal": journal,
+            "memories": memory_results,
+            "memory_events": self.store.list_memory_events(session_id=session_id),
+            "state_profiles": state_profile_results,
+        }
 
     def _write_journal(self, transcript: str) -> dict:
         prompt = read_prompt("journal.md")
@@ -553,31 +603,67 @@ class ConversationOrchestrator:
             target_id = decision.get("target_memory_id", "")
 
             if action == "ignore":
+                self.store.add_memory_event(
+                    session_id,
+                    action="ignore",
+                    memory=candidate,
+                    reason=reason,
+                )
                 results.append({**candidate, "action": "ignore", "reason": reason})
                 continue
             if action == "create" or not target_id:
                 memory_id = self.store.add_memory(session_id, memory)
+                self.store.add_memory_event(
+                    session_id,
+                    action="create",
+                    memory=memory,
+                    memory_id=memory_id,
+                    reason=reason,
+                )
                 results.append({**memory, "id": memory_id, "action": "create", "reason": reason})
                 continue
             if action in {"merge", "update"}:
                 self.store.update_memory(target_id, memory, merge_note=reason)
+                self.store.add_memory_event(
+                    session_id,
+                    action=action,
+                    memory=memory,
+                    memory_id=target_id,
+                    reason=reason,
+                )
                 results.append({**memory, "id": target_id, "action": action, "reason": reason})
                 continue
             if action == "contradict":
                 self.store.mark_memory(target_id, status="contradicted", merge_note=reason)
                 memory_id = self.store.add_memory(session_id, {**memory, "status": "active"})
+                self.store.add_memory_event(
+                    session_id,
+                    action="contradict",
+                    memory=memory,
+                    memory_id=memory_id,
+                    reason=reason,
+                )
                 results.append({**memory, "id": memory_id, "action": "contradict", "reason": reason})
                 continue
             memory_id = self.store.add_memory(session_id, memory)
+            self.store.add_memory_event(
+                session_id,
+                action="create",
+                memory=memory,
+                memory_id=memory_id,
+                reason=reason,
+            )
             results.append({**memory, "id": memory_id, "action": "create", "reason": reason})
         return results
 
     def _review_state_profiles(self, session_id: str, transcript: str) -> list[dict]:
         current_profiles = self.store.list_state_profiles()
+        profile_history = self.store.list_state_profile_versions(limit=30)
         prompt = read_prompt("state_profile_review.md").format(
             domains=", ".join(STATE_PROFILE_DOMAINS),
             trends=", ".join(STATE_PROFILE_TRENDS),
             current_profiles=render_state_profiles(current_profiles),
+            profile_history=render_state_profile_history(profile_history),
         )
         response = self.llm.chat(
             [

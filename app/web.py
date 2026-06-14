@@ -1781,6 +1781,7 @@ HTML = """<!doctype html>
     }
 
     const WEB_TIMEOUT_MS = __WEB_TIMEOUT_MS__;
+    const END_TIMEOUT_MS = Math.max(WEB_TIMEOUT_MS, 90000);
 
     async function post(path, payload = {}, timeoutMs = WEB_TIMEOUT_MS) {
       const controller = new AbortController();
@@ -1933,10 +1934,12 @@ HTML = """<!doctype html>
       }
       setBusy(true);
       try {
-        const data = await post("/api/end", { session_id: sessionId });
-        addSystem("会话总结：\\n" + data.journal.summary);
-        if (data.memories.length) {
-          addSystem("记忆处理：\\n" + data.memories.map(m => "- " + (m.action || "create") + " [" + m.category + "/" + (m.subcategory || "general") + "] " + m.content).join("\\n"));
+        addSystem("正在结束并总结。这一步会写 journal、合并记忆、更新长期状态，可能需要 " + Math.round(END_TIMEOUT_MS / 1000) + " 秒以内。");
+        const data = await post("/api/end", { session_id: sessionId }, END_TIMEOUT_MS);
+        addSystem((data.reused ? "已读取已有会话总结：" : "会话总结：") + "\\n" + data.journal.summary);
+        const memoryEvents = data.memory_events || data.memories || [];
+        if (memoryEvents.length) {
+          addSystem("记忆处理：\\n" + memoryEvents.map(m => "- " + (m.action || "create") + " [" + m.category + "/" + (m.subcategory || "general") + "] " + m.content).join("\\n"));
         } else {
           addSystem("这次没有新增长期记忆。");
         }
@@ -2063,6 +2066,19 @@ HTML = """<!doctype html>
       `;
     }
 
+    function renderMemoryEventCard(item) {
+      return `
+        <article class="card">
+          <h3>${escapeHtml(item.action || "memory")} · ${escapeHtml(item.category || "uncategorized")} / ${escapeHtml(item.subcategory || "general")}</h3>
+          <div class="meta">created: ${escapeHtml(item.created_at || "")}</div>
+          <div class="meta">memory id: ${escapeHtml(shortId(item.memory_id || ""))}</div>
+          <div class="content"><b>内容</b>\n${escapeHtml(item.content || "无内容")}</div>
+          ${item.reason ? `<div class="content"><b>处理原因</b>\n${escapeHtml(item.reason)}</div>` : ""}
+        </article>
+      `;
+    }
+
+
     async function renderMemoryTaxonomy() {
       const taxonomy = await get("/api/memory_taxonomy");
       const groups = new Map();
@@ -2163,25 +2179,54 @@ HTML = """<!doctype html>
       return labels[trend] || trend || "未知";
     }
 
+    function stateDomainLabel(domain) {
+      const labels = {
+        self_relation: "自我关系",
+        emotion_regulation: "情绪调节",
+        relationship: "关系模式",
+        agency_boundary: "行动与边界",
+        trauma_pattern: "创伤阴影",
+        meaning_value: "意义与价值"
+      };
+      return labels[domain] || domain || "未知领域";
+    }
+
     function renderStateProfiles(items) {
       if (!items.length) {
         dataList.className = "";
         dataList.innerHTML = '<div class="empty">还没有长期状态画像。结束几次有内容的会话后，这里会形成跨时间的心理地图。</div>';
         return;
       }
-      dataList.className = "grid";
-      dataList.innerHTML = items.map(item => `
+      dataList.className = "stack";
+      dataList.innerHTML = items.map(row => {
+        const item = row.current;
+        const history = row.history || [];
+        return `
         <article class="card">
-          <h3>${escapeHtml(item.stage || item.domain)}</h3>
-          <div class="meta">${escapeHtml(item.domain)} · ${escapeHtml(trendLabel(item.trend))} · intensity ${escapeHtml(item.intensity)}/10 · confidence ${escapeHtml(item.confidence)}</div>
-          <div class="meta">updated: ${escapeHtml(item.updated_at || "")}</div>
-          <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
-          <div class="content">${escapeHtml(item.summary)}</div>
-          <div class="content">陪伴策略：${escapeHtml(item.support_strategy || "暂无")}</div>
-          <div>${(item.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
-          <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
+          <h3>${escapeHtml(stateDomainLabel(row.domain))}</h3>
+          ${item ? `
+            <div class="meta">${escapeHtml(item.stage || row.domain)} · ${escapeHtml(trendLabel(item.trend))} · intensity ${escapeHtml(item.intensity)}/10 · confidence ${escapeHtml(item.confidence)}</div>
+            <div class="meta">updated: ${escapeHtml(item.updated_at || "")}</div>
+            <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
+            <div class="content">${escapeHtml(item.summary)}</div>
+            <div class="content">陪伴策略：${escapeHtml(item.support_strategy || "暂无")}</div>
+            <div>${(item.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+            <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
+          ` : '<div class="empty">这个领域还没有形成当前状态。</div>'}
+          <h3>历史状态</h3>
+          <div class="stack">
+            ${history.length ? history.map(version => `
+              <article class="card">
+                <div class="meta">${escapeHtml(version.created_at || "")} · ${escapeHtml(version.action || "update")} · ${escapeHtml(trendLabel(version.trend))} · intensity ${escapeHtml(version.intensity)}/10</div>
+                <div class="content"><b>${escapeHtml(version.stage || "未命名阶段")}</b>\n${escapeHtml(version.summary || "")}</div>
+                <div class="content">原因：${escapeHtml(version.reason || "无")}</div>
+                <div>${(version.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
+                <button type="button" onclick="window.loadSession('${escapeHtml(version.source_session_id)}')">查看来源 Session</button>
+              </article>
+            `).join("") : '<div class="meta">暂无历史版本。</div>'}
+          </div>
         </article>
-      `).join("");
+      `}).join("");
     }
 
     function renderKnowledge(items) {
@@ -2341,11 +2386,12 @@ HTML = """<!doctype html>
         const messages = data.messages || [];
         const journals = data.journals || [];
         const memories = data.memories || [];
+        const memoryEvents = data.memory_events || [];
         dataList.className = "stack";
         dataList.innerHTML = `
           <section>
             <h2 class="group-title">Session ${escapeHtml(shortId(sessionId))} 详情</h2>
-            <div class="meta">${messages.length} messages · ${journals.length} journals · ${memories.length} memories</div>
+            <div class="meta">${messages.length} messages · ${journals.length} journals · ${memoryEvents.length} memory events · ${memories.length} current memories</div>
           </section>
           <section>
             <h2 class="group-title">对话记录</h2>
@@ -2360,7 +2406,13 @@ HTML = """<!doctype html>
             </div>
           </section>
           <section>
-            <h2 class="group-title">提取 / 合并后的记忆 · ${memories.length}</h2>
+            <h2 class="group-title">本 Session 记忆处理记录 · ${memoryEvents.length}</h2>
+            <div class="grid">
+              ${memoryEvents.length ? memoryEvents.map(renderMemoryEventCard).join("") : '<div class="empty">这个 Session 还没有记忆处理记录。旧数据可能只有当前关联记忆。</div>'}
+            </div>
+          </section>
+          <section>
+            <h2 class="group-title">当前关联记忆 · ${memories.length}</h2>
             <div class="grid">
               ${memories.length ? memories.map(renderMemoryCard).join("") : '<div class="empty">这个 Session 还没有关联记忆。</div>'}
             </div>
@@ -2379,6 +2431,7 @@ HTML = """<!doctype html>
         const data = await get("/api/session_detail?id=" + encodeURIComponent(sessionId));
         const journals = data.journals || [];
         const memories = data.memories || [];
+        const memoryEvents = data.memory_events || [];
         dataList.className = "stack";
         dataList.innerHTML = `
           <section>
@@ -2390,7 +2443,13 @@ HTML = """<!doctype html>
             </div>
           </section>
           <section>
-            <h2 class="group-title">同一 Session 提取 / 合并后的记忆 · ${memories.length}</h2>
+            <h2 class="group-title">同一 Session 记忆处理记录 · ${memoryEvents.length}</h2>
+            <div class="grid">
+              ${memoryEvents.length ? memoryEvents.map(renderMemoryEventCard).join("") : '<div class="empty">这个 Session 还没有记忆处理记录。旧数据可能只有当前关联记忆。</div>'}
+            </div>
+          </section>
+          <section>
+            <h2 class="group-title">当前关联记忆 · ${memories.length}</h2>
             <div class="grid">
               ${memories.length ? memories.map(renderMemoryCard).join("") : '<div class="empty">这个 Session 还没有关联记忆。</div>'}
             </div>
@@ -2561,7 +2620,7 @@ class Handler(BaseHTTPRequestHandler):
         elif data_type == "memories":
             items = store.list_memories()
         elif data_type == "state":
-            items = store.list_state_profiles()
+            items = store.state_profile_overview()
         elif data_type == "journals":
             items = store.list_journals()
         elif data_type == "messages":
@@ -2614,6 +2673,7 @@ class Handler(BaseHTTPRequestHandler):
                 "messages": messages,
                 "journals": store.list_journals(session_id=session_id),
                 "memories": store.list_memories(session_id=session_id),
+                "memory_events": store.list_memory_events(session_id=session_id),
             }
         )
 

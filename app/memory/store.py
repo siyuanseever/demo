@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from app.memory.schema import MEMORY_SUBCATEGORIES
+from app.memory.schema import MEMORY_SUBCATEGORIES, STATE_PROFILE_DOMAINS
 
 
 POSITIVE_MOOD_WORDS = {
@@ -190,6 +190,18 @@ class Store:
                     reason TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS memory_events (
+                    id TEXT PRIMARY KEY,
+                    memory_id TEXT,
+                    session_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    subcategory TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                );
                 """
             )
             self._ensure_column(conn, "memories", "subcategory", "TEXT NOT NULL DEFAULT 'general'")
@@ -229,6 +241,22 @@ class Store:
                 "UPDATE sessions SET ended_at = ? WHERE id = ?",
                 (utc_now(), session_id),
             )
+
+    def get_session(self, session_id: str) -> dict[str, Any] | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT id, created_at, ended_at FROM sessions WHERE id = ?",
+                (session_id,),
+            ).fetchone()
+            return row_to_dict(row) if row else None
+
+    def latest_message_at(self, session_id: str) -> str | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT MAX(created_at) AS latest_at FROM messages WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            return row["latest_at"] if row else None
 
     def add_message(
         self,
@@ -316,6 +344,37 @@ class Store:
                 ),
             )
         return memory_id
+
+    def add_memory_event(
+        self,
+        session_id: str,
+        *,
+        action: str,
+        memory: dict[str, Any],
+        memory_id: str | None = None,
+        reason: str = "",
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO memory_events (
+                    id, memory_id, session_id, action, category, subcategory,
+                    content, reason, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    memory_id,
+                    session_id,
+                    action,
+                    memory.get("category", ""),
+                    memory.get("subcategory", "general"),
+                    memory.get("content", ""),
+                    reason,
+                    utc_now(),
+                ),
+            )
 
     def add_memories(self, session_id: str, memories: list[dict[str, Any]]) -> None:
         for memory in memories[:3]:
@@ -462,6 +521,31 @@ class Store:
             except (TypeError, json.JSONDecodeError):
                 version["evidence"] = []
         return versions
+
+    def state_profile_overview(self, *, versions_per_domain: int = 6) -> list[dict[str, Any]]:
+        profiles = {profile["domain"]: profile for profile in self.list_state_profiles(limit=1000)}
+        versions = self.list_state_profile_versions(limit=1000)
+        versions_by_domain: dict[str, list[dict[str, Any]]] = {}
+        for version in versions:
+            versions_by_domain.setdefault(version["domain"], []).append(version)
+        rows = []
+        for domain in STATE_PROFILE_DOMAINS:
+            rows.append(
+                {
+                    "domain": domain,
+                    "current": profiles.get(domain),
+                    "history": versions_by_domain.get(domain, [])[:versions_per_domain],
+                }
+            )
+        for domain in sorted(set(profiles) - set(STATE_PROFILE_DOMAINS)):
+            rows.append(
+                {
+                    "domain": domain,
+                    "current": profiles.get(domain),
+                    "history": versions_by_domain.get(domain, [])[:versions_per_domain],
+                }
+            )
+        return rows
 
     def upsert_state_profile(
         self,
@@ -687,6 +771,38 @@ class Store:
             except (TypeError, json.JSONDecodeError):
                 memory["keywords"] = []
         return memories
+
+    def list_memory_events(
+        self,
+        *,
+        session_id: str | None = None,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            if session_id:
+                cursor = conn.execute(
+                    """
+                    SELECT id, memory_id, session_id, action, category, subcategory,
+                           content, reason, created_at
+                    FROM memory_events
+                    WHERE session_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (session_id, limit),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT id, memory_id, session_id, action, category, subcategory,
+                           content, reason, created_at
+                    FROM memory_events
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+        return [row_to_dict(row) for row in cursor.fetchall()]
 
     def search_memories(
         self,

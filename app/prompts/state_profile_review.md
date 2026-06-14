@@ -13,6 +13,9 @@ trend 只能是：
 当前已有长期状态画像：
 {current_profiles}
 
+最近长期状态历史版本：
+{profile_history}
+
 请根据本次 session transcript 判断是否需要更新长期状态画像。
 
 JSON schema：
@@ -41,6 +44,8 @@ JSON schema：
 - update 用于本次对旧画像有明确补充、修正、阶段变化或趋势变化。
 - 不要诊断用户；用“模式、阶段、倾向、需要、策略”来描述。
 - 不要把一次性情绪当作长期状态，除非它连接到反复模式或明显阶段变化。
+- 判断 update 时要同时参考当前画像、最近历史版本和本次 session；不要只因为本次 session 出现强烈情绪就覆盖长期状态。
+- 如果本次内容只是旧模式的又一次例证，可以更新 evidence / confidence / trend，但不要轻易改 stage。
 - intensity 为 1-10，表示该领域当前困扰/激活/重要程度。
 - confidence 为 0-1；证据少就降低置信度。
 - summary 要能帮助后续对话理解用户，不要写成治疗报告。
