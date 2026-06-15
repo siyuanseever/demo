@@ -2,6 +2,7 @@ import json
 import logging
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
@@ -526,14 +527,46 @@ class ConversationOrchestrator:
         transcript = "\n".join(
             f"{row['role']}: {row['content']}" for row in messages
         )
-        journal = self._write_journal(transcript)
-        candidates = self._extract_memories(transcript)
-        memory_results = self._merge_memories(session_id, candidates)
-        try:
-            state_profile_results = self._review_state_profiles(session_id, transcript)
-        except Exception:
-            self.logger.exception("state profile review failed session=%s", session_id)
-            state_profile_results = []
+
+        def run_phase(name: str, func, *args):
+            phase_started_at = time.monotonic()
+            self.logger.info("close_session phase start session=%s phase=%s", session_id, name)
+            result = func(*args)
+            self.logger.info(
+                "close_session phase done session=%s phase=%s elapsed=%.2fs",
+                session_id,
+                name,
+                time.monotonic() - phase_started_at,
+            )
+            return result
+
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="close-session") as executor:
+            journal_future = executor.submit(run_phase, "journal", self._write_journal, transcript)
+            memory_future = executor.submit(run_phase, "memory_extract", self._extract_memories, transcript)
+            state_future = executor.submit(
+                run_phase,
+                "state_profile_review",
+                self._review_state_profiles,
+                session_id,
+                transcript,
+            )
+
+            try:
+                candidates = memory_future.result()
+            except Exception:
+                self.logger.exception("memory extraction failed session=%s", session_id)
+                candidates = []
+
+            memory_results = run_phase("memory_merge", self._merge_memories, session_id, candidates)
+
+            journal = journal_future.result()
+
+            try:
+                state_profile_results = state_future.result()
+            except Exception:
+                self.logger.exception("state profile review failed session=%s", session_id)
+                state_profile_results = []
+
         self.store.add_journal(session_id, journal)
         self.store.end_session(session_id)
         self.logger.info(
