@@ -84,7 +84,7 @@ private struct SensenHomePage: View {
         GeometryReader { geometry in
             let safeTop = geometry.safeAreaInsets.top
             let safeBottom = geometry.safeAreaInsets.bottom
-            let bottomBarHeight = max(70, min(82, geometry.size.height * 0.085 + safeBottom))
+            let bottomBarHeight: CGFloat = 58
             let contentHeight = max(520, geometry.size.height - bottomBarHeight)
             let heroHeight = contentHeight * 0.44
             let actionHeight = contentHeight * 0.22
@@ -417,7 +417,7 @@ private struct SensenBottomBar: View {
         }
         .padding(.horizontal, 8)
         .padding(.top, 6)
-        .padding(.bottom, max(6, bottomInset))
+        .padding(.bottom, 4)
         .background(Color(hex: 0xfffbf3).opacity(0.98))
         .overlay(alignment: .top) {
             Rectangle()
@@ -502,6 +502,7 @@ private struct CompanionChatPage: View {
     @State private var isExitPromptVisible = false
     @State private var isSummaryResultVisible = false
     @State private var isClosingSession = false
+    @State private var sentMessageCount = 0
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
@@ -511,7 +512,11 @@ private struct CompanionChatPage: View {
             VStack(spacing: 16) {
                 HStack {
                     Button {
-                        isExitPromptVisible = true
+                        if sentMessageCount == 0 {
+                            dismiss()
+                        } else {
+                            isExitPromptVisible = true
+                        }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .semibold))
@@ -554,11 +559,19 @@ private struct CompanionChatPage: View {
                 .frame(maxWidth: 240, maxHeight: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
                 .shadow(color: Color(hex: 0xb7a0d4).opacity(0.18), radius: 24, y: 10)
+                .onTapGesture {
+                    isInputFocused = false
+                    UIApplication.shared.dismissKeyboard()
+                }
 
-                LatestConversationPanel(messages: recentVisibleMessages)
-                    .padding(.horizontal, 18)
-
-                Spacer()
+                CurrentConversationText(message: currentVisibleMessage)
+                    .id(currentVisibleMessage.id)
+                    .padding(.horizontal, 28)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .onTapGesture {
+                        isInputFocused = false
+                        UIApplication.shared.dismissKeyboard()
+                    }
 
                 VStack(spacing: 12) {
                     TextField("慢慢说，我在听。", text: $draft, axis: .vertical)
@@ -595,11 +608,6 @@ private struct CompanionChatPage: View {
                 .padding(.horizontal, 18)
                 .padding(.bottom, 12)
             }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isInputFocused = false
-            UIApplication.shared.dismissKeyboard()
         }
         .sheet(isPresented: $isHistoryVisible) {
             CurrentConversationHistoryView()
@@ -641,28 +649,24 @@ private struct CompanionChatPage: View {
         return character.expression(id: latestAssistant?.expressionID)?.assetName ?? character.avatarName
     }
 
-    private var recentVisibleMessages: [ChatMessage] {
-        let recent = store.messages
-            .filter { $0.role == .user || $0.role == .assistant }
-            .suffix(4)
-        if recent.isEmpty {
-            return [
-                ChatMessage(
-                    id: "empty-companion-greeting",
-                    role: .assistant,
-                    content: latestCompanionText,
-                    characterID: store.selectedCharacterID,
-                    createdAt: ""
-                )
-            ]
+    private var currentVisibleMessage: ChatMessage {
+        if let message = store.messages.last(where: { $0.role == .user || $0.role == .assistant }) {
+            return message
         }
-        return Array(recent)
+        return ChatMessage(
+            id: "empty-companion-greeting",
+            role: .assistant,
+            content: latestCompanionText,
+            characterID: store.selectedCharacterID,
+            createdAt: ""
+        )
     }
 
     private func sendDraft() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draft = ""
+        sentMessageCount += 1
         isInputFocused = false
         UIApplication.shared.dismissKeyboard()
         Task {
@@ -688,33 +692,99 @@ private struct CurrentConversationHistoryView: View {
         NavigationStack {
             ZStack {
                 WarmBackground()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        SectionHeader(
-                            title: "本次消息",
-                            subtitle: "只看当前正在和忧忧兔说的话。"
-                        )
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeader(
+                                title: "本次消息",
+                                subtitle: "只看当前正在和忧忧兔说的话。"
+                            )
 
-                        if store.messages.isEmpty {
-                            EmptyHintView(systemImage: "tray", title: "还没有消息", detail: "等你说第一句话，这里会留下本次对话。")
-                        } else {
-                            ForEach(store.messages) { message in
-                                MessageBubble(message: message)
+                            if store.messages.isEmpty {
+                                EmptyHintView(systemImage: "tray", title: "还没有消息", detail: "等你说第一句话，这里会留下本次对话。")
+                            } else {
+                                ForEach(store.messages) { message in
+                                    MessageBubble(message: message)
+                                        .id(message.id)
+                                }
+                            }
+
+                            if let sessionNotice = store.sessionNotice {
+                                Text(sessionNotice)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 4)
+                                    .id("session-notice")
                             }
                         }
-
-                        if let sessionNotice = store.sessionNotice {
-                            Text(sessionNotice)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 4)
+                        .padding(18)
+                    }
+                    .onAppear {
+                        scrollToLatest(proxy)
+                    }
+                    .onChange(of: store.messages.count) {
+                        withAnimation(.snappy) {
+                            scrollToLatest(proxy)
                         }
                     }
-                    .padding(18)
                 }
             }
             .navigationTitle("本次消息")
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func scrollToLatest(_ proxy: ScrollViewProxy) {
+        if let lastID = store.messages.last?.id {
+            proxy.scrollTo(lastID, anchor: .bottom)
+        } else {
+            proxy.scrollTo("session-notice", anchor: .bottom)
+        }
+    }
+}
+
+private struct CurrentConversationText: View {
+    @EnvironmentObject private var store: CompanionStore
+    let message: ChatMessage
+
+    var body: some View {
+        let isUser = message.role == .user
+        let character = store.character(id: message.characterID) ?? store.selectedCharacter
+        ScrollView {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 10) {
+                Text(isUser ? "你" : companionName(character))
+                    .font(SensenFonts.handwritten(size: 13))
+                    .foregroundStyle(isUser ? Color.warmBrown.opacity(0.48) : textColor(for: character).opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+
+                Text(message.content)
+                    .font(SensenFonts.handwritten(size: 17))
+                    .lineSpacing(7)
+                    .foregroundStyle(isUser ? Color.warmBrown.opacity(0.58) : textColor(for: character))
+                    .multilineTextAlignment(isUser ? .trailing : .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+            }
+            .padding(.vertical, 8)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func companionName(_ character: CompanionCharacter) -> String {
+        if let label = character.expression(id: message.expressionID)?.label, !label.isEmpty {
+            return "\(character.name) · \(label)"
+        }
+        return character.name
+    }
+
+    private func textColor(for character: CompanionCharacter) -> Color {
+        switch character.id {
+        case "momo":
+            return Color(hex: 0x5f7890)
+        case "yoran":
+            return Color(hex: 0x776597)
+        default:
+            return Color(hex: 0x9a6b72)
         }
     }
 }
