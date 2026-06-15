@@ -42,6 +42,7 @@ final class SQLiteDatabase {
                 createdAt: row["created_at"] ?? "",
                 groupRole: metadata["group_role"] as? String ?? "",
                 action: metadata["action"] as? String ?? "",
+                expressionID: metadata["expression_id"] as? String ?? "",
                 routeSummary: Self.routeSummary(from: metadata["route_plan"] as? [String: Any]),
                 knowledgeCards: Self.knowledgeCards(from: metadata["knowledge_card_ids"])
             )
@@ -320,6 +321,7 @@ final class SQLiteDatabase {
             createdAt: row["created_at"] ?? "",
             groupRole: metadata["group_role"] as? String ?? "",
             action: metadata["action"] as? String ?? "",
+            expressionID: metadata["expression_id"] as? String ?? "",
             routeSummary: routeSummary(from: metadata["route_plan"] as? [String: Any]),
             knowledgeCards: knowledgeCards(from: metadata["knowledge_card_ids"])
         )
@@ -327,7 +329,22 @@ final class SQLiteDatabase {
 
     private static func routeSummary(from plan: [String: Any]?) -> String? {
         guard
-            let plan,
+            let plan
+        else {
+            return nil
+        }
+        if let characterID = plan["character_id"] as? String {
+            let character = CompanionFixtures.character(id: characterID)
+            let name = character?.name ?? "森森兔"
+            let expressionID = plan["expression_id"] as? String ?? character?.defaultExpressionID ?? ""
+            let expressionLabel = character?.expression(id: expressionID)?.label ?? expressionID
+            let mode = (plan["response_mode"] as? String).flatMap { $0.isEmpty ? nil : " · \($0)" } ?? ""
+            if let reason = plan["reason"] as? String, !reason.isEmpty {
+                return "本轮规划\(mode)：\(name) · \(expressionLabel)；\(reason)"
+            }
+            return "本轮规划\(mode)：\(name) · \(expressionLabel)"
+        }
+        guard
             let main = plan["main"] as? [String: Any],
             let mainID = main["character_id"] as? String
         else {
@@ -338,10 +355,10 @@ final class SQLiteDatabase {
         let anchor = plan["anchor"] as? [String: Any]
         let empathyID = empathy?["character_id"] as? String
         let needID = need?["character_id"] as? String
-        let empathyName = CompanionFixtures.characters.first { $0.id == empathyID }?.name ?? "一只小动物"
-        let needName = CompanionFixtures.characters.first { $0.id == needID }?.name ?? "另一只小动物"
-        let mainName = CompanionFixtures.characters.first { $0.id == mainID }?.name ?? "主回应"
-        let anchorName = (anchor?["character_id"] as? String).flatMap { id in CompanionFixtures.characters.first { $0.id == id }?.name }
+        let empathyName = CompanionFixtures.character(id: empathyID)?.name ?? "一只小动物"
+        let needName = CompanionFixtures.character(id: needID)?.name ?? "另一只小动物"
+        let mainName = CompanionFixtures.character(id: mainID)?.name ?? "主回应"
+        let anchorName = (anchor?["character_id"] as? String).flatMap { id in CompanionFixtures.character(id: id)?.name }
         let responseMode = plan["response_mode"] as? String
         let mode = responseMode.flatMap { $0.isEmpty ? nil : " · \($0)" } ?? ""
         if let anchorName {

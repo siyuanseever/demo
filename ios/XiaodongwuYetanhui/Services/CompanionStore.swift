@@ -3,7 +3,7 @@ import Combine
 
 @MainActor
 final class CompanionStore: ObservableObject {
-    @Published var selectedCharacterID = "sensen_deer"
+    @Published var selectedCharacterID = "yoyo"
     @Published var messages: [ChatMessage] = []
     @Published var sessions: [SessionSummary] = []
     @Published var memories: [MemoryEntry] = []
@@ -23,7 +23,7 @@ final class CompanionStore: ObservableObject {
     @Published var latestRecommendation: CompanionRecommendation?
     @Published var isRecommendationVisible = false
     @Published var recommendationHistory: [CompanionRecommendation] = []
-    @Published var isGroupMode = false
+    @Published var isGroupMode = true
     @Published var sessionNotice: String?
 
     private let chatService = ChatService()
@@ -255,7 +255,7 @@ final class CompanionStore: ObservableObject {
     }
 
     func character(id: String?) -> CompanionCharacter? {
-        CompanionFixtures.characters.first { $0.id == id }
+        CompanionFixtures.character(id: id)
     }
 
     private func recordCareMoment(_ careMoment: CareMoment) {
@@ -351,7 +351,7 @@ final class CompanionStore: ObservableObject {
         let response = await chatService.send(
             text: text,
             character: character,
-            isGroupMode: isGroupMode,
+            isGroupMode: true,
             fallbackReply: fallbackReply
         )
         backendStatus = BackendConnectionStatus(
@@ -363,6 +363,9 @@ final class CompanionStore: ObservableObject {
             lastCheckedAt: Date()
         )
         if response.groupMessages.isEmpty {
+            if let responseCharacter = self.character(id: response.characterID) {
+                selectedCharacterID = responseCharacter.id
+            }
             messages.append(
                 ChatMessage(
                     id: UUID().uuidString,
@@ -370,6 +373,7 @@ final class CompanionStore: ObservableObject {
                     content: response.reply,
                     characterID: response.characterID ?? character.id,
                     createdAt: "",
+                    expressionID: response.expressionID ?? "",
                     routeSummary: response.routeSummary,
                     knowledgeCards: response.knowledgeCards
                 )
@@ -385,10 +389,14 @@ final class CompanionStore: ObservableObject {
                         createdAt: "",
                         groupRole: groupMessage.role,
                         action: groupMessage.action,
+                        expressionID: groupMessage.expressionID ?? response.expressionID ?? "",
                         routeSummary: index == 0 ? response.routeSummary : nil,
                         knowledgeCards: groupMessage.knowledgeCards
                     )
                 )
+            }
+            if let responseCharacter = self.character(id: response.characterID) {
+                selectedCharacterID = responseCharacter.id
             }
         }
         chatNotice = response.notice

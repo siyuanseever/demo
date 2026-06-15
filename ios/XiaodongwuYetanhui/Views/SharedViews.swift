@@ -51,12 +51,14 @@ struct SoftPanel<Content: View>: View {
 struct CharacterAvatar: View {
     let character: CompanionCharacter
     var size: CGFloat = 52
+    var expressionID: String?
 
     var body: some View {
+        let assetName = character.expression(id: expressionID)?.assetName ?? character.avatarName
         ZStack {
             Circle()
                 .fill(character.bubbleColor)
-            if let image = UIImage(named: "\(character.avatarName).png") ?? UIImage(named: character.avatarName) {
+            if let image = UIImage(named: assetName) ?? UIImage(named: "\(assetName).webp") ?? UIImage(named: "\(assetName).png") {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()

@@ -464,6 +464,10 @@ private struct BundleImage: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode == .fit ? .fit : .fill)
+            } else if let image = UIImage(named: "\(name).webp") {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode == .fit ? .fit : .fill)
             } else {
                 Image(systemName: fallbackSystemImage)
                     .resizable()
@@ -537,38 +541,22 @@ private struct CompanionChatPage: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("查看本次消息")
-
-                        Button {
-                            store.startNewSession()
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(Color.warmBrown)
-                                .frame(width: 40, height: 40)
-                                .background(Color.white.opacity(0.68), in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("新的对话")
                     }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
 
                 BundleImage(
-                    name: "sensen-emoji-yoyo-bashful-v1",
+                    name: currentExpressionAssetName,
                     contentMode: .fit,
                     fallbackSystemImage: "hare.fill"
                 )
-                .frame(maxWidth: 260, maxHeight: 260)
+                .frame(maxWidth: 240, maxHeight: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
                 .shadow(color: Color(hex: 0xb7a0d4).opacity(0.18), radius: 24, y: 10)
 
-                Text(latestCompanionText)
-                    .font(SensenFonts.handwritten(size: 16))
-                    .lineSpacing(5)
-                    .foregroundStyle(Color.warmBrown.opacity(0.86))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 26)
+                LatestConversationPanel(messages: recentVisibleMessages)
+                    .padding(.horizontal, 18)
 
                 Spacer()
 
@@ -608,6 +596,11 @@ private struct CompanionChatPage: View {
                 .padding(.bottom, 12)
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isInputFocused = false
+            UIApplication.shared.dismissKeyboard()
+        }
         .sheet(isPresented: $isHistoryVisible) {
             CurrentConversationHistoryView()
                 .environmentObject(store)
@@ -640,6 +633,30 @@ private struct CompanionChatPage: View {
 
     private var latestCompanionText: String {
         store.messages.last(where: { $0.role != .user })?.content ?? "我在这里。你不用急着整理好，先把这一刻交给我。"
+    }
+
+    private var currentExpressionAssetName: String {
+        let latestAssistant = store.messages.last(where: { $0.role == .assistant || $0.role == .system })
+        let character = store.character(id: latestAssistant?.characterID) ?? store.selectedCharacter
+        return character.expression(id: latestAssistant?.expressionID)?.assetName ?? character.avatarName
+    }
+
+    private var recentVisibleMessages: [ChatMessage] {
+        let recent = store.messages
+            .filter { $0.role == .user || $0.role == .assistant }
+            .suffix(4)
+        if recent.isEmpty {
+            return [
+                ChatMessage(
+                    id: "empty-companion-greeting",
+                    role: .assistant,
+                    content: latestCompanionText,
+                    characterID: store.selectedCharacterID,
+                    createdAt: ""
+                )
+            ]
+        }
+        return Array(recent)
     }
 
     private func sendDraft() {
@@ -699,6 +716,80 @@ private struct CurrentConversationHistoryView: View {
             .navigationTitle("本次消息")
             .navigationBarTitleDisplayMode(.inline)
         }
+    }
+}
+
+private struct LatestConversationPanel: View {
+    @EnvironmentObject private var store: CompanionStore
+    let messages: [ChatMessage]
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(messages) { message in
+                        LatestConversationRow(
+                            message: message,
+                            character: store.character(id: message.characterID) ?? store.selectedCharacter
+                        )
+                        .id(message.id)
+                    }
+                }
+                .padding(14)
+            }
+            .frame(maxHeight: 170)
+            .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color(hex: 0xe6d6c6).opacity(0.8), lineWidth: 1)
+            }
+            .onAppear {
+                if let lastID = messages.last?.id {
+                    proxy.scrollTo(lastID, anchor: .bottom)
+                }
+            }
+            .onChange(of: messages.map(\.id)) {
+                if let lastID = messages.last?.id {
+                    withAnimation(.snappy) {
+                        proxy.scrollTo(lastID, anchor: .bottom)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct LatestConversationRow: View {
+    let message: ChatMessage
+    let character: CompanionCharacter
+
+    var body: some View {
+        let isUser = message.role == .user
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 5) {
+            Text(isUser ? "你" : companionName)
+                .font(SensenFonts.handwritten(size: 12))
+                .foregroundStyle(Color.warmBrown.opacity(0.68))
+            Text(message.content)
+                .font(SensenFonts.handwritten(size: 15))
+                .lineSpacing(5)
+                .foregroundStyle(Color.warmBrown.opacity(0.9))
+                .multilineTextAlignment(isUser ? .trailing : .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    isUser ? Color(hex: 0xf5ecff).opacity(0.82) : character.bubbleColor.opacity(0.88),
+                    in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+                )
+        }
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+    }
+
+    private var companionName: String {
+        if let label = character.expression(id: message.expressionID)?.label, !label.isEmpty {
+            return "\(character.name) · \(label)"
+        }
+        return character.name
     }
 }
 
@@ -2102,17 +2193,15 @@ private struct SessionControlPanel: View {
         SoftPanel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label("会话", systemImage: "moon.stars.fill")
+                    Label("自动形态", systemImage: "sparkles")
                         .font(.headline)
                     Spacer()
-                    Toggle(isOn: $store.isGroupMode) {
-                        Label("群聊", systemImage: "person.3.fill")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .tint(Color.warmBrown)
-                    .accessibilityLabel("群聊模式")
+                    Text("始终开启")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.warmBrown)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.62), in: Capsule())
                 }
 
                 HStack(spacing: 10) {
@@ -2202,7 +2291,7 @@ private struct MessageBubble: View {
 
             HStack(alignment: .bottom, spacing: 10) {
                 if !isUser {
-                    CharacterAvatar(character: character, size: 40)
+                    CharacterAvatar(character: character, size: 40, expressionID: message.expressionID)
                 }
 
                 VStack(alignment: .leading, spacing: 9) {

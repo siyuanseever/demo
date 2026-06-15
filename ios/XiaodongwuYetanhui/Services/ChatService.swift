@@ -3,6 +3,7 @@ import Foundation
 struct ChatServiceResponse {
     let reply: String
     let characterID: String?
+    let expressionID: String?
     let groupMessages: [ChatServiceGroupMessage]
     let knowledgeCards: [KnowledgeCard]
     let routeSummary: String?
@@ -17,6 +18,7 @@ struct ChatServiceGroupMessage {
     let text: String
     let action: String
     let characterID: String?
+    let expressionID: String?
     let knowledgeCards: [KnowledgeCard]
 }
 
@@ -87,12 +89,14 @@ final class ChatService {
             return ChatServiceResponse(
                 reply: response.reply,
                 characterID: response.character?.id ?? character.id,
+                expressionID: response.expression?.id ?? response.routePlan?.expressionID,
                 groupMessages: groupMessages.enumerated().map { index, item in
                     ChatServiceGroupMessage(
                         role: item.role,
                         text: item.text,
                         action: item.action ?? "",
                         characterID: item.character?.id,
+                        expressionID: item.expression?.id ?? item.expressionID,
                         knowledgeCards: index == cardTargetIndex ? knowledgeCards : []
                     )
                 },
@@ -107,6 +111,7 @@ final class ChatService {
             return ChatServiceResponse(
                 reply: fallbackReply ?? Self.fallbackReply(for: text, character: character),
                 characterID: character.id,
+                expressionID: character.defaultExpressionID,
                 groupMessages: [],
                 knowledgeCards: [],
                 routeSummary: nil,
@@ -178,14 +183,26 @@ final class ChatService {
     }
 
     private static func routeSummary(_ plan: RoutePlanResponseBody?) -> String? {
-        guard let plan, let mainID = plan.main?.characterID else { return nil }
+        guard let plan else { return nil }
+        if let characterID = plan.characterID {
+            let character = CompanionFixtures.character(id: characterID)
+            let name = character?.name ?? "森森兔"
+            let expressionID = plan.expressionID ?? character?.defaultExpressionID ?? ""
+            let expressionLabel = character?.expression(id: expressionID)?.label ?? expressionID
+            let mode = plan.responseMode.flatMap { $0.isEmpty ? nil : " · \($0)" } ?? ""
+            if let reason = plan.reason, !reason.isEmpty {
+                return "本轮规划\(mode)：\(name) · \(expressionLabel)；\(reason)"
+            }
+            return "本轮规划\(mode)：\(name) · \(expressionLabel)"
+        }
+        guard let mainID = plan.main?.characterID else { return nil }
         let empathyID = plan.empathy?.characterID ?? plan.empathic?.characterID
         let needID = plan.need?.characterID ?? plan.pinpoint?.characterID
         let anchorID = plan.anchor?.characterID
-        let empathyName = CompanionFixtures.characters.first { $0.id == empathyID }?.name ?? "一只小动物"
-        let needName = CompanionFixtures.characters.first { $0.id == needID }?.name ?? "另一只小动物"
-        let mainName = CompanionFixtures.characters.first { $0.id == mainID }?.name ?? "主回应"
-        let anchorName = anchorID.flatMap { id in CompanionFixtures.characters.first { $0.id == id }?.name }
+        let empathyName = CompanionFixtures.character(id: empathyID)?.name ?? "一只小动物"
+        let needName = CompanionFixtures.character(id: needID)?.name ?? "另一只小动物"
+        let mainName = CompanionFixtures.character(id: mainID)?.name ?? "主回应"
+        let anchorName = anchorID.flatMap { id in CompanionFixtures.character(id: id)?.name }
         let mode = plan.responseMode.flatMap { $0.isEmpty ? nil : " · \($0)" } ?? ""
         if let anchorName {
             return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复，\(anchorName)收束"
@@ -244,6 +261,7 @@ private struct ChatRequestBody: Encodable {
 private struct ChatResponseBody: Decodable {
     let reply: String
     let character: ResponseCharacter?
+    let expression: ResponseExpression?
     let groupMessages: [GroupMessageResponseBody]?
     let knowledgeCards: [KnowledgeCardResponseBody]
     let routePlan: RoutePlanResponseBody?
@@ -251,6 +269,7 @@ private struct ChatResponseBody: Decodable {
     enum CodingKeys: String, CodingKey {
         case reply
         case character
+        case expression
         case groupMessages = "group_messages"
         case knowledgeCards = "knowledge_cards"
         case routePlan = "route_plan"
@@ -260,6 +279,7 @@ private struct ChatResponseBody: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         reply = try container.decode(String.self, forKey: .reply)
         character = try container.decodeIfPresent(ResponseCharacter.self, forKey: .character)
+        expression = try container.decodeIfPresent(ResponseExpression.self, forKey: .expression)
         groupMessages = try container.decodeIfPresent([GroupMessageResponseBody].self, forKey: .groupMessages)
         knowledgeCards = try container.decodeIfPresent([KnowledgeCardResponseBody].self, forKey: .knowledgeCards) ?? []
         routePlan = try container.decodeIfPresent(RoutePlanResponseBody.self, forKey: .routePlan)
@@ -271,9 +291,24 @@ private struct GroupMessageResponseBody: Decodable {
     let text: String
     let action: String?
     let character: ResponseCharacter?
+    let expression: ResponseExpression?
+    let expressionID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case text
+        case action
+        case character
+        case expression
+        case expressionID = "expression_id"
+    }
 }
 
 private struct ResponseCharacter: Decodable {
+    let id: String
+}
+
+private struct ResponseExpression: Decodable {
     let id: String
 }
 
@@ -288,6 +323,9 @@ private struct KnowledgeCardResponseBody: Decodable {
 }
 
 private struct RoutePlanResponseBody: Decodable {
+    let characterID: String?
+    let expressionID: String?
+    let reason: String?
     let responseMode: String?
     let empathy: RouteRoleResponseBody?
     let empathic: RouteRoleResponseBody?
@@ -297,6 +335,9 @@ private struct RoutePlanResponseBody: Decodable {
     let anchor: RouteRoleResponseBody?
 
     enum CodingKeys: String, CodingKey {
+        case characterID = "character_id"
+        case expressionID = "expression_id"
+        case reason
         case responseMode = "response_mode"
         case empathy
         case empathic

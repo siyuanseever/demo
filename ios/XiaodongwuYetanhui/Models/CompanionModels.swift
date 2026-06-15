@@ -10,6 +10,23 @@ struct CompanionCharacter: Identifiable, Hashable {
     let tagline: String
     let voice: String
     let bubbleColor: Color
+    let defaultExpressionID: String
+    let expressions: [CompanionExpression]
+}
+
+struct CompanionExpression: Identifiable, Hashable {
+    let id: String
+    let label: String
+    let assetName: String
+}
+
+extension CompanionCharacter {
+    func expression(id: String?) -> CompanionExpression? {
+        if let id, let expression = expressions.first(where: { $0.id == id }) {
+            return expression
+        }
+        return expressions.first { $0.id == defaultExpressionID } ?? expressions.first
+    }
 }
 
 struct ChatMessage: Identifiable, Hashable {
@@ -20,6 +37,7 @@ struct ChatMessage: Identifiable, Hashable {
     let createdAt: String
     var groupRole: String = ""
     var action: String = ""
+    var expressionID: String = ""
     var routeSummary: String?
     var knowledgeCards: [KnowledgeCard] = []
 }
@@ -314,66 +332,80 @@ enum CompanionFixtures {
 
     static let characters: [CompanionCharacter] = [
         CompanionCharacter(
-            id: "sensen_deer",
-            name: "绵绵羊",
-            animal: "小羊",
-            systemImageName: "cloud.fill",
-            avatarName: "mianmian-sheep-showcase",
-            tagline: "温柔、柔软、安静，像一团可以靠近的云。",
-            voice: "慢一点接住情绪，不催促。",
-            bubbleColor: Color(hex: 0xfff4dc)
-        ),
-        CompanionCharacter(
-            id: "gugu_bear",
-            name: "石石龟",
-            animal: "小乌龟",
-            systemImageName: "circle.hexagongrid.fill",
-            avatarName: "shishi-turtle-showcase",
-            tagline: "慢慢的、稳稳的，像一块可以依靠的小石头。",
-            voice: "朴素、踏实、可执行。",
-            bubbleColor: Color(hex: 0xe8f3de)
-        ),
-        CompanionCharacter(
-            id: "huahua_fox",
-            name: "墨墨鸦",
-            animal: "乌鸦",
-            systemImageName: "eye.fill",
-            avatarName: "momo-crow-showcase",
-            tagline: "安静、聪明、观察力强，能看见事情背后的结构。",
-            voice: "冷静、洞察、简洁。",
-            bubbleColor: Color(hex: 0xeceaf6)
-        ),
-        CompanionCharacter(
-            id: "youyou_rabbit",
+            id: "yoyo",
             name: "忧忧兔",
-            animal: "小兔子",
+            animal: "月亮兔",
             systemImageName: "moon.fill",
-            avatarName: "youyou-rabbit-showcase",
-            tagline: "忧郁、柔软、敏感，能深深共情痛苦。",
+            avatarName: "sensen-emoji-yoyo-listening",
+            tagline: "柔软、敏感、能停在痛苦旁边，先把情绪接住。",
             voice: "低声、共情、脆弱但真诚。",
-            bubbleColor: Color(hex: 0xfde7ef)
+            bubbleColor: Color(hex: 0xfde7ef),
+            defaultExpressionID: "listening",
+            expressions: [
+                CompanionExpression(id: "bashful", label: "害羞", assetName: "sensen-emoji-yoyo-bashful"),
+                CompanionExpression(id: "concerned", label: "担心", assetName: "sensen-emoji-yoyo-concerned"),
+                CompanionExpression(id: "gentlesmile", label: "轻轻笑", assetName: "sensen-emoji-yoyo-gentlesmile"),
+                CompanionExpression(id: "hug", label: "抱抱", assetName: "sensen-emoji-yoyo-hug"),
+                CompanionExpression(id: "listening", label: "倾听", assetName: "sensen-emoji-yoyo-listening"),
+                CompanionExpression(id: "proud", label: "为你骄傲", assetName: "sensen-emoji-yoyo-proud"),
+                CompanionExpression(id: "understanding", label: "理解", assetName: "sensen-emoji-yoyo-understanding"),
+            ]
         ),
         CompanionCharacter(
-            id: "shanshan_butterfly",
-            name: "闪闪蝶",
-            animal: "蝴蝶",
-            systemImageName: "sparkles",
-            avatarName: "shanshan-butterfly-showcase",
-            tagline: "轻盈、外向、明亮，带一点跳脱的积极能量。",
-            voice: "轻快、明亮，但不强行积极。",
-            bubbleColor: Color(hex: 0xe5f5ff)
+            id: "momo",
+            name: "默默兔",
+            animal: "云朵兔",
+            systemImageName: "shield.lefthalf.filled",
+            avatarName: "sensen-emoji-momo-hi",
+            tagline: "安静但有力量，帮你把混乱慢慢变成可以走的一小步。",
+            voice: "稳定、具体、保护边界。",
+            bubbleColor: Color(hex: 0xe5f5ff),
+            defaultExpressionID: "hi",
+            expressions: [
+                CompanionExpression(id: "celebrate", label: "庆祝一下", assetName: "sensen-emoji-momo-celebrate"),
+                CompanionExpression(id: "curious", label: "好奇", assetName: "sensen-emoji-momo-curious"),
+                CompanionExpression(id: "encouraging", label: "鼓励你", assetName: "sensen-emoji-momo-encouraging"),
+                CompanionExpression(id: "hi", label: "打招呼", assetName: "sensen-emoji-momo-hi"),
+                CompanionExpression(id: "ok", label: "没关系", assetName: "sensen-emoji-momo-ok"),
+                CompanionExpression(id: "ready", label: "准备好了", assetName: "sensen-emoji-momo-ready"),
+                CompanionExpression(id: "thinking", label: "想一想", assetName: "sensen-emoji-momo-thinking"),
+                CompanionExpression(id: "wistful", label: "有点怅然", assetName: "sensen-emoji-momo-wistful"),
+            ]
         ),
         CompanionCharacter(
-            id: "gangan_tiger",
-            name: "敢敢虎",
-            animal: "小老虎",
-            systemImageName: "shield.fill",
-            avatarName: "gangan-tiger-showcase",
-            tagline: "勇敢、正直、有正义感，帮你找回一点力量。",
-            voice: "直接、坚定、保护边界。",
-            bubbleColor: Color(hex: 0xffe3c7)
+            id: "yoran",
+            name: "悠然兔",
+            animal: "星月兔",
+            systemImageName: "leaf.fill",
+            avatarName: "sensen-emoji-yoran-serene",
+            tagline: "清明、平衡、能把感受和现实放在同一个温柔空间里。",
+            voice: "松弛、开阔、带一点安稳的看见。",
+            bubbleColor: Color(hex: 0xeee8ff),
+            defaultExpressionID: "serene",
+            expressions: [
+                CompanionExpression(id: "content", label: "满足", assetName: "sensen-emoji-yoran-content"),
+                CompanionExpression(id: "ready", label: "准备好了", assetName: "sensen-emoji-yoran-ready"),
+                CompanionExpression(id: "sad", label: "有点难过", assetName: "sensen-emoji-yoran-sad"),
+                CompanionExpression(id: "serene", label: "平静", assetName: "sensen-emoji-yoran-serene"),
+                CompanionExpression(id: "wistful", label: "怅然", assetName: "sensen-emoji-yoran-wistful"),
+            ]
         ),
     ]
+
+    static let legacyCharacterAliases: [String: String] = [
+        "sensen_deer": "yoyo",
+        "youyou_rabbit": "yoyo",
+        "gugu_bear": "momo",
+        "gangan_tiger": "momo",
+        "huahua_fox": "yoran",
+        "shanshan_butterfly": "yoran",
+    ]
+
+    static func character(id: String?) -> CompanionCharacter? {
+        guard let id else { return nil }
+        let normalizedID = legacyCharacterAliases[id] ?? id
+        return characters.first { $0.id == normalizedID }
+    }
 
     static let interactionOffers: [CompanionInteractionOffer] = [
         CompanionInteractionOffer(

@@ -42,6 +42,26 @@
 		000000000000000000000139 /* sensen-prop-lantern-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000329 /* sensen-prop-lantern-v1.png */; };
 		000000000000000000000140 /* sensen-rabbit-flat-icon-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000330 /* sensen-rabbit-flat-icon-v1.png */; };
 		000000000000000000000141 /* sensen-emoji-yoyo-bashful-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000331 /* sensen-emoji-yoyo-bashful-v1.png */; };
+		000000000000000000000142 /* sensen-emoji-yoyo-bashful.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000332 /* sensen-emoji-yoyo-bashful.webp */; };
+		000000000000000000000143 /* sensen-emoji-yoyo-concerned.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000333 /* sensen-emoji-yoyo-concerned.webp */; };
+		000000000000000000000144 /* sensen-emoji-yoyo-gentlesmile.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000334 /* sensen-emoji-yoyo-gentlesmile.webp */; };
+		000000000000000000000145 /* sensen-emoji-yoyo-hug.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000335 /* sensen-emoji-yoyo-hug.webp */; };
+		000000000000000000000146 /* sensen-emoji-yoyo-listening.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000336 /* sensen-emoji-yoyo-listening.webp */; };
+		000000000000000000000147 /* sensen-emoji-yoyo-proud.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000337 /* sensen-emoji-yoyo-proud.webp */; };
+		000000000000000000000148 /* sensen-emoji-yoyo-understanding.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */; };
+		000000000000000000000149 /* sensen-emoji-momo-celebrate.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000339 /* sensen-emoji-momo-celebrate.webp */; };
+		000000000000000000000150 /* sensen-emoji-momo-curious.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000340 /* sensen-emoji-momo-curious.webp */; };
+		000000000000000000000151 /* sensen-emoji-momo-encouraging.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000341 /* sensen-emoji-momo-encouraging.webp */; };
+		000000000000000000000152 /* sensen-emoji-momo-hi.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000342 /* sensen-emoji-momo-hi.webp */; };
+		000000000000000000000153 /* sensen-emoji-momo-ok.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000343 /* sensen-emoji-momo-ok.webp */; };
+		000000000000000000000154 /* sensen-emoji-momo-ready.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000344 /* sensen-emoji-momo-ready.webp */; };
+		000000000000000000000155 /* sensen-emoji-momo-thinking.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000345 /* sensen-emoji-momo-thinking.webp */; };
+		000000000000000000000156 /* sensen-emoji-momo-wistful.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000346 /* sensen-emoji-momo-wistful.webp */; };
+		000000000000000000000157 /* sensen-emoji-yoran-content.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000347 /* sensen-emoji-yoran-content.webp */; };
+		000000000000000000000158 /* sensen-emoji-yoran-ready.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000348 /* sensen-emoji-yoran-ready.webp */; };
+		000000000000000000000159 /* sensen-emoji-yoran-sad.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000349 /* sensen-emoji-yoran-sad.webp */; };
+		000000000000000000000160 /* sensen-emoji-yoran-serene.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000350 /* sensen-emoji-yoran-serene.webp */; };
+		000000000000000000000161 /* sensen-emoji-yoran-wistful.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000351 /* sensen-emoji-yoran-wistful.webp */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -87,6 +107,26 @@
 		000000000000000000000329 /* sensen-prop-lantern-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-prop-lantern-v1.png"; path = "../app/static/sensen-prop-lantern-v1.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000330 /* sensen-rabbit-flat-icon-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-rabbit-flat-icon-v1.png"; path = "../app/static/sensen-rabbit-flat-icon-v1.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000331 /* sensen-emoji-yoyo-bashful-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-emoji-yoyo-bashful-v1.png"; path = "../app/static/sensen-emoji-yoyo-bashful-v1.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000332 /* sensen-emoji-yoyo-bashful.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-bashful.webp"; path = "../app/static/sensen-emoji-yoyo-bashful.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000333 /* sensen-emoji-yoyo-concerned.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-concerned.webp"; path = "../app/static/sensen-emoji-yoyo-concerned.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000334 /* sensen-emoji-yoyo-gentlesmile.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-gentlesmile.webp"; path = "../app/static/sensen-emoji-yoyo-gentlesmile.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000335 /* sensen-emoji-yoyo-hug.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-hug.webp"; path = "../app/static/sensen-emoji-yoyo-hug.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000336 /* sensen-emoji-yoyo-listening.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-listening.webp"; path = "../app/static/sensen-emoji-yoyo-listening.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000337 /* sensen-emoji-yoyo-proud.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-proud.webp"; path = "../app/static/sensen-emoji-yoyo-proud.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoyo-understanding.webp"; path = "../app/static/sensen-emoji-yoyo-understanding.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000339 /* sensen-emoji-momo-celebrate.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-celebrate.webp"; path = "../app/static/sensen-emoji-momo-celebrate.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000340 /* sensen-emoji-momo-curious.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-curious.webp"; path = "../app/static/sensen-emoji-momo-curious.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000341 /* sensen-emoji-momo-encouraging.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-encouraging.webp"; path = "../app/static/sensen-emoji-momo-encouraging.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000342 /* sensen-emoji-momo-hi.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-hi.webp"; path = "../app/static/sensen-emoji-momo-hi.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000343 /* sensen-emoji-momo-ok.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-ok.webp"; path = "../app/static/sensen-emoji-momo-ok.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000344 /* sensen-emoji-momo-ready.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-ready.webp"; path = "../app/static/sensen-emoji-momo-ready.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000345 /* sensen-emoji-momo-thinking.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-thinking.webp"; path = "../app/static/sensen-emoji-momo-thinking.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000346 /* sensen-emoji-momo-wistful.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-momo-wistful.webp"; path = "../app/static/sensen-emoji-momo-wistful.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000347 /* sensen-emoji-yoran-content.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoran-content.webp"; path = "../app/static/sensen-emoji-yoran-content.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000348 /* sensen-emoji-yoran-ready.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoran-ready.webp"; path = "../app/static/sensen-emoji-yoran-ready.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000349 /* sensen-emoji-yoran-sad.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoran-sad.webp"; path = "../app/static/sensen-emoji-yoran-sad.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000350 /* sensen-emoji-yoran-serene.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoran-serene.webp"; path = "../app/static/sensen-emoji-yoran-serene.webp"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000351 /* sensen-emoji-yoran-wistful.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "sensen-emoji-yoran-wistful.webp"; path = "../app/static/sensen-emoji-yoran-wistful.webp"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
@@ -201,6 +241,26 @@
 				000000000000000000000329 /* sensen-prop-lantern-v1.png */,
 				000000000000000000000330 /* sensen-rabbit-flat-icon-v1.png */,
 				000000000000000000000331 /* sensen-emoji-yoyo-bashful-v1.png */,
+				000000000000000000000332 /* sensen-emoji-yoyo-bashful.webp */,
+				000000000000000000000333 /* sensen-emoji-yoyo-concerned.webp */,
+				000000000000000000000334 /* sensen-emoji-yoyo-gentlesmile.webp */,
+				000000000000000000000335 /* sensen-emoji-yoyo-hug.webp */,
+				000000000000000000000336 /* sensen-emoji-yoyo-listening.webp */,
+				000000000000000000000337 /* sensen-emoji-yoyo-proud.webp */,
+				000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */,
+				000000000000000000000339 /* sensen-emoji-momo-celebrate.webp */,
+				000000000000000000000340 /* sensen-emoji-momo-curious.webp */,
+				000000000000000000000341 /* sensen-emoji-momo-encouraging.webp */,
+				000000000000000000000342 /* sensen-emoji-momo-hi.webp */,
+				000000000000000000000343 /* sensen-emoji-momo-ok.webp */,
+				000000000000000000000344 /* sensen-emoji-momo-ready.webp */,
+				000000000000000000000345 /* sensen-emoji-momo-thinking.webp */,
+				000000000000000000000346 /* sensen-emoji-momo-wistful.webp */,
+				000000000000000000000347 /* sensen-emoji-yoran-content.webp */,
+				000000000000000000000348 /* sensen-emoji-yoran-ready.webp */,
+				000000000000000000000349 /* sensen-emoji-yoran-sad.webp */,
+				000000000000000000000350 /* sensen-emoji-yoran-serene.webp */,
+				000000000000000000000351 /* sensen-emoji-yoran-wistful.webp */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -304,6 +364,26 @@
 				000000000000000000000139 /* sensen-prop-lantern-v1.png in Resources */,
 				000000000000000000000140 /* sensen-rabbit-flat-icon-v1.png in Resources */,
 				000000000000000000000141 /* sensen-emoji-yoyo-bashful-v1.png in Resources */,
+				000000000000000000000142 /* sensen-emoji-yoyo-bashful.webp in Resources */,
+				000000000000000000000143 /* sensen-emoji-yoyo-concerned.webp in Resources */,
+				000000000000000000000144 /* sensen-emoji-yoyo-gentlesmile.webp in Resources */,
+				000000000000000000000145 /* sensen-emoji-yoyo-hug.webp in Resources */,
+				000000000000000000000146 /* sensen-emoji-yoyo-listening.webp in Resources */,
+				000000000000000000000147 /* sensen-emoji-yoyo-proud.webp in Resources */,
+				000000000000000000000148 /* sensen-emoji-yoyo-understanding.webp in Resources */,
+				000000000000000000000149 /* sensen-emoji-momo-celebrate.webp in Resources */,
+				000000000000000000000150 /* sensen-emoji-momo-curious.webp in Resources */,
+				000000000000000000000151 /* sensen-emoji-momo-encouraging.webp in Resources */,
+				000000000000000000000152 /* sensen-emoji-momo-hi.webp in Resources */,
+				000000000000000000000153 /* sensen-emoji-momo-ok.webp in Resources */,
+				000000000000000000000154 /* sensen-emoji-momo-ready.webp in Resources */,
+				000000000000000000000155 /* sensen-emoji-momo-thinking.webp in Resources */,
+				000000000000000000000156 /* sensen-emoji-momo-wistful.webp in Resources */,
+				000000000000000000000157 /* sensen-emoji-yoran-content.webp in Resources */,
+				000000000000000000000158 /* sensen-emoji-yoran-ready.webp in Resources */,
+				000000000000000000000159 /* sensen-emoji-yoran-sad.webp in Resources */,
+				000000000000000000000160 /* sensen-emoji-yoran-serene.webp in Resources */,
+				000000000000000000000161 /* sensen-emoji-yoran-wistful.webp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
