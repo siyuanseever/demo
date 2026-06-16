@@ -67,6 +67,16 @@
 		000000000000000000000164 /* sensen-scene-rainy-mushroom-house.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000354 /* sensen-scene-rainy-mushroom-house.png */; };
 		000000000000000000000165 /* sensen-scene-forest-bench.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000355 /* sensen-scene-forest-bench.png */; };
 		000000000000000000000166 /* sensen-scene-starlight-post-office.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000356 /* sensen-scene-starlight-post-office.png */; };
+		000000000000000000000167 /* sensen-scene-river-afternoon.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000357 /* sensen-scene-river-afternoon.png */; };
+		000000000000000000000168 /* sensen-scene-flower-garden-gathering.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000358 /* sensen-scene-flower-garden-gathering.png */; };
+		000000000000000000000169 /* sensen-scene-rainbow-hill.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000359 /* sensen-scene-rainbow-hill.png */; };
+		000000000000000000000170 /* sensen-scene-snow-cabin.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000360 /* sensen-scene-snow-cabin.png */; };
+		000000000000000000000171 /* sensen-scene-morning-breakfast-shop.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000361 /* sensen-scene-morning-breakfast-shop.png */; };
+		000000000000000000000172 /* sensen-scene-firefly-meadow.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000362 /* sensen-scene-firefly-meadow.png */; };
+		000000000000000000000173 /* sensen-scene-forest-library.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000363 /* sensen-scene-forest-library.png */; };
+		000000000000000000000174 /* sensen-scene-wishing-tree.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000364 /* sensen-scene-wishing-tree.png */; };
+		000000000000000000000175 /* sensen-scene-sunset-lake.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000365 /* sensen-scene-sunset-lake.png */; };
+		000000000000000000000176 /* sensen-scene-cloud-observatory.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000366 /* sensen-scene-cloud-observatory.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -137,6 +147,16 @@
 		000000000000000000000354 /* sensen-scene-rainy-mushroom-house.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-rainy-mushroom-house.png"; path = "../app/static/sensen-scene-rainy-mushroom-house.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000355 /* sensen-scene-forest-bench.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-forest-bench.png"; path = "../app/static/sensen-scene-forest-bench.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000356 /* sensen-scene-starlight-post-office.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-starlight-post-office.png"; path = "../app/static/sensen-scene-starlight-post-office.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000357 /* sensen-scene-river-afternoon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-river-afternoon.png"; path = "../app/static/sensen-scene-river-afternoon.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000358 /* sensen-scene-flower-garden-gathering.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-flower-garden-gathering.png"; path = "../app/static/sensen-scene-flower-garden-gathering.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000359 /* sensen-scene-rainbow-hill.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-rainbow-hill.png"; path = "../app/static/sensen-scene-rainbow-hill.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000360 /* sensen-scene-snow-cabin.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-snow-cabin.png"; path = "../app/static/sensen-scene-snow-cabin.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000361 /* sensen-scene-morning-breakfast-shop.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-morning-breakfast-shop.png"; path = "../app/static/sensen-scene-morning-breakfast-shop.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000362 /* sensen-scene-firefly-meadow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-firefly-meadow.png"; path = "../app/static/sensen-scene-firefly-meadow.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000363 /* sensen-scene-forest-library.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-forest-library.png"; path = "../app/static/sensen-scene-forest-library.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000364 /* sensen-scene-wishing-tree.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-wishing-tree.png"; path = "../app/static/sensen-scene-wishing-tree.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000365 /* sensen-scene-sunset-lake.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-sunset-lake.png"; path = "../app/static/sensen-scene-sunset-lake.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000366 /* sensen-scene-cloud-observatory.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-cloud-observatory.png"; path = "../app/static/sensen-scene-cloud-observatory.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
@@ -276,6 +296,16 @@
 				000000000000000000000354 /* sensen-scene-rainy-mushroom-house.png */,
 				000000000000000000000355 /* sensen-scene-forest-bench.png */,
 				000000000000000000000356 /* sensen-scene-starlight-post-office.png */,
+				000000000000000000000357 /* sensen-scene-river-afternoon.png */,
+				000000000000000000000358 /* sensen-scene-flower-garden-gathering.png */,
+				000000000000000000000359 /* sensen-scene-rainbow-hill.png */,
+				000000000000000000000360 /* sensen-scene-snow-cabin.png */,
+				000000000000000000000361 /* sensen-scene-morning-breakfast-shop.png */,
+				000000000000000000000362 /* sensen-scene-firefly-meadow.png */,
+				000000000000000000000363 /* sensen-scene-forest-library.png */,
+				000000000000000000000364 /* sensen-scene-wishing-tree.png */,
+				000000000000000000000365 /* sensen-scene-sunset-lake.png */,
+				000000000000000000000366 /* sensen-scene-cloud-observatory.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -404,6 +434,16 @@
 				000000000000000000000164 /* sensen-scene-rainy-mushroom-house.png in Resources */,
 				000000000000000000000165 /* sensen-scene-forest-bench.png in Resources */,
 				000000000000000000000166 /* sensen-scene-starlight-post-office.png in Resources */,
+				000000000000000000000167 /* sensen-scene-river-afternoon.png in Resources */,
+				000000000000000000000168 /* sensen-scene-flower-garden-gathering.png in Resources */,
+				000000000000000000000169 /* sensen-scene-rainbow-hill.png in Resources */,
+				000000000000000000000170 /* sensen-scene-snow-cabin.png in Resources */,
+				000000000000000000000171 /* sensen-scene-morning-breakfast-shop.png in Resources */,
+				000000000000000000000172 /* sensen-scene-firefly-meadow.png in Resources */,
+				000000000000000000000173 /* sensen-scene-forest-library.png in Resources */,
+				000000000000000000000174 /* sensen-scene-wishing-tree.png in Resources */,
+				000000000000000000000175 /* sensen-scene-sunset-lake.png in Resources */,
+				000000000000000000000176 /* sensen-scene-cloud-observatory.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

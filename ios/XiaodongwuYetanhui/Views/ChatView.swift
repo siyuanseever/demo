@@ -99,11 +99,17 @@ private struct SensenHomePage: View {
                 Color(hex: 0xfffbf3).ignoresSafeArea()
 
                 VStack(alignment: .leading, spacing: verticalSpacing) {
+                    let homeScene = HomeSceneSelector.select(
+                        journals: store.journals,
+                        stateProfiles: store.stateProfiles,
+                        date: Date()
+                    )
+
                     SensenTopBar(openMe: openMe)
                         .frame(height: topBarHeight)
                         .padding(.top, topPadding)
 
-                    SensenHeroSection(openChat: openChat)
+                    SensenHeroSection(scene: homeScene, openChat: openChat)
                         .frame(height: heroHeight)
 
                     CompanionActionSection()
@@ -137,6 +143,218 @@ private struct SensenHomePage: View {
         }
         .task {
             await store.refreshHomeEncouragement()
+        }
+    }
+}
+
+private struct HomeScene: Identifiable {
+    let id: String
+    let assetName: String
+    let displayName: String
+    let keywords: [String]
+    let timeBuckets: Set<HomeSceneTime>
+}
+
+private enum HomeSceneTime {
+    case morning
+    case daytime
+    case evening
+    case night
+}
+
+private enum HomeSceneSelector {
+    private static let scenes: [HomeScene] = [
+        HomeScene(
+            id: "campfire_companion",
+            assetName: "sensen-scene-campfire-companion",
+            displayName: "篝火边的小小营地",
+            keywords: ["陪伴", "孤独", "失落", "被拒绝", "自责", "想放弃", "撑不住", "难过"],
+            timeBuckets: [.evening, .night]
+        ),
+        HomeScene(
+            id: "moonlight_tea",
+            assetName: "sensen-scene-moonlight-tea",
+            displayName: "月光下的晚安茶",
+            keywords: ["安静", "焦虑", "睡前", "脑子停不下来", "反复思考", "失眠", "不安"],
+            timeBuckets: [.night]
+        ),
+        HomeScene(
+            id: "rainy_mushroom_house",
+            assetName: "sensen-scene-rainy-mushroom-house",
+            displayName: "雨天的蘑菇小屋",
+            keywords: ["躲雨", "情绪低落", "想哭", "脆弱", "敏感", "委屈", "害怕"],
+            timeBuckets: [.daytime, .evening, .night]
+        ),
+        HomeScene(
+            id: "starlight_post_office",
+            assetName: "sensen-scene-starlight-post-office",
+            displayName: "星星邮局",
+            keywords: ["表达", "委屈", "遗憾", "想念", "无法开口", "关系", "告别"],
+            timeBuckets: [.evening, .night]
+        ),
+        HomeScene(
+            id: "forest_bench",
+            assetName: "sensen-scene-forest-bench",
+            displayName: "森林长椅",
+            keywords: ["发呆", "精神疲惫", "过载", "什么都不想做", "累", "耗尽", "低动力"],
+            timeBuckets: [.daytime, .evening]
+        ),
+        HomeScene(
+            id: "river_afternoon",
+            assetName: "sensen-scene-river-afternoon",
+            displayName: "河边的下午",
+            keywords: ["放松", "工作太累", "连续加班", "压力大", "休息", "身体", "恢复"],
+            timeBuckets: [.daytime]
+        ),
+        HomeScene(
+            id: "flower_garden_gathering",
+            assetName: "sensen-scene-flower-garden-gathering",
+            displayName: "春日花园茶会",
+            keywords: ["社交连接", "孤单", "需要温暖", "人际挫折", "朋友", "连接"],
+            timeBuckets: [.morning, .daytime]
+        ),
+        HomeScene(
+            id: "rainbow_hill",
+            assetName: "sensen-scene-rainbow-hill",
+            displayName: "彩虹山坡",
+            keywords: ["希望", "失败", "面试被拒", "计划落空", "重新开始", "挫折"],
+            timeBuckets: [.morning, .daytime, .evening]
+        ),
+        HomeScene(
+            id: "snow_cabin",
+            assetName: "sensen-scene-snow-cabin",
+            displayName: "雪夜壁炉屋",
+            keywords: ["安全感", "冬天", "失眠", "惊恐", "不安", "害怕", "安全"],
+            timeBuckets: [.night]
+        ),
+        HomeScene(
+            id: "morning_breakfast_shop",
+            assetName: "sensen-scene-morning-breakfast-shop",
+            displayName: "晨光早餐铺",
+            keywords: ["新开始", "起床困难", "低动力", "拖延", "自我怀疑", "早上"],
+            timeBuckets: [.morning]
+        ),
+        HomeScene(
+            id: "firefly_meadow",
+            assetName: "sensen-scene-firefly-meadow",
+            displayName: "萤火虫草地",
+            keywords: ["治愈", "恢复期", "轻微忧伤", "平静", "微弱", "慢慢"],
+            timeBuckets: [.evening, .night]
+        ),
+        HomeScene(
+            id: "forest_library",
+            assetName: "sensen-scene-forest-library",
+            displayName: "森林图书馆",
+            keywords: ["思考", "迷茫", "人生选择", "职业困惑", "复盘", "理解", "意义"],
+            timeBuckets: [.daytime, .evening]
+        ),
+        HomeScene(
+            id: "wishing_tree",
+            assetName: "sensen-scene-wishing-tree",
+            displayName: "愿望树",
+            keywords: ["梦想", "未来迷茫", "失去方向", "愿望", "方向", "期待"],
+            timeBuckets: [.daytime, .evening]
+        ),
+        HomeScene(
+            id: "sunset_lake",
+            assetName: "sensen-scene-sunset-lake",
+            displayName: "黄昏湖边",
+            keywords: ["告别", "分手", "失去", "结束", "关系", "过去", "遗憾"],
+            timeBuckets: [.evening]
+        ),
+        HomeScene(
+            id: "cloud_observatory",
+            assetName: "sensen-scene-cloud-observatory",
+            displayName: "云朵观测站",
+            keywords: ["想象力", "创作", "灵感", "探索", "自我成长", "好奇", "创造"],
+            timeBuckets: [.morning, .daytime]
+        ),
+    ]
+
+    static func select(
+        journals: [JournalEntry],
+        stateProfiles: [StateProfile],
+        date: Date = Date()
+    ) -> HomeScene {
+        let time = timeBucket(for: date)
+        let moodScore = journals.first?.moodScore ?? 0
+        let context = searchableContext(journals: journals, stateProfiles: stateProfiles)
+        guard !context.isEmpty else {
+            return defaultScene(for: time)
+        }
+
+        let scoredScenes = scenes.map { scene in
+            var score = scene.timeBuckets.contains(time) ? 2 : 0
+            for keyword in scene.keywords where context.contains(keyword) {
+                score += 5
+            }
+            if moodScore <= -2, ["campfire_companion", "rainy_mushroom_house", "forest_bench", "snow_cabin"].contains(scene.id) {
+                score += 2
+            }
+            if moodScore >= 2, ["rainbow_hill", "flower_garden_gathering", "firefly_meadow", "river_afternoon"].contains(scene.id) {
+                score += 2
+            }
+            return (scene: scene, score: score)
+        }
+        return scoredScenes.max { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.scene.timeBuckets.contains(time) == false && rhs.scene.timeBuckets.contains(time)
+            }
+            return lhs.score < rhs.score
+        }?.scene ?? defaultScene(for: time)
+    }
+
+    private static func searchableContext(
+        journals: [JournalEntry],
+        stateProfiles: [StateProfile]
+    ) -> String {
+        let recentJournals = journals.prefix(6).flatMap { journal in
+            [
+                journal.summary,
+                journal.dominantEmotion,
+                journal.suggestedNextStep,
+                journal.emotionCurve.joined(separator: " "),
+                journal.keywords.joined(separator: " "),
+                journal.insights.joined(separator: " "),
+            ]
+        }
+        let recentProfiles = stateProfiles.prefix(6).flatMap { profile in
+            [
+                profile.domain,
+                profile.stage,
+                profile.summary,
+                profile.trend,
+                profile.evidence,
+                profile.supportStrategy,
+            ]
+        }
+        return (recentJournals + recentProfiles).joined(separator: " ")
+    }
+
+    private static func timeBucket(for date: Date) -> HomeSceneTime {
+        let hour = Calendar.current.component(.hour, from: date)
+        switch hour {
+        case 5..<11:
+            return .morning
+        case 11..<17:
+            return .daytime
+        case 17..<21:
+            return .evening
+        default:
+            return .night
+        }
+    }
+
+    private static func defaultScene(for time: HomeSceneTime) -> HomeScene {
+        switch time {
+        case .morning:
+            return scenes.first { $0.id == "morning_breakfast_shop" } ?? scenes[0]
+        case .daytime:
+            return scenes.first { $0.id == "river_afternoon" } ?? scenes[0]
+        case .evening:
+            return scenes.first { $0.id == "sunset_lake" } ?? scenes[0]
+        case .night:
+            return scenes.first { $0.id == "moonlight_tea" } ?? scenes[0]
         }
     }
 }
@@ -196,16 +414,17 @@ private struct SensenTopBar: View {
 }
 
 private struct SensenHeroSection: View {
+    let scene: HomeScene
     let openChat: () -> Void
 
     var body: some View {
         VStack(spacing: 7) {
             Button(action: openChat) {
-                SoftSceneImage(name: "sensen-scene-moonlight-tea")
+                SoftSceneImage(name: scene.assetName)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("打开月光下的晚安茶场景")
+            .accessibilityLabel("打开\(scene.displayName)场景")
 
             Button(action: openChat) {
                 HStack(spacing: 12) {
