@@ -70,6 +70,7 @@ final class SQLiteDatabase {
             FROM sessions
             LEFT JOIN messages ON messages.session_id = sessions.id
             GROUP BY sessions.id
+            HAVING COUNT(messages.id) > 0
             ORDER BY sessions.created_at DESC
             LIMIT ?
             """,

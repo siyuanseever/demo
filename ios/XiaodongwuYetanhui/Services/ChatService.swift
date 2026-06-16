@@ -55,11 +55,14 @@ final class ChatService {
 
     func checkConnection() async -> BackendConnectionStatus {
         do {
-            _ = try await currentSessionID()
+            var request = URLRequest(url: baseURL.appendingPathComponent("api/health"))
+            request.httpMethod = "GET"
+            request.timeoutInterval = 8
+            let _: EmptyResponseBody = try await decode(request)
             return BackendConnectionStatus(
                 state: .online,
                 baseURL: backendURLDescription,
-                detail: "本地后端可以创建会话，iOS 对话会优先走真实 Web 路由。",
+                detail: "本地后端在线。iOS 会在发送第一句话时再创建会话。",
                 lastCheckedAt: Date()
             )
         } catch {

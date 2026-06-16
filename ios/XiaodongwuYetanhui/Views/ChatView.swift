@@ -6,19 +6,43 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var isNotebookVisible = false
     @State private var isCompanionChatVisible = false
+    @State private var isSideSettingsVisible = false
+    @State private var isStateOverviewVisible = false
     @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
-        SensenHomePage(
-            openChat: { isCompanionChatVisible = true },
-            openForest: { openNotebook(.state) },
-            openNotebook: { openNotebook(.memory) },
-            openMe: { openNotebook(.settings) }
-        )
-        .environmentObject(store)
+        ZStack(alignment: .leading) {
+            SensenHomePage(
+                openMenu: { isSideSettingsVisible = true },
+                openChat: { isCompanionChatVisible = true },
+                openForest: { openNotebook(.state) },
+                openNotebook: { openNotebook(.memory) },
+                openMe: { isStateOverviewVisible = true }
+            )
+            .environmentObject(store)
+
+            if isSideSettingsVisible {
+                Color.black.opacity(0.18)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.snappy) {
+                            isSideSettingsVisible = false
+                        }
+                    }
+
+                SideSettingsDrawer {
+                    withAnimation(.snappy) {
+                        isSideSettingsVisible = false
+                    }
+                }
+                .environmentObject(store)
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: isSideSettingsVisible)
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
         .sheet(isPresented: $isNotebookVisible) {
@@ -30,6 +54,30 @@ struct ChatView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
+        }
+        .fullScreenCover(isPresented: $isStateOverviewVisible) {
+            NavigationStack {
+                StateOverviewView(
+                    openChat: { isStateOverviewVisible = false; isCompanionChatVisible = true },
+                    openMessages: { isStateOverviewVisible = false; openNotebook(.messages) },
+                    openSessions: { isStateOverviewVisible = false; openNotebook(.sessions) },
+                    openMemory: { isStateOverviewVisible = false; openNotebook(.memory) },
+                    openJournals: { isStateOverviewVisible = false; openNotebook(.journals) },
+                    openSourceSession: { sessionID in
+                        isStateOverviewVisible = false
+                        continueHistoricalSession(sessionID)
+                    }
+                )
+                .environmentObject(store)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("关闭") {
+                            isStateOverviewVisible = false
+                        }
+                    }
+                }
+            }
+            .preferredColorScheme(.light)
         }
         .fullScreenCover(isPresented: $isCompanionChatVisible) {
             CompanionChatPage()
@@ -71,11 +119,48 @@ struct ChatView: View {
     }
 }
 
+private struct SideSettingsDrawer: View {
+    let close: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                HStack {
+                    Text("设置")
+                        .font(SensenFonts.handwritten(size: 22))
+                        .foregroundStyle(Color.warmBrown)
+                    Spacer()
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.warmBrown)
+                            .frame(width: 34, height: 34)
+                            .background(Color(hex: 0xffeee9), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("关闭设置")
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, max(18, geometry.safeAreaInsets.top + 8))
+                .padding(.bottom, 8)
+
+                SettingsView()
+            }
+            .frame(width: min(360, geometry.size.width * 0.86), height: geometry.size.height)
+            .background(Color(hex: 0xfffbf3))
+            .clipShape(RoundedRectangle(cornerRadius: 0, style: .continuous))
+            .shadow(color: Color.warmBrown.opacity(0.16), radius: 28, x: 10, y: 0)
+            .ignoresSafeArea(.container, edges: .vertical)
+        }
+    }
+}
+
 private struct SensenHomePage: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var selectedMoodIndex = 2
     @State private var selectedHomeSceneID = ""
 
+    let openMenu: () -> Void
     let openChat: () -> Void
     let openForest: () -> Void
     let openNotebook: () -> Void
@@ -106,7 +191,7 @@ private struct SensenHomePage: View {
                         date: Date()
                     )
 
-                    SensenTopBar(openMe: openMe)
+                    SensenTopBar(openMenu: openMenu, openMe: openMe)
                         .frame(height: topBarHeight)
                         .padding(.top, topPadding)
                         .padding(.horizontal, 16)
@@ -379,11 +464,12 @@ private enum SensenFonts {
 }
 
 private struct SensenTopBar: View {
+    let openMenu: () -> Void
     let openMe: () -> Void
 
     var body: some View {
         HStack {
-            Button(action: openMe) {
+            Button(action: openMenu) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 21, weight: .medium))
                     .foregroundStyle(Color.warmBrown)
@@ -473,38 +559,38 @@ private struct EdgeFadeOverlay: View {
         ZStack {
             VStack(spacing: 0) {
                 LinearGradient(
-                    colors: [pageBackground.opacity(0.58), pageBackground.opacity(0)],
+                    colors: [pageBackground.opacity(0.82), pageBackground.opacity(0)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 14)
+                .frame(height: 24)
 
                 Spacer()
 
                 LinearGradient(
-                    colors: [pageBackground.opacity(0), pageBackground.opacity(0.58)],
+                    colors: [pageBackground.opacity(0), pageBackground.opacity(0.82)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 18)
+                .frame(height: 30)
             }
 
             HStack(spacing: 0) {
                 LinearGradient(
-                    colors: [pageBackground.opacity(0.45), pageBackground.opacity(0)],
+                    colors: [pageBackground.opacity(0.62), pageBackground.opacity(0)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: 10)
+                .frame(width: 16)
 
                 Spacer()
 
                 LinearGradient(
-                    colors: [pageBackground.opacity(0), pageBackground.opacity(0.45)],
+                    colors: [pageBackground.opacity(0), pageBackground.opacity(0.62)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: 10)
+                .frame(width: 16)
             }
         }
         .allowsHitTesting(false)
@@ -578,10 +664,20 @@ private struct CompanionActionCard: View {
             }
             .padding(8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(item.tint.opacity(0.17), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(hex: 0xffeee9).opacity(0.9),
+                        item.tint.opacity(0.18),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(item.tint.opacity(0.24), lineWidth: 1)
+                    .stroke(Color(hex: 0xefd8cf).opacity(0.78), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -630,10 +726,10 @@ private struct MoodCheckSection: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color(hex: 0xffeee9).opacity(0.72), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
+                .stroke(Color(hex: 0xefd8cf).opacity(0.72), lineWidth: 1)
         }
     }
 
@@ -658,7 +754,7 @@ private struct EncouragementCard: View {
                 .font(SensenFonts.handwritten(size: 12))
                 .lineSpacing(2)
                 .foregroundStyle(Color.warmBrown.opacity(0.84))
-                .lineLimit(3)
+                .lineLimit(4)
                 .minimumScaleFactor(0.82)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -674,13 +770,8 @@ private struct EncouragementCard: View {
             .accessibilityLabel(isLiked ? "取消喜欢这句话" : "喜欢这句话")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.vertical, 4)
         .frame(maxHeight: .infinity)
-        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(hex: 0xeadfcd).opacity(0.82), lineWidth: 1)
-        }
     }
 }
 

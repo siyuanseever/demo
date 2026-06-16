@@ -31,6 +31,8 @@ struct StateOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(title: "状态花园", subtitle: "把长期对话留下的轨迹，整理成可以回看的状态。")
+                    MoodPanel(journals: store.journals)
+                    WeeklyReportPanel(journals: store.journals)
                     SnapshotGrid(
                         snapshot: store.snapshot,
                         openMessages: openMessages,
@@ -45,7 +47,6 @@ struct StateOverviewView: View {
                         openChat: openChat
                     )
                     NextInteractionPanel(openChat: openChat)
-                    MoodPanel(journals: store.journals)
                     EmotionCheckInView()
                     RecentJournalList(journals: store.journals)
                 }
@@ -331,14 +332,65 @@ private struct StateProfilePanel: View {
                 if profiles.isEmpty {
                     EmptyHintView(systemImage: "person.text.rectangle", title: "还没有状态画像", detail: "结束并总结几次会话后，长期状态会在这里慢慢形成。")
                 } else {
-                    VStack(spacing: 10) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
                         ForEach(profiles.prefix(5)) { profile in
-                            StateProfileRow(profile: profile, openSourceSession: openSourceSession)
+                            StateProfileCompactCard(profile: profile, openSourceSession: openSourceSession)
                         }
+                        }
+                        .padding(.vertical, 2)
                     }
                 }
             }
         }
+    }
+}
+
+private struct StateProfileCompactCard: View {
+    let profile: StateProfile
+    let openSourceSession: (String) -> Void
+
+    var body: some View {
+        Button {
+            if !profile.sourceSessionID.isEmpty {
+                openSourceSession(profile.sourceSessionID)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(profile.domain)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.nightInk)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(profile.intensity)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.warmBrown)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color(hex: 0xffeee9), in: Capsule())
+                }
+
+                Text([profile.stage, profile.trend].filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Text(profile.summary.isEmpty ? "这条状态暂时没有摘要。" : profile.summary)
+                    .font(.caption)
+                    .foregroundStyle(Color.nightInk.opacity(0.78))
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(width: 174, height: 132, alignment: .topLeading)
+            .background(Color(hex: 0xffeee9).opacity(0.66), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color(hex: 0xefd8cf).opacity(0.78), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -498,6 +550,36 @@ private struct MoodPanel: View {
         if score > 0 { return .fieldGreen }
         if score < 0 { return .duskRose }
         return Color(hex: 0xd8cbbb)
+    }
+}
+
+private struct WeeklyReportPanel: View {
+    let journals: [JournalEntry]
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("本周小结", systemImage: "calendar.badge.clock")
+                    .font(.headline)
+
+                if let latest = journals.first {
+                    Text(latest.summary.isEmpty ? "这一周的记录还在慢慢形成。" : latest.summary)
+                        .font(.callout)
+                        .foregroundStyle(Color.nightInk.opacity(0.86))
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !latest.suggestedNextStep.isEmpty {
+                        Text(latest.suggestedNextStep)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                } else {
+                    EmptyHintView(systemImage: "calendar", title: "还没有周报", detail: "有几次总结之后，这里会先显示最近一周的小结。")
+                }
+            }
+        }
     }
 }
 

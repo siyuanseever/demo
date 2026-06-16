@@ -2600,6 +2600,9 @@ class Handler(BaseHTTPRequestHandler):
             self.respond_static(path.removeprefix("/static/"))
             return
         try:
+            if path == "/api/health":
+                self.respond_json({"ok": True})
+                return
             if path == "/api/data":
                 self.respond_data()
                 return
