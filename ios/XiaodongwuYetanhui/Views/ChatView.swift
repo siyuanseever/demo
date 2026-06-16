@@ -84,12 +84,12 @@ private struct SensenHomePage: View {
         GeometryReader { geometry in
             let safeTop = geometry.safeAreaInsets.top
             let safeBottom = geometry.safeAreaInsets.bottom
-            let bottomBarHeight: CGFloat = 58
-            let contentHeight = max(520, geometry.size.height - bottomBarHeight)
-            let heroHeight = contentHeight * 0.44
-            let actionHeight = contentHeight * 0.22
-            let moodHeight = contentHeight * 0.15
-            let encouragementHeight = contentHeight * 0.1
+            let bottomBarHeight: CGFloat = 50
+            let contentHeight = max(520, geometry.size.height - bottomBarHeight - 6)
+            let heroHeight = contentHeight * 0.34
+            let actionHeight = contentHeight * 0.21
+            let moodHeight = contentHeight * 0.145
+            let encouragementHeight = contentHeight * 0.13
 
             ZStack(alignment: .bottom) {
                 Color(hex: 0xfffbf3).ignoresSafeArea()
@@ -108,7 +108,7 @@ private struct SensenHomePage: View {
                     MoodCheckSection(selectedMoodIndex: $selectedMoodIndex)
                         .frame(height: moodHeight)
 
-                    EncouragementCard()
+                    EncouragementCard(text: store.homeEncouragement)
                         .frame(height: encouragementHeight)
 
                     Spacer(minLength: 0)
@@ -128,6 +128,9 @@ private struct SensenHomePage: View {
                 .frame(height: bottomBarHeight)
                 .ignoresSafeArea(.container, edges: .bottom)
             }
+        }
+        .task {
+            await store.refreshHomeEncouragement()
         }
     }
 }
@@ -190,32 +193,18 @@ private struct SensenHeroSection: View {
     let openChat: () -> Void
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        Button(action: openChat) {
             BundleImage(
-                name: "sensen-home-hero-rabbit-v2",
-                contentMode: .fit,
+                name: "sensen-scene-moonlight-tea",
+                contentMode: .fill,
                 fallbackSystemImage: "moon.stars.fill"
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("晚上好")
-                        .font(SensenFonts.handwritten(size: 25))
-                        .foregroundStyle(Color.warmBrown)
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0xffd27d))
-                }
-
-                Text("今天过得怎么样呢？\n和忧忧兔聊一聊吧")
-                    .font(SensenFonts.handwritten(size: 13))
-                    .lineSpacing(3)
-                    .foregroundStyle(Color.warmBrown.opacity(0.82))
-            }
-            .padding(.top, 10)
-            .padding(.leading, 14)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("打开月光下的晚安茶场景")
     }
 }
 
@@ -351,17 +340,22 @@ private struct MoodCheckSection: View {
 }
 
 private struct EncouragementCard: View {
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "camera.macro")
-                .font(.system(size: 22, weight: .light))
-                .foregroundStyle(Color(hex: 0xb7c99a))
-                .frame(width: 30)
+    let text: String
 
-            Text("你已经很努力了，\n慢慢来，一切都会好起来的。")
-                .font(SensenFonts.handwritten(size: 12.5))
-                .lineSpacing(2)
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "camera.macro")
+                .font(.system(size: 20, weight: .light))
+                .foregroundStyle(Color(hex: 0xb7c99a))
+                .frame(width: 26)
+
+            Text(text)
+                .font(SensenFonts.handwritten(size: 12))
+                .lineSpacing(3)
                 .foregroundStyle(Color.warmBrown.opacity(0.84))
+                .lineLimit(3)
+                .minimumScaleFactor(0.82)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 
@@ -373,8 +367,8 @@ private struct EncouragementCard: View {
             .buttonStyle(.plain)
             .accessibilityLabel("喜欢这句话")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -556,7 +550,7 @@ private struct CompanionChatPage: View {
                     contentMode: .fit,
                     fallbackSystemImage: "hare.fill"
                 )
-                .frame(maxWidth: 240, maxHeight: 240)
+                .frame(width: 240, height: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
                 .shadow(color: Color(hex: 0xb7a0d4).opacity(0.18), radius: 24, y: 10)
                 .onTapGesture {

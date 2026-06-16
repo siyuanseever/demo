@@ -25,6 +25,7 @@ final class CompanionStore: ObservableObject {
     @Published var recommendationHistory: [CompanionRecommendation] = []
     @Published var isGroupMode = true
     @Published var sessionNotice: String?
+    @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
 
     private let chatService = ChatService()
     private let interactionService = InteractionService()
@@ -170,6 +171,17 @@ final class CompanionStore: ObservableObject {
     func dismissInteractionOffer(_ offer: CompanionInteractionOffer) {
         guard interactionOffers.count > 1 else { return }
         interactionOffers.removeAll { $0.id == offer.id }
+    }
+
+    func refreshHomeEncouragement() async {
+        do {
+            let text = try await chatService.homeHint().trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                homeEncouragement = text
+            }
+        } catch {
+            // Keep the bundled fallback when the local backend is unavailable.
+        }
     }
 
     func requestChatEmotionCheckIn() {

@@ -141,6 +141,14 @@ final class ChatService {
         sessionID = nil
     }
 
+    func homeHint() async throws -> String {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/home_hint"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = 12
+        let response: HomeHintResponseBody = try await decode(request)
+        return response.text
+    }
+
     private func currentSessionID() async throws -> String {
         if let sessionID {
             return sessionID
@@ -310,6 +318,10 @@ private struct ResponseCharacter: Decodable {
 
 private struct ResponseExpression: Decodable {
     let id: String
+}
+
+private struct HomeHintResponseBody: Decodable {
+    let text: String
 }
 
 private struct KnowledgeCardResponseBody: Decodable {
