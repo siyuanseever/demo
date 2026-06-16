@@ -85,19 +85,23 @@ private struct SensenHomePage: View {
             let safeTop = geometry.safeAreaInsets.top
             let safeBottom = geometry.safeAreaInsets.bottom
             let bottomBarHeight: CGFloat = 50
-            let contentHeight = max(520, geometry.size.height - bottomBarHeight - 6)
-            let heroHeight = contentHeight * 0.34
-            let actionHeight = contentHeight * 0.21
-            let moodHeight = contentHeight * 0.145
-            let encouragementHeight = contentHeight * 0.13
+            let topBarHeight: CGFloat = 34
+            let topPadding = max(2, safeTop * 0.14)
+            let verticalSpacing: CGFloat = 9
+            let contentHeight = max(520, geometry.size.height - bottomBarHeight - 4)
+            let availableHeight = max(440, contentHeight - topPadding - topBarHeight - verticalSpacing * 4)
+            let heroHeight = availableHeight * 0.405
+            let actionHeight = availableHeight * 0.22
+            let moodHeight = availableHeight * 0.17
+            let encouragementHeight = availableHeight * 0.165
 
             ZStack(alignment: .bottom) {
                 Color(hex: 0xfffbf3).ignoresSafeArea()
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: verticalSpacing) {
                     SensenTopBar(openMe: openMe)
-                        .frame(height: 36)
-                        .padding(.top, max(2, safeTop * 0.18))
+                        .frame(height: topBarHeight)
+                        .padding(.top, topPadding)
 
                     SensenHeroSection(openChat: openChat)
                         .frame(height: heroHeight)
@@ -110,8 +114,6 @@ private struct SensenHomePage: View {
 
                     EncouragementCard(text: store.homeEncouragement)
                         .frame(height: encouragementHeight)
-
-                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 16)
                 .frame(width: geometry.size.width, height: contentHeight, alignment: .top)
@@ -193,18 +195,103 @@ private struct SensenHeroSection: View {
     let openChat: () -> Void
 
     var body: some View {
-        Button(action: openChat) {
+        VStack(spacing: 7) {
+            Button(action: openChat) {
+                SoftSceneImage(name: "sensen-scene-moonlight-tea")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("打开月光下的晚安茶场景")
+
+            Button(action: openChat) {
+                HStack(spacing: 12) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("开始聊聊")
+                        .font(SensenFonts.handwritten(size: 16))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .frame(width: 194, height: 40)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: 0xb8a2d4), Color(hex: 0xa990ca)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    in: Capsule()
+                )
+                .shadow(color: Color(hex: 0xb8a2d4).opacity(0.2), radius: 12, y: 5)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("开始和忧忧兔聊天")
+        }
+    }
+}
+
+private struct SoftSceneImage: View {
+    let name: String
+
+    var body: some View {
+        ZStack {
             BundleImage(
-                name: "sensen-scene-moonlight-tea",
+                name: name,
                 contentMode: .fill,
                 fallbackSystemImage: "moon.stars.fill"
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            EdgeFadeOverlay()
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("打开月光下的晚安茶场景")
+        .compositingGroup()
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct EdgeFadeOverlay: View {
+    private let pageBackground = Color(hex: 0xfffbf3)
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [pageBackground, pageBackground.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 28)
+
+                Spacer()
+
+                LinearGradient(
+                    colors: [pageBackground.opacity(0), pageBackground],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 36)
+            }
+
+            HStack(spacing: 0) {
+                LinearGradient(
+                    colors: [pageBackground, pageBackground.opacity(0)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 24)
+
+                Spacer()
+
+                LinearGradient(
+                    colors: [pageBackground.opacity(0), pageBackground],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: 24)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -345,12 +432,12 @@ private struct EncouragementCard: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "camera.macro")
-                .font(.system(size: 20, weight: .light))
+                .font(.system(size: 21, weight: .light))
                 .foregroundStyle(Color(hex: 0xb7c99a))
-                .frame(width: 26)
+                .frame(width: 28)
 
             Text(text)
-                .font(SensenFonts.handwritten(size: 12))
+                .font(SensenFonts.handwritten(size: 12.5))
                 .lineSpacing(3)
                 .foregroundStyle(Color.warmBrown.opacity(0.84))
                 .lineLimit(3)
@@ -368,7 +455,8 @@ private struct EncouragementCard: View {
             .accessibilityLabel("喜欢这句话")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
+        .frame(maxHeight: .infinity)
         .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
