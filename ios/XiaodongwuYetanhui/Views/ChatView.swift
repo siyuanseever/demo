@@ -112,7 +112,11 @@ private struct SensenHomePage: View {
                     MoodCheckSection(selectedMoodIndex: $selectedMoodIndex)
                         .frame(height: moodHeight)
 
-                    EncouragementCard(text: store.homeEncouragement)
+                    EncouragementCard(
+                        text: store.homeEncouragement,
+                        isLiked: store.isHomeEncouragementLiked,
+                        toggleLike: store.toggleHomeEncouragementLike
+                    )
                         .frame(height: encouragementHeight)
                 }
                 .padding(.horizontal, 16)
@@ -428,6 +432,8 @@ private struct MoodCheckSection: View {
 
 private struct EncouragementCard: View {
     let text: String
+    let isLiked: Bool
+    let toggleLike: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -446,13 +452,14 @@ private struct EncouragementCard: View {
 
             Spacer()
 
-            Button(action: {}) {
-                Image(systemName: "heart.fill")
-                    .foregroundStyle(Color(hex: 0xf4a4a0))
+            Button(action: toggleLike) {
+                Image(systemName: isLiked ? "heart.fill" : "heart")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(isLiked ? Color(hex: 0xf4a4a0) : Color.warmBrown.opacity(0.34))
                     .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("喜欢这句话")
+            .accessibilityLabel(isLiked ? "取消喜欢这句话" : "喜欢这句话")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

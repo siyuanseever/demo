@@ -2555,6 +2555,16 @@ class Handler(BaseHTTPRequestHandler):
                 result = self.app.orchestrator.close_session(payload["session_id"])
                 self.respond_json(result)
                 return
+            if path == "/api/home_hint_feedback":
+                self.app.orchestrator.record_home_hint_feedback(
+                    hint_id=payload["hint_id"],
+                    text=payload["text"],
+                    liked=bool(payload.get("liked")),
+                    source=payload.get("source", ""),
+                    context=payload.get("context") if isinstance(payload.get("context"), dict) else {},
+                )
+                self.respond_json({"ok": True})
+                return
             if path == "/api/cleanup_empty_sessions":
                 deleted = self.app.orchestrator.store.delete_empty_sessions()
                 self.respond_json({"deleted": deleted})
@@ -2638,24 +2648,7 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json({"items": items})
 
     def respond_home_hint(self) -> None:
-        store = self.app.orchestrator.store
-        journals = store.list_journals(limit=3)
-        profiles = store.list_state_profiles(limit=3)
-        latest_journal = journals[0] if journals else {}
-        latest_profile = profiles[0] if profiles else {}
-        emotion = latest_journal.get("dominant_emotion") or ""
-        next_step = latest_journal.get("suggested_next_step") or ""
-        state_summary = latest_profile.get("summary") or ""
-        if emotion and next_step:
-            text = f"我看见最近的{emotion}了。先不用急着变好，今天只做一小步：{next_step}"
-        elif state_summary:
-            text = f"你正在经历的事情已经被记录下来了。先慢慢来，我们从最轻的一步开始。"
-        else:
-            text = "你已经很努力了，慢慢来，一切都会好起来的。"
-        self.respond_json({
-            "text": text,
-            "source": "journal" if latest_journal else ("state_profile" if latest_profile else "fallback"),
-        })
+        self.respond_json(self.app.orchestrator.generate_home_hint())
 
     def respond_knowledge_detail(self) -> None:
         query = urlparse(self.path).query

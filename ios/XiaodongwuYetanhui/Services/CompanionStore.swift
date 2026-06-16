@@ -26,6 +26,8 @@ final class CompanionStore: ObservableObject {
     @Published var isGroupMode = true
     @Published var sessionNotice: String?
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
+    @Published var homeEncouragementHint: HomeHint?
+    @Published var isHomeEncouragementLiked = false
 
     private let chatService = ChatService()
     private let interactionService = InteractionService()
@@ -175,12 +177,39 @@ final class CompanionStore: ObservableObject {
 
     func refreshHomeEncouragement() async {
         do {
-            let text = try await chatService.homeHint().trimmingCharacters(in: .whitespacesAndNewlines)
+            let hint = try await chatService.homeHint()
+            let text = hint.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
                 homeEncouragement = text
+                homeEncouragementHint = hint
+                isHomeEncouragementLiked = hint.liked
             }
         } catch {
             // Keep the bundled fallback when the local backend is unavailable.
+        }
+    }
+
+    func toggleHomeEncouragementLike() {
+        guard let hint = homeEncouragementHint else {
+            isHomeEncouragementLiked.toggle()
+            return
+        }
+        let nextValue = !isHomeEncouragementLiked
+        isHomeEncouragementLiked = nextValue
+        let updatedHint = HomeHint(
+            id: hint.id,
+            text: hint.text,
+            source: hint.source,
+            liked: nextValue,
+            context: hint.context
+        )
+        homeEncouragementHint = updatedHint
+        Task {
+            do {
+                try await chatService.sendHomeHintFeedback(updatedHint, liked: nextValue)
+            } catch {
+                // Keep the UI response immediate; the next refresh can resync with the backend.
+            }
         }
     }
 

@@ -226,6 +226,117 @@ class ConversationOrchestrator:
         self.logger.info("session start id=%s", session_id)
         return session_id
 
+    def generate_home_hint(self) -> dict:
+        journals = self.store.list_journals(limit=5)
+        profiles = self.store.list_state_profiles(limit=6)
+        memories = self.store.list_memories(limit=8)
+        liked_hints = self.store.list_home_hint_feedback(liked=True, limit=8)
+        disliked_hints = self.store.list_home_hint_feedback(liked=False, limit=5)
+        context = {
+            "journal_ids": [item["id"] for item in journals[:3] if item.get("id")],
+            "profile_ids": [item["id"] for item in profiles[:3] if item.get("id")],
+            "memory_ids": [item["id"] for item in memories[:5] if item.get("id")],
+        }
+        prompt = (
+            "你是森森物语 App 首页的一句话陪伴文案生成器。\n"
+            "请根据用户最近的状态、记忆、日记摘要，生成一句中文短句。\n"
+            "要求：\n"
+            "- 只输出一句话，不要标题，不要解释，不要 JSON。\n"
+            "- 语气安静、温柔、稳定，不要鸡汤，不要命令用户变好。\n"
+            "- 22 到 42 个汉字左右，可以有一个逗号，最多一个句号。\n"
+            "- 不要使用“加油”“一切都会好起来的”这类固定模板。\n"
+            "- 如果用户喜欢过某些句子，学习它们的节奏和关注点；不要直接复读。\n"
+            "- 如果用户不喜欢过某些句子，避免相似的空泛表达。\n"
+        )
+        user_context = (
+            "最近日记：\n"
+            f"{preview_text(json.dumps(journals, ensure_ascii=False), 2200)}\n\n"
+            "长期状态画像：\n"
+            f"{preview_text(render_state_profiles(profiles), 1600)}\n\n"
+            "相关记忆：\n"
+            f"{preview_text(render_memories(memories), 1800)}\n\n"
+            "用户喜欢过的首页句子：\n"
+            f"{preview_text(json.dumps([item.get('text', '') for item in liked_hints], ensure_ascii=False), 900)}\n\n"
+            "用户取消喜欢或未偏好的首页句子：\n"
+            f"{preview_text(json.dumps([item.get('text', '') for item in disliked_hints], ensure_ascii=False), 600)}"
+        )
+        try:
+            response = self.llm.chat(
+                [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_context},
+                ],
+                temperature=0.7,
+                max_tokens=120,
+            )
+            text = self._clean_home_hint_text(response.content)
+            if text:
+                return {
+                    "id": str(uuid.uuid4()),
+                    "text": text,
+                    "source": "llm",
+                    "liked": False,
+                    "context": context,
+                }
+        except Exception:
+            self.logger.exception("home hint generation failed")
+        return self._fallback_home_hint(journals, profiles, context)
+
+    def record_home_hint_feedback(
+        self,
+        *,
+        hint_id: str,
+        text: str,
+        liked: bool,
+        source: str = "",
+        context: dict | None = None,
+    ) -> None:
+        self.store.record_home_hint_feedback(
+            hint_id=hint_id,
+            text=text,
+            liked=liked,
+            source=source,
+            context=context,
+        )
+
+    def _fallback_home_hint(
+        self,
+        journals: list[dict],
+        profiles: list[dict],
+        context: dict,
+    ) -> dict:
+        latest_journal = journals[0] if journals else {}
+        latest_profile = profiles[0] if profiles else {}
+        emotion = latest_journal.get("dominant_emotion") or ""
+        next_step = latest_journal.get("suggested_next_step") or ""
+        state_summary = latest_profile.get("summary") or ""
+        if emotion and next_step:
+            text = f"我看见最近的{emotion}了，今晚只靠近一小步就好。"
+        elif state_summary:
+            text = "你正在经历的事情已经被看见，先让自己慢慢落回这里。"
+        else:
+            text = "你已经走到这里了，今晚可以先轻轻放下一点。"
+        return {
+            "id": str(uuid.uuid4()),
+            "text": text,
+            "source": "fallback",
+            "liked": False,
+            "context": context,
+        }
+
+    @staticmethod
+    def _clean_home_hint_text(text: str) -> str:
+        cleaned = text.strip().strip("「」“”\"'")
+        for prefix in ("文案：", "一句话：", "首页句子："):
+            if cleaned.startswith(prefix):
+                cleaned = cleaned.removeprefix(prefix).strip()
+        lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+        if lines:
+            cleaned = lines[0]
+        if len(cleaned) > 58:
+            cleaned = cleaned[:58].rstrip("，。,. ") + "。"
+        return cleaned
+
     def reply(self, session_id: str, user_text: str, character_id: str | None = None) -> str:
         return self.reply_detail(session_id, user_text, character_id=character_id)["reply"]
 

@@ -202,6 +202,17 @@ class Store:
                     reason TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS home_hint_feedback (
+                    id TEXT PRIMARY KEY,
+                    hint_id TEXT NOT NULL UNIQUE,
+                    text TEXT NOT NULL,
+                    liked INTEGER NOT NULL,
+                    source TEXT NOT NULL DEFAULT '',
+                    context TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
             self._ensure_column(conn, "memories", "subcategory", "TEXT NOT NULL DEFAULT 'general'")
@@ -211,6 +222,79 @@ class Store:
             self._ensure_column(conn, "memories", "merge_note", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "journals", "mood_score", "INTEGER")
             self._ensure_column(conn, "journals", "dominant_emotion", "TEXT NOT NULL DEFAULT ''")
+
+    def record_home_hint_feedback(
+        self,
+        *,
+        hint_id: str,
+        text: str,
+        liked: bool,
+        source: str = "",
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        now = utc_now()
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO home_hint_feedback (
+                    id, hint_id, text, liked, source, context, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(hint_id) DO UPDATE SET
+                    text = excluded.text,
+                    liked = excluded.liked,
+                    source = excluded.source,
+                    context = excluded.context,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    str(uuid.uuid4()),
+                    hint_id,
+                    text,
+                    1 if liked else 0,
+                    source,
+                    json.dumps(context or {}, ensure_ascii=False),
+                    now,
+                    now,
+                ),
+            )
+
+    def list_home_hint_feedback(
+        self,
+        *,
+        liked: bool | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            if liked is None:
+                cursor = conn.execute(
+                    """
+                    SELECT id, hint_id, text, liked, source, context, created_at, updated_at
+                    FROM home_hint_feedback
+                    ORDER BY updated_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            else:
+                cursor = conn.execute(
+                    """
+                    SELECT id, hint_id, text, liked, source, context, created_at, updated_at
+                    FROM home_hint_feedback
+                    WHERE liked = ?
+                    ORDER BY updated_at DESC
+                    LIMIT ?
+                    """,
+                    (1 if liked else 0, limit),
+                )
+        rows = [row_to_dict(row) for row in cursor.fetchall()]
+        for row in rows:
+            row["liked"] = bool(row.get("liked"))
+            try:
+                row["context"] = json.loads(row.get("context") or "{}")
+            except (TypeError, json.JSONDecodeError):
+                row["context"] = {}
+        return rows
 
     def _ensure_column(
         self,

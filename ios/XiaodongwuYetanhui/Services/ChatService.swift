@@ -28,6 +28,14 @@ struct SessionCloseSummary {
     let stateProfileCount: Int
 }
 
+struct HomeHint {
+    let id: String
+    let text: String
+    let source: String
+    let liked: Bool
+    let context: [String: [String]]
+}
+
 final class ChatService {
     private let baseURL: URL
     private let session: URLSession
@@ -141,12 +149,32 @@ final class ChatService {
         sessionID = nil
     }
 
-    func homeHint() async throws -> String {
+    func homeHint() async throws -> HomeHint {
         var request = URLRequest(url: baseURL.appendingPathComponent("api/home_hint"))
         request.httpMethod = "GET"
         request.timeoutInterval = 12
         let response: HomeHintResponseBody = try await decode(request)
-        return response.text
+        return HomeHint(
+            id: response.id,
+            text: response.text,
+            source: response.source,
+            liked: response.liked,
+            context: response.context
+        )
+    }
+
+    func sendHomeHintFeedback(_ hint: HomeHint, liked: Bool) async throws {
+        let request = try makeJSONRequest(
+            path: "/api/home_hint_feedback",
+            body: HomeHintFeedbackRequestBody(
+                hintID: hint.id,
+                text: hint.text,
+                liked: liked,
+                source: hint.source,
+                context: hint.context
+            )
+        )
+        let _: EmptyResponseBody = try await decode(request)
     }
 
     private func currentSessionID() async throws -> String {
@@ -246,6 +274,8 @@ final class ChatService {
 
 private struct EmptyBody: Encodable {}
 
+private struct EmptyResponseBody: Decodable {}
+
 private struct SessionResponseBody: Decodable {
     let sessionID: String
 
@@ -321,7 +351,44 @@ private struct ResponseExpression: Decodable {
 }
 
 private struct HomeHintResponseBody: Decodable {
+    let id: String
     let text: String
+    let source: String
+    let liked: Bool
+    let context: [String: [String]]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case text
+        case source
+        case liked
+        case context
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        text = try container.decode(String.self, forKey: .text)
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? ""
+        liked = try container.decodeIfPresent(Bool.self, forKey: .liked) ?? false
+        context = try container.decodeIfPresent([String: [String]].self, forKey: .context) ?? [:]
+    }
+}
+
+private struct HomeHintFeedbackRequestBody: Encodable {
+    let hintID: String
+    let text: String
+    let liked: Bool
+    let source: String
+    let context: [String: [String]]
+
+    enum CodingKeys: String, CodingKey {
+        case hintID = "hint_id"
+        case text
+        case liked
+        case source
+        case context
+    }
 }
 
 private struct KnowledgeCardResponseBody: Decodable {
