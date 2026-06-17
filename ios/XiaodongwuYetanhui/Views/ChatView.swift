@@ -4,11 +4,10 @@ import UIKit
 struct ChatView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
+    @State private var selectedMainTab: MainTab = .home
     @State private var isNotebookVisible = false
     @State private var isCompanionChatVisible = false
     @State private var isSideSettingsVisible = false
-    @State private var isStateOverviewVisible = false
-    @State private var isStarMapVisible = false
     @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
@@ -16,14 +15,9 @@ struct ChatView: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            SensenHomePage(
-                openChat: { isCompanionChatVisible = true },
-                openForest: { openNotebook(.state) },
-                openNotebook: { isStarMapVisible = true },
-                openMe: { isStateOverviewVisible = true }
-            )
-            .environmentObject(store)
-            .ignoresSafeArea(.all)
+            mainContent
+                .environmentObject(store)
+                .ignoresSafeArea(.all)
 
             if isSideSettingsVisible {
                 Color.black.opacity(0.18)
@@ -57,53 +51,10 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
         }
-        .fullScreenCover(isPresented: $isStateOverviewVisible) {
-            NavigationStack {
-                StateOverviewView(
-                    openChat: { isStateOverviewVisible = false; isCompanionChatVisible = true },
-                    openMessages: { isStateOverviewVisible = false; openNotebook(.messages) },
-                    openSessions: { isStateOverviewVisible = false; openNotebook(.sessions) },
-                    openMemory: { isStateOverviewVisible = false; openNotebook(.memory) },
-                    openJournals: { isStateOverviewVisible = false; openNotebook(.journals) },
-                    openSourceSession: { sessionID in
-                        isStateOverviewVisible = false
-                        continueHistoricalSession(sessionID)
-                    }
-                )
-                .environmentObject(store)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("关闭") {
-                            isStateOverviewVisible = false
-                        }
-                    }
-                }
-            }
-            .preferredColorScheme(.light)
-        }
         .fullScreenCover(isPresented: $isCompanionChatVisible) {
             CompanionChatPage()
                 .environmentObject(store)
                 .preferredColorScheme(.light)
-        }
-        .fullScreenCover(isPresented: $isStarMapVisible) {
-            StarMapView(
-                openHome: { isStarMapVisible = false },
-                openForest: {
-                    isStarMapVisible = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        openNotebook(.state)
-                    }
-                },
-                openMe: {
-                    isStarMapVisible = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                        isStateOverviewVisible = true
-                    }
-                }
-            )
-            .environmentObject(store)
-            .preferredColorScheme(.light)
         }
         .onChange(of: store.isChatCheckInVisible) {
             if store.isChatCheckInVisible { openNotebook(.chat) }
@@ -113,6 +64,57 @@ struct ChatView: View {
         }
         .onChange(of: store.isRecommendationVisible) {
             if store.isRecommendationVisible { openNotebook(.chat) }
+        }
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        switch selectedMainTab {
+        case .home:
+            SensenHomePage(
+                selectedTab: selectedMainTab,
+                openChat: { isCompanionChatVisible = true },
+                openForest: { selectedMainTab = .forest },
+                openNotebook: { selectedMainTab = .starMap },
+                openMe: { selectedMainTab = .me }
+            )
+        case .forest:
+            MainTabPage(
+                selectedTab: selectedMainTab,
+                openHome: { selectedMainTab = .home },
+                openForest: { selectedMainTab = .forest },
+                openStarMap: { selectedMainTab = .starMap },
+                openMe: { selectedMainTab = .me }
+            ) {
+                NavigationStack {
+                    CompanionGardenView()
+                }
+            }
+        case .starMap:
+            StarMapView(
+                openHome: { selectedMainTab = .home },
+                openForest: { selectedMainTab = .forest },
+                openMe: { selectedMainTab = .me }
+            )
+        case .me:
+            MainTabPage(
+                selectedTab: selectedMainTab,
+                openHome: { selectedMainTab = .home },
+                openForest: { selectedMainTab = .forest },
+                openStarMap: { selectedMainTab = .starMap },
+                openMe: { selectedMainTab = .me }
+            ) {
+                NavigationStack {
+                    StateOverviewView(
+                        openChat: { isCompanionChatVisible = true },
+                        openMessages: { openNotebook(.messages) },
+                        openSessions: { openNotebook(.sessions) },
+                        openMemory: { openNotebook(.memory) },
+                        openJournals: { openNotebook(.journals) },
+                        openSourceSession: continueHistoricalSession
+                    )
+                }
+            }
         }
     }
 
@@ -137,6 +139,44 @@ struct ChatView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             isCompanionChatVisible = true
         }
+    }
+}
+
+private enum MainTab {
+    case home
+    case forest
+    case starMap
+    case me
+}
+
+private struct MainTabPage<Content: View>: View {
+    let selectedTab: MainTab
+    let openHome: () -> Void
+    let openForest: () -> Void
+    let openStarMap: () -> Void
+    let openMe: () -> Void
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                content
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+
+                ImmersiveBottomBar(
+                    selectedTab: selectedTab,
+                    openHome: openHome,
+                    openForest: openForest,
+                    openStarMap: openStarMap,
+                    openMe: openMe
+                )
+                .padding(.horizontal, 24)
+                .padding(.bottom, 26)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .ignoresSafeArea(.container, edges: .bottom)
+            }
+        }
+        .ignoresSafeArea(.container, edges: .bottom)
     }
 }
 
@@ -179,6 +219,7 @@ private struct SideSettingsDrawer: View {
 private struct SensenHomePage: View {
     @EnvironmentObject private var store: CompanionStore
 
+    let selectedTab: MainTab
     let openChat: () -> Void
     let openForest: () -> Void
     let openNotebook: () -> Void
@@ -212,6 +253,7 @@ private struct SensenHomePage: View {
                 .offset(y: backgroundOffset)
 
                 ImmersiveBottomBar(
+                    selectedTab: selectedTab,
                     openHome: {},
                     openForest: openForest,
                     openStarMap: openNotebook,
@@ -249,9 +291,9 @@ private struct HomeInsightOverlay: View {
                     .foregroundStyle(Color(hex: 0x6f5a45).opacity(0.9))
                     .lineLimit(2)
                     .minimumScaleFactor(0.82)
-                    .multilineTextAlignment(.leading)
-                    .frame(width: cloudWidth * 0.68, height: cloudHeight, alignment: .leading)
-                    .position(x: cloudCenterX * 0.95, y: cloudCenterY)
+                    .multilineTextAlignment(.center)
+                    .frame(width: cloudWidth * 0.68, height: cloudHeight, alignment: .center)
+                    .position(x: cloudCenterX, y: cloudCenterY)
 
                 Button(action: openChat) {
                     Color.clear
@@ -267,6 +309,7 @@ private struct HomeInsightOverlay: View {
 }
 
 private struct ImmersiveBottomBar: View {
+    let selectedTab: MainTab
     let openHome: () -> Void
     let openForest: () -> Void
     let openStarMap: () -> Void
@@ -274,10 +317,10 @@ private struct ImmersiveBottomBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ImmersiveTabButton(title: "首页", systemImage: "house.fill", isSelected: true, action: openHome)
-            ImmersiveTabButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
-            ImmersiveTabButton(title: "星图", systemImage: "sparkles", isSelected: false, action: openStarMap)
-            ImmersiveRabbitTabButton(action: openMe)
+            ImmersiveTabButton(title: "首页", systemImage: "house.fill", isSelected: selectedTab == .home, action: openHome)
+            ImmersiveTabButton(title: "森林", systemImage: "tree.fill", isSelected: selectedTab == .forest, action: openForest)
+            ImmersiveTabButton(title: "星图", systemImage: "sparkles", isSelected: selectedTab == .starMap, action: openStarMap)
+            ImmersiveRabbitTabButton(isSelected: selectedTab == .me, action: openMe)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -314,6 +357,7 @@ private struct ImmersiveTabButton: View {
 }
 
 private struct ImmersiveRabbitTabButton: View {
+    let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
@@ -329,7 +373,7 @@ private struct ImmersiveRabbitTabButton: View {
                 Text("我的")
                     .font(SensenFonts.handwritten(size: 10))
             }
-            .foregroundStyle(Color.warmBrown.opacity(0.72))
+            .foregroundStyle(isSelected ? Color(hex: 0x8a6ea8) : Color.warmBrown.opacity(0.72))
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)

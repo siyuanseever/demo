@@ -15,9 +15,7 @@ struct StarMapView: View {
             let backgroundOffset = -(safeTop - safeBottom) / 2
 
             ZStack {
-                Image("starmap_background_cloud")
-                    .resizable()
-                    .scaledToFill()
+                StarMapBundleImage(name: "starmap_background_cloud")
                     .frame(width: geometry.size.width, height: fullHeight)
                     .offset(y: backgroundOffset)
                     .clipped()
@@ -42,6 +40,22 @@ struct StarMapView: View {
         }
         .task {
             await store.refreshStarMapInsight()
+        }
+    }
+}
+
+private struct StarMapBundleImage: View {
+    let name: String
+
+    var body: some View {
+        Group {
+            if let image = UIImage(named: name) ?? UIImage(named: "\(name).png") {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color(hex: 0xf4efe8)
+            }
         }
     }
 }
