@@ -235,6 +235,14 @@ final class ChatService {
         let _: EmptyResponseBody = try await decode(request)
     }
 
+    func fetchStarMapInsight() async throws -> StarMapInsight {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/star_map_insight"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        let response: StarMapInsightResponseBody = try await decode(request)
+        return response.starMapInsight
+    }
+
     private func currentSessionID() async throws -> String {
         if let sessionID {
             return sessionID
@@ -523,6 +531,75 @@ private struct HomeHintResponseBody: Decodable {
         source = try container.decodeIfPresent(String.self, forKey: .source) ?? ""
         liked = try container.decodeIfPresent(Bool.self, forKey: .liked) ?? false
         context = try container.decodeIfPresent([String: [String]].self, forKey: .context) ?? [:]
+    }
+}
+
+private struct StarMapInsightResponseBody: Decodable {
+    let id: String
+    let generatedAt: String
+    let periodStart: String
+    let periodEnd: String
+    let coreInsight: String
+    let coreInsightDetail: String
+    let recentPatternTitle: String
+    let recentPatternItems: [String]
+    let recentPatternDetail: String
+    let flowConditionTitle: String
+    let flowConditionItems: [String]
+    let flowConditionDetail: String
+    let gentleReminderTitle: String
+    let gentleReminder: String
+    let gentleReminderDetail: String
+    let sourceSummary: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case generatedAt = "generated_at"
+        case periodStart = "period_start"
+        case periodEnd = "period_end"
+        case coreInsight = "core_insight"
+        case coreInsightDetail = "core_insight_detail"
+        case recentPatternTitle = "recent_pattern_title"
+        case recentPatternItems = "recent_pattern_items"
+        case recentPatternDetail = "recent_pattern_detail"
+        case flowConditionTitle = "flow_condition_title"
+        case flowConditionItems = "flow_condition_items"
+        case flowConditionDetail = "flow_condition_detail"
+        case gentleReminderTitle = "gentle_reminder_title"
+        case gentleReminder = "gentle_reminder"
+        case gentleReminderDetail = "gentle_reminder_detail"
+        case sourceSummary = "source_summary"
+    }
+
+    var starMapInsight: StarMapInsight {
+        StarMapInsight(
+            id: id,
+            generatedAt: Self.date(from: generatedAt) ?? Date(),
+            periodStart: Self.date(from: periodStart) ?? Date(),
+            periodEnd: Self.date(from: periodEnd) ?? Date(),
+            coreInsight: coreInsight,
+            coreInsightDetail: coreInsightDetail,
+            recentPatternTitle: recentPatternTitle,
+            recentPatternItems: recentPatternItems,
+            recentPatternDetail: recentPatternDetail,
+            flowConditionTitle: flowConditionTitle,
+            flowConditionItems: flowConditionItems,
+            flowConditionDetail: flowConditionDetail,
+            gentleReminderTitle: gentleReminderTitle,
+            gentleReminder: gentleReminder,
+            gentleReminderDetail: gentleReminderDetail,
+            sourceSummary: sourceSummary
+        )
+    }
+
+    private static func date(from string: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: string) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: string)
     }
 }
 

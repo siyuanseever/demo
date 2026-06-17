@@ -107,11 +107,16 @@ struct StarMapInsight: Identifiable, Codable, Hashable {
     let periodStart: Date
     let periodEnd: Date
     let coreInsight: String
+    let coreInsightDetail: String
     let recentPatternTitle: String
     let recentPatternItems: [String]
+    let recentPatternDetail: String
     let flowConditionTitle: String
     let flowConditionItems: [String]
+    let flowConditionDetail: String
+    let gentleReminderTitle: String
     let gentleReminder: String
+    let gentleReminderDetail: String
     let sourceSummary: String
 
     var recentPattern: [String] {
@@ -122,17 +127,29 @@ struct StarMapInsight: Identifiable, Codable, Hashable {
         flowConditionItems
     }
 
+    var periodLabel: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(formatter.string(from: periodStart)) - \(formatter.string(from: periodEnd))"
+    }
+
     static let mock = StarMapInsight(
         id: "mock-star-map-insight",
         generatedAt: Date(),
         periodStart: Calendar.current.date(byAdding: .day, value: -60, to: Date()) ?? Date(),
         periodEnd: Date(),
         coreInsight: "过去两个月里，\n你最有生命力的时刻，\n都发生在探索未知的时候。",
+        coreInsightDetail: "这是一版本地 mock 的云朵观察。后续会根据最近 30-60 天的夜谈、总结、长期状态和记忆，让这里变成真正按月更新的生命力摘要。",
         recentPatternTitle: "最近的模式",
         recentPatternItems: ["阅读", "思考", "创造"],
+        recentPatternDetail: "最近的节奏更像是：先被一个问题牵住，随后独自反复琢磨，最后在表达或创造里慢慢把它变清楚。",
         flowConditionTitle: "容易进入心流的时候",
         flowConditionItems: ["夜晚", "独处", "没有明确答案的问题"],
+        flowConditionDetail: "当你不需要立刻给出正确答案，而是可以把注意力放在探索、连接和表达上时，更容易进入一种持续而专注的流动状态。",
+        gentleReminderTitle: "一个温柔提醒",
         gentleReminder: "最近你已经很久\n没有探索新的问题了。",
+        gentleReminderDetail: "如果最近总在处理压力和必须完成的事情，也许可以给自己留一点没有结果压力的空间，让好奇心慢慢回来。",
         sourceSummary: "基于最近的夜谈、日记和长期状态，暂时用本地 mock 数据呈现第一版星图。"
     )
 }

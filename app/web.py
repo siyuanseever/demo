@@ -2618,6 +2618,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/home_hint":
                 self.respond_home_hint()
                 return
+            if path == "/api/star_map_insight":
+                self.respond_star_map_insight()
+                return
             if path == "/api/knowledge_detail":
                 self.respond_knowledge_detail()
                 return
@@ -2652,6 +2655,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def respond_home_hint(self) -> None:
         self.respond_json(self.app.orchestrator.generate_home_hint())
+
+    def respond_star_map_insight(self) -> None:
+        self.respond_json(self.app.orchestrator.generate_star_map_insight())
 
     def respond_knowledge_detail(self) -> None:
         query = urlparse(self.path).query

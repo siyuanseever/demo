@@ -224,21 +224,14 @@ final class SQLiteDatabase {
         }
     }
 
-    func fetchOrGenerateStarMapInsight() -> StarMapInsight {
+    func latestStarMapInsight() -> StarMapInsight? {
         ensureStarMapInsightTable()
+        return latestPersistedStarMapInsight()
+    }
 
-        if
-            let cached = latestStarMapInsight(),
-            Date().timeIntervalSince(cached.generatedAt) < 7 * 24 * 60 * 60,
-            cached.coreInsight == StarMapInsight.mock.coreInsight
-        {
-            return cached
-        }
-
-        // TODO: Replace this mock backend result with a real WebUI endpoint call, then persist the response.
-        let generated = Self.mockStarMapInsight()
-        saveStarMapInsight(generated)
-        return generated
+    func saveStarMapInsight(_ insight: StarMapInsight) {
+        ensureStarMapInsightTable()
+        persistStarMapInsight(insight)
     }
 
     private func ensureStarMapInsightTable() {
@@ -250,24 +243,55 @@ final class SQLiteDatabase {
                 period_start TEXT NOT NULL,
                 period_end TEXT NOT NULL,
                 core_insight TEXT NOT NULL,
+                core_insight_detail TEXT NOT NULL DEFAULT '',
                 recent_pattern_title TEXT NOT NULL,
                 recent_pattern_items TEXT NOT NULL,
+                recent_pattern_detail TEXT NOT NULL DEFAULT '',
                 flow_condition_title TEXT NOT NULL,
                 flow_condition_items TEXT NOT NULL,
+                flow_condition_detail TEXT NOT NULL DEFAULT '',
+                gentle_reminder_title TEXT NOT NULL DEFAULT '',
                 gentle_reminder TEXT NOT NULL,
+                gentle_reminder_detail TEXT NOT NULL DEFAULT '',
                 source_summary TEXT NOT NULL
             )
             """
         )
+        ensureColumn(
+            table: "star_map_insights",
+            column: "core_insight_detail",
+            definition: "TEXT NOT NULL DEFAULT ''"
+        )
+        ensureColumn(
+            table: "star_map_insights",
+            column: "recent_pattern_detail",
+            definition: "TEXT NOT NULL DEFAULT ''"
+        )
+        ensureColumn(
+            table: "star_map_insights",
+            column: "flow_condition_detail",
+            definition: "TEXT NOT NULL DEFAULT ''"
+        )
+        ensureColumn(
+            table: "star_map_insights",
+            column: "gentle_reminder_title",
+            definition: "TEXT NOT NULL DEFAULT ''"
+        )
+        ensureColumn(
+            table: "star_map_insights",
+            column: "gentle_reminder_detail",
+            definition: "TEXT NOT NULL DEFAULT ''"
+        )
     }
 
-    private func latestStarMapInsight() -> StarMapInsight? {
+    private func latestPersistedStarMapInsight() -> StarMapInsight? {
         rows(
             sql: """
             SELECT id, generated_at, period_start, period_end, core_insight,
-                   recent_pattern_title, recent_pattern_items,
-                   flow_condition_title, flow_condition_items,
-                   gentle_reminder, source_summary
+                   core_insight_detail, recent_pattern_title, recent_pattern_items,
+                   recent_pattern_detail, flow_condition_title, flow_condition_items,
+                   flow_condition_detail, gentle_reminder_title, gentle_reminder,
+                   gentle_reminder_detail, source_summary
             FROM star_map_insights
             ORDER BY generated_at DESC
             LIMIT 1
@@ -277,16 +301,17 @@ final class SQLiteDatabase {
         .flatMap { Self.starMapInsight(from: $0) }
     }
 
-    private func saveStarMapInsight(_ insight: StarMapInsight) {
+    private func persistStarMapInsight(_ insight: StarMapInsight) {
         execute(
             sql: """
             INSERT OR REPLACE INTO star_map_insights (
                 id, generated_at, period_start, period_end, core_insight,
-                recent_pattern_title, recent_pattern_items,
-                flow_condition_title, flow_condition_items,
-                gentle_reminder, source_summary
+                core_insight_detail, recent_pattern_title, recent_pattern_items,
+                recent_pattern_detail, flow_condition_title, flow_condition_items,
+                flow_condition_detail, gentle_reminder_title, gentle_reminder,
+                gentle_reminder_detail, source_summary
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             bindings: [
                 insight.id,
@@ -294,14 +319,25 @@ final class SQLiteDatabase {
                 Self.string(from: insight.periodStart),
                 Self.string(from: insight.periodEnd),
                 insight.coreInsight,
+                insight.coreInsightDetail,
                 insight.recentPatternTitle,
                 Self.jsonString(from: insight.recentPatternItems),
+                insight.recentPatternDetail,
                 insight.flowConditionTitle,
                 Self.jsonString(from: insight.flowConditionItems),
+                insight.flowConditionDetail,
+                insight.gentleReminderTitle,
                 insight.gentleReminder,
+                insight.gentleReminderDetail,
                 insight.sourceSummary,
             ]
         )
+    }
+
+    private func ensureColumn(table: String, column: String, definition: String) {
+        let existingColumns = rows(sql: "PRAGMA table_info(\(table))").compactMap { $0["name"] }
+        guard !existingColumns.contains(column) else { return }
+        _ = execute(sql: "ALTER TABLE \(table) ADD COLUMN \(column) \(definition)")
     }
 
     private func rows(sql: String, bindings: [String] = []) -> [[String: String]] {
@@ -501,17 +537,18 @@ final class SQLiteDatabase {
             periodStart: periodStart,
             periodEnd: periodEnd,
             coreInsight: row["core_insight"] ?? StarMapInsight.mock.coreInsight,
+            coreInsightDetail: row["core_insight_detail"] ?? StarMapInsight.mock.coreInsightDetail,
             recentPatternTitle: row["recent_pattern_title"] ?? StarMapInsight.mock.recentPatternTitle,
             recentPatternItems: stringArray(from: row["recent_pattern_items"] ?? "[]"),
+            recentPatternDetail: row["recent_pattern_detail"] ?? StarMapInsight.mock.recentPatternDetail,
             flowConditionTitle: row["flow_condition_title"] ?? StarMapInsight.mock.flowConditionTitle,
             flowConditionItems: stringArray(from: row["flow_condition_items"] ?? "[]"),
+            flowConditionDetail: row["flow_condition_detail"] ?? StarMapInsight.mock.flowConditionDetail,
+            gentleReminderTitle: row["gentle_reminder_title"] ?? StarMapInsight.mock.gentleReminderTitle,
             gentleReminder: row["gentle_reminder"] ?? StarMapInsight.mock.gentleReminder,
+            gentleReminderDetail: row["gentle_reminder_detail"] ?? StarMapInsight.mock.gentleReminderDetail,
             sourceSummary: row["source_summary"] ?? ""
         )
-    }
-
-    private static func mockStarMapInsight() -> StarMapInsight {
-        StarMapInsight.mock
     }
 
     private static func string(from date: Date) -> String {

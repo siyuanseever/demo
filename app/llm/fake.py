@@ -114,6 +114,24 @@ class FakeClient:
                     },
                     ensure_ascii=False,
                 )
+            elif "月度星流观察" in system and "core_insight" in system:
+                content = json.dumps(
+                    {
+                        "core_insight": "过去这一个月里，\n你最有生命力的时刻，\n常出现在把模糊感受慢慢说清的时候。",
+                        "core_insight_detail": "fake 模式下，系统观察到用户在探索内在结构、允许复杂感受并尝试表达时，会比单纯压住自己更有流动感。这份观察用于验证星图接口和 iOS 展示链路。",
+                        "recent_pattern_title": "最近的模式",
+                        "recent_pattern_items": ["察觉", "命名", "整理"],
+                        "recent_pattern_detail": "最近你似乎会先感觉到一团说不清的东西，随后尝试命名它，再把它慢慢整理成能被理解的线索。这种节奏本身已经是一种稳定下来的方式。",
+                        "flow_condition_title": "容易进入星流的时候",
+                        "flow_condition_items": ["夜晚", "独处", "开放问题"],
+                        "flow_condition_detail": "当外界催促较少、你有一点独处空间，而且面对的不是标准答案题，而是允许探索的问题时，你更容易进入一种有连贯感的状态。",
+                        "gentle_reminder_title": "一个温柔提醒",
+                        "gentle_reminder": "最近不必急着\n把自己说服，先把\n真实感受留住也很好。",
+                        "gentle_reminder_detail": "这段时间更重要的也许不是迅速得出结论，而是允许那些尚未成形的感受先存在。只要它们被看见，就已经在慢慢变化。",
+                        "source_summary": "fake 模式：基于最近材料生成的月度星图样例。",
+                    },
+                    ensure_ascii=False,
+                )
             else:
                 content = json.dumps(
                     {

@@ -86,9 +86,7 @@ struct ChatView: View {
                 openStarMap: { selectedMainTab = .starMap },
                 openMe: { selectedMainTab = .me }
             ) {
-                NavigationStack {
-                    CompanionGardenView()
-                }
+                CompanionGardenView()
             }
         case .starMap:
             StarMapView(
@@ -318,7 +316,7 @@ private struct ImmersiveBottomBar: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ImmersiveTabButton(title: "首页", systemImage: "house.fill", isSelected: selectedTab == .home, action: openHome)
+            ImmersiveTabButton(title: "疗愈", systemImage: "house.fill", isSelected: selectedTab == .home, action: openHome)
             ImmersiveTabButton(title: "森林", systemImage: "tree.fill", isSelected: selectedTab == .forest, action: openForest)
             ImmersiveTabButton(title: "星图", systemImage: "sparkles", isSelected: selectedTab == .starMap, action: openStarMap)
             ImmersiveRabbitTabButton(isSelected: selectedTab == .me, action: openMe)
@@ -921,7 +919,7 @@ private struct SensenBottomBar: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
-            BottomBarButton(title: "首页", systemImage: "house.fill", isSelected: true, action: openHome)
+            BottomBarButton(title: "疗愈", systemImage: "house.fill", isSelected: true, action: openHome)
             BottomBarButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
 
             Button(action: openChat) {

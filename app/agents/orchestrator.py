@@ -3,6 +3,7 @@ import logging
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
@@ -324,6 +325,105 @@ class ConversationOrchestrator:
             "context": context,
         }
 
+    def generate_star_map_insight(self) -> dict:
+        now = datetime.now(timezone.utc)
+        recent_journals = self.store.list_journals(limit=80)
+        recent_messages = self.store.list_messages(limit=300)
+        state_profiles = self.store.list_state_profiles(limit=8)
+        memories = self.store.list_memories(limit=20)
+
+        month_cutoff = now - timedelta(days=30)
+        two_month_cutoff = now - timedelta(days=60)
+        journals_30 = self._filter_items_since(recent_journals, "created_at", month_cutoff)
+        messages_30 = self._filter_items_since(recent_messages, "created_at", month_cutoff)
+
+        if len(journals_30) >= 2 or len(messages_30) >= 16:
+            period_start = month_cutoff
+            selected_journals = journals_30
+            selected_messages = messages_30
+        else:
+            period_start = two_month_cutoff
+            selected_journals = self._filter_items_since(recent_journals, "created_at", two_month_cutoff)
+            selected_messages = self._filter_items_since(recent_messages, "created_at", two_month_cutoff)
+
+        selected_memories = self._filter_items_since(memories, "updated_at", period_start)
+        fallback = self._fallback_star_map_insight(
+            period_start=period_start,
+            period_end=now,
+            journals=selected_journals,
+            messages=selected_messages,
+            profiles=state_profiles,
+            memories=selected_memories,
+        )
+        context = {
+            "period_start": period_start.isoformat(),
+            "period_end": now.isoformat(),
+            "journal_count": len(selected_journals),
+            "message_count": len(selected_messages),
+            "journals": [
+                {
+                    "created_at": item.get("created_at", ""),
+                    "summary": item.get("summary", ""),
+                    "dominant_emotion": item.get("dominant_emotion", ""),
+                    "keywords": item.get("keywords", []),
+                    "insights": item.get("insights", []),
+                    "suggested_next_step": item.get("suggested_next_step", ""),
+                }
+                for item in selected_journals[:12]
+            ],
+            "state_profiles": [
+                {
+                    "domain": item.get("domain", ""),
+                    "stage": item.get("stage", ""),
+                    "summary": item.get("summary", ""),
+                    "trend": item.get("trend", ""),
+                    "support_strategy": item.get("support_strategy", ""),
+                }
+                for item in state_profiles[:8]
+            ],
+            "memories": [
+                {
+                    "category": item.get("category", ""),
+                    "subcategory": item.get("subcategory", ""),
+                    "content": item.get("content", ""),
+                    "keywords": item.get("keywords", []),
+                    "updated_at": item.get("updated_at", ""),
+                }
+                for item in selected_memories[:10]
+            ],
+            "message_snippets": [
+                {
+                    "created_at": item.get("created_at", ""),
+                    "role": item.get("role", ""),
+                    "content": str(item.get("content", ""))[:120],
+                }
+                for item in selected_messages[-24:]
+            ],
+        }
+
+        try:
+            response = self.llm.chat(
+                [
+                    {"role": "system", "content": read_prompt("star_map_monthly_review.md")},
+                    {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
+                ],
+                temperature=0.3,
+                max_tokens=1200,
+                response_format={"type": "json_object"},
+            )
+            payload = json.loads(response.content)
+            if isinstance(payload, dict):
+                normalized = self._normalize_star_map_payload(payload, fallback=fallback)
+                fallback.update(normalized)
+        except Exception:
+            self.logger.exception("star map monthly review failed")
+
+        fallback["id"] = str(uuid.uuid4())
+        fallback["generated_at"] = now.isoformat()
+        fallback["period_start"] = period_start.isoformat()
+        fallback["period_end"] = now.isoformat()
+        return fallback
+
     @staticmethod
     def _clean_home_hint_text(text: str) -> str:
         cleaned = text.strip().strip("「」“”\"'")
@@ -336,6 +436,98 @@ class ConversationOrchestrator:
         if len(cleaned) > 58:
             cleaned = cleaned[:58].rstrip("，。,. ") + "。"
         return cleaned
+
+    def _normalize_star_map_payload(self, payload: dict, fallback: dict) -> dict:
+        def short_text(key: str, limit: int) -> str:
+            text = str(payload.get(key) or fallback.get(key, "")).strip()
+            return text[:limit]
+
+        def string_list(key: str) -> list[str]:
+            values = payload.get(key)
+            if not isinstance(values, list):
+                values = fallback.get(key, [])
+            result = [str(item).strip()[:28] for item in values if str(item).strip()]
+            return result[:4] or list(fallback.get(key, []))[:4]
+
+        return {
+            "core_insight": short_text("core_insight", 120),
+            "core_insight_detail": short_text("core_insight_detail", 240),
+            "recent_pattern_title": short_text("recent_pattern_title", 20),
+            "recent_pattern_items": string_list("recent_pattern_items"),
+            "recent_pattern_detail": short_text("recent_pattern_detail", 240),
+            "flow_condition_title": short_text("flow_condition_title", 24),
+            "flow_condition_items": string_list("flow_condition_items"),
+            "flow_condition_detail": short_text("flow_condition_detail", 240),
+            "gentle_reminder_title": short_text("gentle_reminder_title", 20),
+            "gentle_reminder": short_text("gentle_reminder", 120),
+            "gentle_reminder_detail": short_text("gentle_reminder_detail", 240),
+            "source_summary": short_text("source_summary", 160),
+        }
+
+    def _fallback_star_map_insight(
+        self,
+        *,
+        period_start: datetime,
+        period_end: datetime,
+        journals: list[dict],
+        messages: list[dict],
+        profiles: list[dict],
+        memories: list[dict],
+    ) -> dict:
+        keywords: list[str] = []
+        for journal in journals[:8]:
+            for keyword in journal.get("keywords", [])[:4]:
+                text = str(keyword).strip()
+                if text and text not in keywords:
+                    keywords.append(text)
+        if not keywords:
+            keywords = [str(item.get("subcategory", "")).strip() for item in memories[:3] if str(item.get("subcategory", "")).strip()]
+        if not keywords:
+            keywords = ["独处", "慢一点", "被看见"]
+
+        recent_summary = str(journals[0].get("summary", "")).strip() if journals else ""
+        profile_summary = str(profiles[0].get("summary", "")).strip() if profiles else ""
+        evidence_text = "；".join(part for part in [recent_summary[:48], profile_summary[:48]] if part)
+        if not evidence_text:
+            evidence_text = "最近的材料还不算多，所以这份观察先保持在比较保守的程度。"
+
+        pattern_items = keywords[1:4] if len(keywords) > 1 else keywords[:3]
+        if not pattern_items:
+            pattern_items = ["先感受", "再整理", "慢慢说"]
+
+        return {
+            "core_insight": "这段时间里，\n你比较有生命力的时刻，\n常出现在能慢慢靠近真实感受的时候。",
+            "core_insight_detail": f"从最近的总结和对话看，当你不急着把自己定性，而是允许自己先感受、再整理时，内在会更容易松开一点。{evidence_text}",
+            "recent_pattern_title": "最近的模式",
+            "recent_pattern_items": pattern_items[:3],
+            "recent_pattern_detail": "最近你似乎在重复一种节奏：先察觉到不舒服，再试着给它命名，最后才慢慢找到能落地的一小步。这说明你不是停住了，而是在形成自己的整理方式。",
+            "flow_condition_title": "容易进入星流的时候",
+            "flow_condition_items": keywords[:3],
+            "flow_condition_detail": "从现有材料看，当外界催促稍微少一点、你能保留一点独处或自由整理的空间时，思路会更容易连起来，也更容易感到自己是活着的、在流动的。",
+            "gentle_reminder_title": "一个温柔提醒",
+            "gentle_reminder": "如果最近又开始急着\n解释自己，也可以先\n把感受留在身边。",
+            "gentle_reminder_detail": "最近的状态不一定需要立刻变成结论。有时候先把感受留在旁边，让它被看见、被陪一会儿，反而会比快速分析更有帮助。",
+            "source_summary": f"基于 {period_start.date().isoformat()} 到 {period_end.date().isoformat()} 的夜谈、总结、状态画像与记忆整理。",
+        }
+
+    def _filter_items_since(
+        self,
+        items: list[dict],
+        date_key: str,
+        cutoff: datetime,
+    ) -> list[dict]:
+        result = []
+        for item in items:
+            raw_value = str(item.get(date_key, "")).strip()
+            if not raw_value:
+                continue
+            try:
+                created_at = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if created_at >= cutoff:
+                result.append(item)
+        return result
 
     def reply(self, session_id: str, user_text: str, character_id: str | None = None) -> str:
         return self.reply_detail(session_id, user_text, character_id=character_id)["reply"]

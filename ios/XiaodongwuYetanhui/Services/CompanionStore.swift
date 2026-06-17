@@ -61,7 +61,7 @@ final class CompanionStore: ObservableObject {
             memories = database.memories()
             journals = database.journals()
             stateProfiles = database.stateProfiles()
-            starMapInsight = database.fetchOrGenerateStarMapInsight()
+            starMapInsight = database.latestStarMapInsight() ?? .mock
             snapshot = DashboardSnapshot(
                 sessionCount: database.count(table: "sessions"),
                 messageCount: database.count(table: "messages"),
@@ -85,8 +85,20 @@ final class CompanionStore: ObservableObject {
     func fetchOrGenerateStarMapInsight() async -> StarMapInsight {
         do {
             let database = try SQLiteDatabase()
-            return database.fetchOrGenerateStarMapInsight()
+            if
+                let cached = database.latestStarMapInsight(),
+                Calendar.current.isDate(cached.generatedAt, equalTo: Date(), toGranularity: .month)
+            {
+                return cached
+            }
+
+            let remoteInsight = try await chatService.fetchStarMapInsight()
+            database.saveStarMapInsight(remoteInsight)
+            return remoteInsight
         } catch {
+            if let database = try? SQLiteDatabase(), let cached = database.latestStarMapInsight() {
+                return cached
+            }
             return .mock
         }
     }
