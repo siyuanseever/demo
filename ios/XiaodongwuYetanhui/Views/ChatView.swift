@@ -57,13 +57,13 @@ struct ChatView: View {
                 .preferredColorScheme(.light)
         }
         .onChange(of: store.isChatCheckInVisible) {
-            if store.isChatCheckInVisible { openNotebook(.chat) }
+            if store.isChatCheckInVisible, !isCompanionChatVisible { openNotebook(.chat) }
         }
         .onChange(of: store.isMonsterCareGameVisible) {
-            if store.isMonsterCareGameVisible { openNotebook(.chat) }
+            if store.isMonsterCareGameVisible, !isCompanionChatVisible { openNotebook(.chat) }
         }
         .onChange(of: store.isRecommendationVisible) {
-            if store.isRecommendationVisible { openNotebook(.chat) }
+            if store.isRecommendationVisible, !isCompanionChatVisible { openNotebook(.chat) }
         }
     }
 
