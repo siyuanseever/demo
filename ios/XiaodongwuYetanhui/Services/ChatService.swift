@@ -1,6 +1,7 @@
 import Foundation
 
 struct ChatServiceResponse {
+    let sessionID: String?
     let reply: String
     let characterID: String?
     let expressionID: String?
@@ -34,6 +35,31 @@ struct HomeHint {
     let source: String
     let liked: Bool
     let context: [String: [String]]
+}
+
+struct RemoteSessionSummary {
+    let id: String
+    let createdAt: String
+    let endedAt: String
+}
+
+struct RemoteSessionDetail {
+    let sessionID: String
+    let messages: [RemoteChatMessage]
+}
+
+struct RemoteChatMessage {
+    let id: String
+    let sessionID: String
+    let role: String
+    let content: String
+    let model: String
+    let createdAt: String
+    let characterID: String
+    let groupRole: String
+    let action: String
+    let expressionID: String
+    let knowledgeCardIDs: [String]
 }
 
 final class ChatService {
@@ -98,6 +124,7 @@ final class ChatService {
                 $0.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "main"
             } ?? max(0, groupMessages.count - 1)
             return ChatServiceResponse(
+                sessionID: sessionID,
                 reply: response.reply,
                 characterID: response.character?.id ?? character.id,
                 expressionID: response.expression?.id ?? response.routePlan?.expressionID,
@@ -120,6 +147,7 @@ final class ChatService {
             )
         } catch {
             return ChatServiceResponse(
+                sessionID: nil,
                 reply: fallbackReply ?? Self.fallbackReply(for: text, character: character),
                 characterID: character.id,
                 expressionID: character.defaultExpressionID,
@@ -150,6 +178,33 @@ final class ChatService {
 
     func resetSession() {
         sessionID = nil
+    }
+
+    func useSession(_ sessionID: String) {
+        self.sessionID = sessionID
+    }
+
+    func fetchSessions(limit: Int = 80) async throws -> [RemoteSessionSummary] {
+        let url = try url(path: "/api/data", queryItems: [
+            URLQueryItem(name: "type", value: "sessions"),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ])
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 12
+        let response: RemoteSessionsResponseBody = try await decode(request)
+        return response.items.map(\.remoteSession)
+    }
+
+    func fetchSessionDetail(sessionID: String) async throws -> RemoteSessionDetail {
+        let url = try url(path: "/api/session_detail", queryItems: [
+            URLQueryItem(name: "id", value: sessionID),
+        ])
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        let response: RemoteSessionDetailResponseBody = try await decode(request)
+        return response.remoteDetail(sessionID: sessionID)
     }
 
     func homeHint() async throws -> HomeHint {
@@ -198,6 +253,18 @@ final class ChatService {
         request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         return request
+    }
+
+    private func url(path: String, queryItems: [URLQueryItem]) throws -> URL {
+        let normalizedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard var components = URLComponents(url: baseURL.appendingPathComponent(normalizedPath), resolvingAgainstBaseURL: false) else {
+            throw ChatServiceError.invalidResponse
+        }
+        components.queryItems = queryItems
+        guard let url = components.url else {
+            throw ChatServiceError.invalidResponse
+        }
+        return url
     }
 
     private func decode<Response: Decodable>(_ request: URLRequest) async throws -> Response {
@@ -286,6 +353,85 @@ private struct SessionResponseBody: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case sessionID = "session_id"
+    }
+}
+
+private struct RemoteSessionsResponseBody: Decodable {
+    let items: [RemoteSessionResponseBody]
+}
+
+private struct RemoteSessionResponseBody: Decodable {
+    let id: String
+    let createdAt: String
+    let endedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case createdAt = "created_at"
+        case endedAt = "ended_at"
+    }
+
+    var remoteSession: RemoteSessionSummary {
+        RemoteSessionSummary(
+            id: id,
+            createdAt: createdAt,
+            endedAt: endedAt ?? ""
+        )
+    }
+}
+
+private struct RemoteSessionDetailResponseBody: Decodable {
+    let messages: [RemoteMessageResponseBody]
+
+    func remoteDetail(sessionID: String) -> RemoteSessionDetail {
+        RemoteSessionDetail(
+            sessionID: sessionID,
+            messages: messages.map(\.remoteMessage)
+        )
+    }
+}
+
+private struct RemoteMessageResponseBody: Decodable {
+    let id: String
+    let sessionID: String
+    let role: String
+    let content: String
+    let model: String?
+    let createdAt: String
+    let characterID: String?
+    let groupRole: String?
+    let action: String?
+    let expressionID: String?
+    let knowledgeCardIDs: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionID = "session_id"
+        case role
+        case content
+        case model
+        case createdAt = "created_at"
+        case characterID = "character_id"
+        case groupRole = "group_role"
+        case action
+        case expressionID = "expression_id"
+        case knowledgeCardIDs = "knowledge_card_ids"
+    }
+
+    var remoteMessage: RemoteChatMessage {
+        RemoteChatMessage(
+            id: id,
+            sessionID: sessionID,
+            role: role,
+            content: content,
+            model: model ?? "",
+            createdAt: createdAt,
+            characterID: characterID ?? "",
+            groupRole: groupRole ?? "",
+            action: action ?? "",
+            expressionID: expressionID ?? "",
+            knowledgeCardIDs: knowledgeCardIDs ?? []
+        )
     }
 }
 

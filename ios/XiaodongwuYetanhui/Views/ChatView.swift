@@ -2433,6 +2433,9 @@ private struct SessionHistoryView: View {
         }
         .navigationTitle("会话")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await store.syncSessionsFromBackend()
+        }
     }
 }
 

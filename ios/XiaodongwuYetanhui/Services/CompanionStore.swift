@@ -25,6 +25,7 @@ final class CompanionStore: ObservableObject {
     @Published var recommendationHistory: [CompanionRecommendation] = []
     @Published var isGroupMode = true
     @Published var sessionNotice: String?
+    @Published var isSessionSyncing = false
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
     @Published var homeEncouragementHint: HomeHint?
     @Published var isHomeEncouragementLiked = false
@@ -48,6 +49,9 @@ final class CompanionStore: ObservableObject {
         latestRecommendation = recommendationHistory.first
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         load()
+        Task {
+            await syncSessionsFromBackend()
+        }
     }
 
     func load() {
@@ -92,12 +96,22 @@ final class CompanionStore: ObservableObject {
     }
 
     func openSession(_ sessionID: String) {
+        chatService.useSession(sessionID)
         do {
             let database = try SQLiteDatabase()
             let loadedMessages = database.messages(sessionID: sessionID)
             messages = loadedMessages.isEmpty ? [Self.greetingMessage(characterID: selectedCharacterID)] : loadedMessages
             sessionNotice = "已打开历史会话。继续发送时会进入当前夜谈。"
             chatNotice = nil
+            if loadedMessages.isEmpty {
+                Task {
+                    await syncSessionFromBackend(sessionID)
+                    let syncedMessages = (try? SQLiteDatabase().messages(sessionID: sessionID)) ?? []
+                    if !syncedMessages.isEmpty {
+                        messages = syncedMessages
+                    }
+                }
+            }
         } catch {
             sessionNotice = "暂时无法打开这个会话：\(Self.describe(error))"
         }
@@ -124,6 +138,7 @@ final class CompanionStore: ObservableObject {
         do {
             let summary = try await chatService.closeCurrentSession()
             sessionNotice = "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
+            await syncSessionsFromBackend()
             load()
             messages.append(
                 ChatMessage(
@@ -138,6 +153,49 @@ final class CompanionStore: ObservableObject {
             sessionNotice = "暂时无法结束会话：\(Self.describe(error))"
         }
         isSending = false
+    }
+
+    func syncSessionsFromBackend() async {
+        guard !isSessionSyncing else { return }
+        isSessionSyncing = true
+        defer { isSessionSyncing = false }
+        do {
+            let remoteSessions = try await chatService.fetchSessions()
+            let database = try SQLiteDatabase()
+            for session in remoteSessions {
+                database.upsertRemoteSession(session)
+            }
+            for session in remoteSessions.prefix(20) {
+                let detail = try await chatService.fetchSessionDetail(sessionID: session.id)
+                database.upsertRemoteMessages(detail.messages)
+            }
+            load()
+            if !remoteSessions.isEmpty {
+                sessionNotice = "已同步 Mac 后端的最近会话。"
+            }
+        } catch {
+            sessionNotice = "暂时无法同步 Mac 后端会话：\(Self.describe(error))"
+        }
+    }
+
+    func syncSessionFromBackend(_ sessionID: String) async {
+        do {
+            let detail = try await chatService.fetchSessionDetail(sessionID: sessionID)
+            let database = try SQLiteDatabase()
+            if let firstMessage = detail.messages.first {
+                database.upsertRemoteSession(
+                    RemoteSessionSummary(
+                        id: detail.sessionID,
+                        createdAt: firstMessage.createdAt,
+                        endedAt: ""
+                    )
+                )
+            }
+            database.upsertRemoteMessages(detail.messages)
+            load()
+        } catch {
+            sessionNotice = "暂时无法同步这个会话：\(Self.describe(error))"
+        }
     }
 
     func checkBackendConnection() async {
@@ -468,6 +526,9 @@ final class CompanionStore: ObservableObject {
         chatNotice = response.notice
         isChatCheckInVisible = shouldSuggestCheckIn && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + response.reply)
         refreshInteractionOffers()
+        if !response.usedFallback, let sessionID = response.sessionID {
+            await syncSessionFromBackend(sessionID)
+        }
         isSending = false
     }
 

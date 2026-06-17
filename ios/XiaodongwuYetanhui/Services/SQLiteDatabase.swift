@@ -87,6 +87,50 @@ final class SQLiteDatabase {
         }
     }
 
+    func upsertRemoteSession(_ session: RemoteSessionSummary) {
+        execute(
+            sql: """
+            INSERT INTO sessions (id, created_at, ended_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                created_at = excluded.created_at,
+                ended_at = excluded.ended_at
+            """,
+            bindings: [
+                session.id,
+                session.createdAt,
+                session.endedAt,
+            ]
+        )
+    }
+
+    func upsertRemoteMessages(_ messages: [RemoteChatMessage]) {
+        for message in messages {
+            execute(
+                sql: """
+                INSERT INTO messages (id, session_id, role, content, model, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    role = excluded.role,
+                    content = excluded.content,
+                    model = excluded.model,
+                    metadata = excluded.metadata,
+                    created_at = excluded.created_at
+                """,
+                bindings: [
+                    message.id,
+                    message.sessionID,
+                    message.role,
+                    message.content,
+                    message.model,
+                    Self.metadataString(from: message),
+                    message.createdAt,
+                ]
+            )
+        }
+    }
+
     func messages(sessionID: String, limit: Int = 120) -> [ChatMessage] {
         rows(
             sql: """
@@ -413,6 +457,32 @@ final class SQLiteDatabase {
             let text = String(data: data, encoding: .utf8)
         else {
             return "[]"
+        }
+        return text
+    }
+
+    private static func metadataString(from message: RemoteChatMessage) -> String {
+        var metadata: [String: Any] = [:]
+        if !message.characterID.isEmpty {
+            metadata["character_id"] = message.characterID
+        }
+        if !message.groupRole.isEmpty {
+            metadata["group_role"] = message.groupRole
+        }
+        if !message.action.isEmpty {
+            metadata["action"] = message.action
+        }
+        if !message.expressionID.isEmpty {
+            metadata["expression_id"] = message.expressionID
+        }
+        if !message.knowledgeCardIDs.isEmpty {
+            metadata["knowledge_card_ids"] = message.knowledgeCardIDs
+        }
+        guard
+            let data = try? JSONSerialization.data(withJSONObject: metadata),
+            let text = String(data: data, encoding: .utf8)
+        else {
+            return "{}"
         }
         return text
     }
