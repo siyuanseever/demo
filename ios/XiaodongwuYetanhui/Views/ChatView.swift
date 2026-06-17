@@ -8,6 +8,7 @@ struct ChatView: View {
     @State private var isCompanionChatVisible = false
     @State private var isSideSettingsVisible = false
     @State private var isStateOverviewVisible = false
+    @State private var isStarMapVisible = false
     @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
@@ -18,7 +19,7 @@ struct ChatView: View {
             SensenHomePage(
                 openChat: { isCompanionChatVisible = true },
                 openForest: { openNotebook(.state) },
-                openNotebook: { openNotebook(.memory) },
+                openNotebook: { isStarMapVisible = true },
                 openMe: { isStateOverviewVisible = true }
             )
             .environmentObject(store)
@@ -84,6 +85,13 @@ struct ChatView: View {
             CompanionChatPage()
                 .environmentObject(store)
                 .preferredColorScheme(.light)
+        }
+        .fullScreenCover(isPresented: $isStarMapVisible) {
+            StarMapView {
+                isStarMapVisible = false
+            }
+            .environmentObject(store)
+            .preferredColorScheme(.light)
         }
         .onChange(of: store.isChatCheckInVisible) {
             if store.isChatCheckInVisible { openNotebook(.chat) }

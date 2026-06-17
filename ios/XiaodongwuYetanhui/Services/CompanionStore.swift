@@ -28,6 +28,7 @@ final class CompanionStore: ObservableObject {
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
     @Published var homeEncouragementHint: HomeHint?
     @Published var isHomeEncouragementLiked = false
+    @Published var starMapInsight = StarMapInsight.mock
 
     private let chatService = ChatService()
     private let interactionService = InteractionService()
@@ -55,6 +56,7 @@ final class CompanionStore: ObservableObject {
             memories = database.memories()
             journals = database.journals()
             stateProfiles = database.stateProfiles()
+            starMapInsight = database.fetchOrGenerateStarMapInsight()
             snapshot = DashboardSnapshot(
                 sessionCount: database.count(table: "sessions"),
                 messageCount: database.count(table: "messages"),
@@ -73,6 +75,15 @@ final class CompanionStore: ObservableObject {
             }
         }
         refreshInteractionOffers()
+    }
+
+    func refreshStarMapInsight() {
+        do {
+            let database = try SQLiteDatabase()
+            starMapInsight = database.fetchOrGenerateStarMapInsight()
+        } catch {
+            starMapInsight = .mock
+        }
     }
 
     func openSession(_ sessionID: String) {

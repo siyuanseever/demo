@@ -101,6 +101,34 @@ struct StateProfile: Identifiable, Hashable {
     let updatedAt: String
 }
 
+struct StarMapInsight: Identifiable, Codable, Hashable {
+    let id: String
+    let generatedAt: Date
+    let periodStart: Date
+    let periodEnd: Date
+    let coreInsight: String
+    let recentPatternTitle: String
+    let recentPatternItems: [String]
+    let flowConditionTitle: String
+    let flowConditionItems: [String]
+    let gentleReminder: String
+    let sourceSummary: String
+
+    static let mock = StarMapInsight(
+        id: "mock-star-map-insight",
+        generatedAt: Date(),
+        periodStart: Calendar.current.date(byAdding: .day, value: -60, to: Date()) ?? Date(),
+        periodEnd: Date(),
+        coreInsight: "过去两个月里，你最有生命力的时刻，都发生在探索未知的时候。",
+        recentPatternTitle: "最近的模式",
+        recentPatternItems: ["阅读", "思考", "创造"],
+        flowConditionTitle: "容易进入心流的时候",
+        flowConditionItems: ["夜晚", "独处", "没有明确答案的问题"],
+        gentleReminder: "最近你已经很久没有探索新的问题了。",
+        sourceSummary: "基于最近的夜谈、日记和长期状态，暂时用本地 mock 数据呈现第一版星图。"
+    )
+}
+
 struct DashboardSnapshot {
     var sessionCount: Int = 0
     var messageCount: Int = 0

@@ -84,6 +84,7 @@
 		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
 		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
 		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
+		000000000000000000000178 /* StarMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000368 /* StarMapView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -159,6 +160,7 @@
 		000000000000000000000365 /* sensen-scene-sunset-lake.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-sunset-lake.png"; path = "../app/static/sensen-scene-sunset-lake.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000366 /* sensen-scene-cloud-observatory.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-cloud-observatory.png"; path = "../app/static/sensen-scene-cloud-observatory.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000367 /* sensen-home-cloud-observatory-full.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-home-cloud-observatory-full.png"; path = "../app/static/sensen-home-cloud-observatory-full.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
@@ -241,6 +243,7 @@
 				000000000000000000000208 /* StateOverviewView.swift */,
 				000000000000000000000209 /* MemoryListView.swift */,
 				000000000000000000000210 /* CompanionGardenView.swift */,
+				000000000000000000000368 /* StarMapView.swift */,
 				000000000000000000000316 /* SettingsView.swift */,
 				000000000000000000000317 /* EmotionCheckInView.swift */,
 			);
@@ -472,6 +475,7 @@
 				000000000000000000000108 /* StateOverviewView.swift in Sources */,
 				000000000000000000000109 /* MemoryListView.swift in Sources */,
 				000000000000000000000110 /* CompanionGardenView.swift in Sources */,
+				000000000000000000000178 /* StarMapView.swift in Sources */,
 				000000000000000000000126 /* SettingsView.swift in Sources */,
 				000000000000000000000127 /* EmotionCheckInView.swift in Sources */,
 			);

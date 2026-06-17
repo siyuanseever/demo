@@ -180,6 +180,82 @@ final class SQLiteDatabase {
         }
     }
 
+    func fetchOrGenerateStarMapInsight() -> StarMapInsight {
+        ensureStarMapInsightTable()
+
+        if let cached = latestStarMapInsight(), Date().timeIntervalSince(cached.generatedAt) < 7 * 24 * 60 * 60 {
+            return cached
+        }
+
+        // TODO: Replace this mock backend result with a real WebUI endpoint call, then persist the response.
+        let generated = Self.mockStarMapInsight()
+        saveStarMapInsight(generated)
+        return generated
+    }
+
+    private func ensureStarMapInsightTable() {
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS star_map_insights (
+                id TEXT PRIMARY KEY,
+                generated_at TEXT NOT NULL,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                core_insight TEXT NOT NULL,
+                recent_pattern_title TEXT NOT NULL,
+                recent_pattern_items TEXT NOT NULL,
+                flow_condition_title TEXT NOT NULL,
+                flow_condition_items TEXT NOT NULL,
+                gentle_reminder TEXT NOT NULL,
+                source_summary TEXT NOT NULL
+            )
+            """
+        )
+    }
+
+    private func latestStarMapInsight() -> StarMapInsight? {
+        rows(
+            sql: """
+            SELECT id, generated_at, period_start, period_end, core_insight,
+                   recent_pattern_title, recent_pattern_items,
+                   flow_condition_title, flow_condition_items,
+                   gentle_reminder, source_summary
+            FROM star_map_insights
+            ORDER BY generated_at DESC
+            LIMIT 1
+            """
+        )
+        .first
+        .flatMap { Self.starMapInsight(from: $0) }
+    }
+
+    private func saveStarMapInsight(_ insight: StarMapInsight) {
+        execute(
+            sql: """
+            INSERT OR REPLACE INTO star_map_insights (
+                id, generated_at, period_start, period_end, core_insight,
+                recent_pattern_title, recent_pattern_items,
+                flow_condition_title, flow_condition_items,
+                gentle_reminder, source_summary
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            bindings: [
+                insight.id,
+                Self.string(from: insight.generatedAt),
+                Self.string(from: insight.periodStart),
+                Self.string(from: insight.periodEnd),
+                insight.coreInsight,
+                insight.recentPatternTitle,
+                Self.jsonString(from: insight.recentPatternItems),
+                insight.flowConditionTitle,
+                Self.jsonString(from: insight.flowConditionItems),
+                insight.gentleReminder,
+                insight.sourceSummary,
+            ]
+        )
+    }
+
     private func rows(sql: String, bindings: [String] = []) -> [[String: String]] {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else {
@@ -205,6 +281,21 @@ final class SQLiteDatabase {
             result.append(row)
         }
         return result
+    }
+
+    @discardableResult
+    private func execute(sql: String, bindings: [String] = []) -> Bool {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else {
+            return false
+        }
+        defer { sqlite3_finalize(statement) }
+
+        for (index, value) in bindings.enumerated() {
+            sqlite3_bind_text(statement, Int32(index + 1), value, -1, SQLITE_TRANSIENT)
+        }
+
+        return sqlite3_step(statement) == SQLITE_DONE
     }
 
     private static func preparedDatabaseURL() throws -> URL {
@@ -312,6 +403,51 @@ final class SQLiteDatabase {
         return values
     }
 
+    private static func jsonString(from values: [String]) -> String {
+        guard
+            let data = try? JSONSerialization.data(withJSONObject: values),
+            let text = String(data: data, encoding: .utf8)
+        else {
+            return "[]"
+        }
+        return text
+    }
+
+    private static func starMapInsight(from row: [String: String]) -> StarMapInsight? {
+        guard
+            let generatedAt = date(from: row["generated_at"] ?? ""),
+            let periodStart = date(from: row["period_start"] ?? ""),
+            let periodEnd = date(from: row["period_end"] ?? "")
+        else {
+            return nil
+        }
+        return StarMapInsight(
+            id: row["id"] ?? UUID().uuidString,
+            generatedAt: generatedAt,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            coreInsight: row["core_insight"] ?? StarMapInsight.mock.coreInsight,
+            recentPatternTitle: row["recent_pattern_title"] ?? StarMapInsight.mock.recentPatternTitle,
+            recentPatternItems: stringArray(from: row["recent_pattern_items"] ?? "[]"),
+            flowConditionTitle: row["flow_condition_title"] ?? StarMapInsight.mock.flowConditionTitle,
+            flowConditionItems: stringArray(from: row["flow_condition_items"] ?? "[]"),
+            gentleReminder: row["gentle_reminder"] ?? StarMapInsight.mock.gentleReminder,
+            sourceSummary: row["source_summary"] ?? ""
+        )
+    }
+
+    private static func mockStarMapInsight() -> StarMapInsight {
+        StarMapInsight.mock
+    }
+
+    private static func string(from date: Date) -> String {
+        isoDateFormatter.string(from: date)
+    }
+
+    private static func date(from string: String) -> Date? {
+        isoDateFormatter.date(from: string)
+    }
+
     private static func chatMessage(from row: [String: String]) -> ChatMessage {
         let metadata = metadataObject(from: row["metadata"] ?? "{}")
         return ChatMessage(
@@ -368,6 +504,7 @@ final class SQLiteDatabase {
         return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复"
     }
 
+    private static let isoDateFormatter = ISO8601DateFormatter()
     private static let allowedTables = Set(["sessions", "messages", "memories", "journals"])
 }
 
