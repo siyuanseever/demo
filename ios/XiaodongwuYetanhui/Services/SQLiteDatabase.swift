@@ -183,7 +183,11 @@ final class SQLiteDatabase {
     func fetchOrGenerateStarMapInsight() -> StarMapInsight {
         ensureStarMapInsightTable()
 
-        if let cached = latestStarMapInsight(), Date().timeIntervalSince(cached.generatedAt) < 7 * 24 * 60 * 60 {
+        if
+            let cached = latestStarMapInsight(),
+            Date().timeIntervalSince(cached.generatedAt) < 7 * 24 * 60 * 60,
+            cached.coreInsight == StarMapInsight.mock.coreInsight
+        {
             return cached
         }
 

@@ -87,9 +87,21 @@ struct ChatView: View {
                 .preferredColorScheme(.light)
         }
         .fullScreenCover(isPresented: $isStarMapVisible) {
-            StarMapView {
-                isStarMapVisible = false
-            }
+            StarMapView(
+                openHome: { isStarMapVisible = false },
+                openForest: {
+                    isStarMapVisible = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        openNotebook(.state)
+                    }
+                },
+                openMe: {
+                    isStarMapVisible = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        isStateOverviewVisible = true
+                    }
+                }
+            )
             .environmentObject(store)
             .preferredColorScheme(.light)
         }
@@ -179,12 +191,11 @@ private struct SensenHomePage: View {
             let fullHeight = geometry.size.height + safeTop + safeBottom
             let backgroundOffset = -(safeTop - safeBottom) / 2
             let bottomGap: CGFloat = 26
-            let interItemGap: CGFloat = 24
             let horizontalInset: CGFloat = 24
 
             ZStack {
                 BundleImage(
-                    name: "sensen-home-cloud-observatory-full",
+                    name: "home_background_cloud",
                     contentMode: .fill,
                     fallbackSystemImage: "cloud.fill"
                 )
@@ -193,25 +204,22 @@ private struct SensenHomePage: View {
                 .clipped()
                 .ignoresSafeArea(.all)
 
-                VStack(spacing: 0) {
-                    Spacer()
+                HomeInsightOverlay(
+                    text: store.homeEncouragement,
+                    openChat: openChat
+                )
+                .frame(width: geometry.size.width, height: fullHeight)
+                .offset(y: backgroundOffset)
 
-                    CloudConversationEntry(
-                        text: store.homeEncouragement,
-                        openChat: openChat
-                    )
-                    .padding(.horizontal, horizontalInset)
-                    .padding(.bottom, interItemGap)
-
-                    ImmersiveBottomBar(
-                        openHome: {},
-                        openForest: openForest,
-                        openStarMap: openNotebook,
-                        openMe: openMe
-                    )
-                    .padding(.horizontal, horizontalInset)
-                    .padding(.bottom, bottomGap)
-                }
+                ImmersiveBottomBar(
+                    openHome: {},
+                    openForest: openForest,
+                    openStarMap: openNotebook,
+                    openMe: openMe
+                )
+                .padding(.horizontal, horizontalInset)
+                .padding(.bottom, bottomGap)
+                .frame(maxHeight: .infinity, alignment: .bottom)
                 .ignoresSafeArea(.container, edges: .bottom)
             }
             .ignoresSafeArea(.all)
@@ -223,44 +231,38 @@ private struct SensenHomePage: View {
     }
 }
 
-private struct CloudConversationEntry: View {
+private struct HomeInsightOverlay: View {
     let text: String
     let openChat: () -> Void
 
     var body: some View {
-        Button(action: openChat) {
+        GeometryReader { geometry in
+            let cloudWidth = geometry.size.width * 0.66
+            let cloudHeight = geometry.size.height * 0.11
+            let cloudCenterX = geometry.size.width * 0.43
+            let cloudCenterY = geometry.size.height * 0.75
+
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(hex: 0xf2e6d0))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color(hex: 0xd8c8b2).opacity(0.72), lineWidth: 1)
-                    }
+                Text(text.isEmpty ? "给自己留一个没有答案的问题。" : text)
+                    .font(SensenFonts.handwritten(size: 16))
+                    .lineSpacing(4)
+                    .foregroundStyle(Color(hex: 0x6f5a45).opacity(0.9))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: cloudWidth * 0.68, height: cloudHeight, alignment: .leading)
+                    .position(x: cloudCenterX * 0.95, y: cloudCenterY)
 
-                HStack(spacing: 12) {
-                    Text(text.isEmpty ? "给自己留一个没有答案的问题。" : text)
-                        .font(SensenFonts.handwritten(size: 15))
-                        .lineSpacing(3)
-                        .foregroundStyle(Color.warmBrown.opacity(0.88))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.86)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Text("...")
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.warmBrown.opacity(0.52))
-                        .padding(.bottom, 4)
+                Button(action: openChat) {
+                    Color.clear
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 11)
+                .buttonStyle(.plain)
+                .frame(width: cloudWidth, height: cloudHeight * 1.25)
+                .contentShape(Rectangle())
+                .position(x: cloudCenterX, y: cloudCenterY)
+                .accessibilityLabel("进入和忧忧兔的对话")
             }
-            .frame(height: 64)
-            .shadow(color: Color.warmBrown.opacity(0.08), radius: 8, x: 0, y: 4)
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("进入和忧忧兔的对话")
     }
 }
 
@@ -893,7 +895,7 @@ private struct SensenBottomBar: View {
             .frame(maxWidth: .infinity)
             .accessibilityLabel("忧忧兔")
 
-            BottomBarButton(title: "心事本", systemImage: "book.closed", isSelected: false, action: openNotebook)
+            BottomBarButton(title: "星图", systemImage: "sparkles", isSelected: false, action: openNotebook)
             BottomBarButton(title: "我的", systemImage: "person", isSelected: false, action: openMe)
         }
         .padding(.horizontal, 8)

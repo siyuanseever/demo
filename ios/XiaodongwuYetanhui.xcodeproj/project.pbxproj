@@ -78,6 +78,8 @@
 		000000000000000000000175 /* sensen-scene-sunset-lake.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000365 /* sensen-scene-sunset-lake.png */; };
 		000000000000000000000176 /* sensen-scene-cloud-observatory.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000366 /* sensen-scene-cloud-observatory.png */; };
 		000000000000000000000177 /* sensen-home-cloud-observatory-full.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000367 /* sensen-home-cloud-observatory-full.png */; };
+		000000000000000000000179 /* home_background_cloud.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000369 /* home_background_cloud.png */; };
+		000000000000000000000180 /* starmap_background_cloud.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000370 /* starmap_background_cloud.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -160,6 +162,8 @@
 		000000000000000000000365 /* sensen-scene-sunset-lake.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-sunset-lake.png"; path = "../app/static/sensen-scene-sunset-lake.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000366 /* sensen-scene-cloud-observatory.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-cloud-observatory.png"; path = "../app/static/sensen-scene-cloud-observatory.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000367 /* sensen-home-cloud-observatory-full.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-home-cloud-observatory-full.png"; path = "../app/static/sensen-home-cloud-observatory-full.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000369 /* home_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "home_background_cloud.png"; path = "../app/static/home_background_cloud.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000370 /* starmap_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "starmap_background_cloud.png"; path = "../app/static/starmap_background_cloud.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -312,6 +316,8 @@
 				000000000000000000000365 /* sensen-scene-sunset-lake.png */,
 				000000000000000000000366 /* sensen-scene-cloud-observatory.png */,
 				000000000000000000000367 /* sensen-home-cloud-observatory-full.png */,
+				000000000000000000000369 /* home_background_cloud.png */,
+				000000000000000000000370 /* starmap_background_cloud.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -451,6 +457,8 @@
 				000000000000000000000175 /* sensen-scene-sunset-lake.png in Resources */,
 				000000000000000000000176 /* sensen-scene-cloud-observatory.png in Resources */,
 				000000000000000000000177 /* sensen-home-cloud-observatory-full.png in Resources */,
+				000000000000000000000179 /* home_background_cloud.png in Resources */,
+				000000000000000000000180 /* starmap_background_cloud.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

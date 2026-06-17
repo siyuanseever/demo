@@ -77,13 +77,17 @@ final class CompanionStore: ObservableObject {
         refreshInteractionOffers()
     }
 
-    func refreshStarMapInsight() {
+    func fetchOrGenerateStarMapInsight() async -> StarMapInsight {
         do {
             let database = try SQLiteDatabase()
-            starMapInsight = database.fetchOrGenerateStarMapInsight()
+            return database.fetchOrGenerateStarMapInsight()
         } catch {
-            starMapInsight = .mock
+            return .mock
         }
+    }
+
+    func refreshStarMapInsight() async {
+        starMapInsight = await fetchOrGenerateStarMapInsight()
     }
 
     func openSession(_ sessionID: String) {
