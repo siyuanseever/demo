@@ -16,13 +16,13 @@ struct ChatView: View {
     var body: some View {
         ZStack(alignment: .leading) {
             SensenHomePage(
-                openMenu: { isSideSettingsVisible = true },
                 openChat: { isCompanionChatVisible = true },
                 openForest: { openNotebook(.state) },
                 openNotebook: { openNotebook(.memory) },
                 openMe: { isStateOverviewVisible = true }
             )
             .environmentObject(store)
+            .ignoresSafeArea(.all)
 
             if isSideSettingsVisible {
                 Color.black.opacity(0.18)
@@ -44,6 +44,7 @@ struct ChatView: View {
         }
         .animation(.snappy, value: isSideSettingsVisible)
         .toolbar(.hidden, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
         .sheet(isPresented: $isNotebookVisible) {
             ForestNotebookContent(
@@ -157,10 +158,7 @@ private struct SideSettingsDrawer: View {
 
 private struct SensenHomePage: View {
     @EnvironmentObject private var store: CompanionStore
-    @State private var selectedMoodIndex = 2
-    @State private var selectedHomeSceneID = ""
 
-    let openMenu: () -> Void
     let openChat: () -> Void
     let openForest: () -> Void
     let openNotebook: () -> Void
@@ -170,78 +168,161 @@ private struct SensenHomePage: View {
         GeometryReader { geometry in
             let safeTop = geometry.safeAreaInsets.top
             let safeBottom = geometry.safeAreaInsets.bottom
-            let bottomBarHeight: CGFloat = 50
-            let topBarHeight: CGFloat = 34
-            let topPadding = max(4, safeTop * 0.18)
-            let verticalSpacing: CGFloat = 11
-            let contentHeight = max(520, geometry.size.height - bottomBarHeight - 4)
-            let availableHeight = max(440, contentHeight - topPadding - topBarHeight - verticalSpacing * 4)
-            let heroHeight = availableHeight * 0.43
-            let actionHeight = availableHeight * 0.24
-            let moodHeight = availableHeight * 0.19
-            let encouragementHeight = availableHeight * 0.14
+            let fullHeight = geometry.size.height + safeTop + safeBottom
+            let backgroundOffset = -(safeTop - safeBottom) / 2
+            let bottomGap: CGFloat = 26
+            let interItemGap: CGFloat = 24
+            let horizontalInset: CGFloat = 24
 
-            ZStack(alignment: .bottom) {
-                Color(hex: 0xfffbf3).ignoresSafeArea()
+            ZStack {
+                BundleImage(
+                    name: "sensen-home-cloud-observatory-full",
+                    contentMode: .fill,
+                    fallbackSystemImage: "cloud.fill"
+                )
+                .frame(width: geometry.size.width, height: fullHeight)
+                .offset(y: backgroundOffset)
+                .clipped()
+                .ignoresSafeArea(.all)
 
-                VStack(alignment: .leading, spacing: verticalSpacing) {
-                    let homeScene = HomeSceneSelector.select(
-                        journals: store.journals,
-                        stateProfiles: store.stateProfiles,
-                        date: Date()
-                    )
+                VStack(spacing: 0) {
+                    Spacer()
 
-                    SensenTopBar(openMenu: openMenu, openMe: openMe)
-                        .frame(height: topBarHeight)
-                        .padding(.top, topPadding)
-                        .padding(.horizontal, 16)
-
-                    SensenHeroSection(
-                        scenes: HomeSceneSelector.allScenes,
-                        selectedSceneID: Binding(
-                            get: {
-                                selectedHomeSceneID.isEmpty ? homeScene.id : selectedHomeSceneID
-                            },
-                            set: { selectedHomeSceneID = $0 }
-                        ),
+                    CloudConversationEntry(
+                        text: store.homeEncouragement,
                         openChat: openChat
                     )
-                        .frame(height: heroHeight)
+                    .padding(.horizontal, horizontalInset)
+                    .padding(.bottom, interItemGap)
 
-                    CompanionActionSection()
-                        .frame(height: actionHeight)
-                        .padding(.horizontal, 16)
-
-                    MoodCheckSection(selectedMoodIndex: $selectedMoodIndex)
-                        .frame(height: moodHeight)
-                        .padding(.horizontal, 16)
-
-                    EncouragementCard(
-                        text: store.homeEncouragement,
-                        isLiked: store.isHomeEncouragementLiked,
-                        toggleLike: store.toggleHomeEncouragementLike
+                    ImmersiveBottomBar(
+                        openHome: {},
+                        openForest: openForest,
+                        openStarMap: openNotebook,
+                        openMe: openMe
                     )
-                        .frame(height: encouragementHeight)
-                        .padding(.horizontal, 16)
+                    .padding(.horizontal, horizontalInset)
+                    .padding(.bottom, bottomGap)
                 }
-                .frame(width: geometry.size.width, height: contentHeight, alignment: .top)
-                .frame(maxHeight: .infinity, alignment: .top)
-
-                SensenBottomBar(
-                    openHome: {},
-                    openForest: openForest,
-                    openChat: openChat,
-                    openNotebook: openNotebook,
-                    openMe: openMe,
-                    bottomInset: safeBottom
-                )
-                .frame(height: bottomBarHeight)
                 .ignoresSafeArea(.container, edges: .bottom)
             }
+            .ignoresSafeArea(.all)
         }
+        .ignoresSafeArea(.all)
         .task {
             await store.refreshHomeEncouragement()
         }
+    }
+}
+
+private struct CloudConversationEntry: View {
+    let text: String
+    let openChat: () -> Void
+
+    var body: some View {
+        Button(action: openChat) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(hex: 0xf2e6d0))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color(hex: 0xd8c8b2).opacity(0.72), lineWidth: 1)
+                    }
+
+                HStack(spacing: 12) {
+                    Text(text.isEmpty ? "给自己留一个没有答案的问题。" : text)
+                        .font(SensenFonts.handwritten(size: 15))
+                        .lineSpacing(3)
+                        .foregroundStyle(Color.warmBrown.opacity(0.88))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.86)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Text("...")
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.warmBrown.opacity(0.52))
+                        .padding(.bottom, 4)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+            }
+            .frame(height: 64)
+            .shadow(color: Color.warmBrown.opacity(0.08), radius: 8, x: 0, y: 4)
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("进入和忧忧兔的对话")
+    }
+}
+
+private struct ImmersiveBottomBar: View {
+    let openHome: () -> Void
+    let openForest: () -> Void
+    let openStarMap: () -> Void
+    let openMe: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ImmersiveTabButton(title: "首页", systemImage: "house.fill", isSelected: true, action: openHome)
+            ImmersiveTabButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
+            ImmersiveTabButton(title: "星图", systemImage: "sparkles", isSelected: false, action: openStarMap)
+            ImmersiveRabbitTabButton(action: openMe)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color(hex: 0xf2e6d0), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(hex: 0xd8c8b2).opacity(0.72), lineWidth: 1)
+        }
+        .shadow(color: Color.warmBrown.opacity(0.1), radius: 14, x: 0, y: 6)
+    }
+}
+
+private struct ImmersiveTabButton: View {
+    let title: String
+    let systemImage: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 31, height: 24)
+                    .background(isSelected ? Color(hex: 0xd7c4f2).opacity(0.5) : Color.clear, in: Capsule())
+                Text(title)
+                    .font(SensenFonts.handwritten(size: 10))
+            }
+            .foregroundStyle(isSelected ? Color(hex: 0x8a6ea8) : Color.warmBrown.opacity(0.72))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ImmersiveRabbitTabButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                BundleImage(
+                    name: "sensen-rabbit-flat-icon-v1",
+                    contentMode: .fill,
+                    fallbackSystemImage: "hare.fill"
+                )
+                .frame(width: 31, height: 31)
+                .clipShape(Circle())
+                Text("我的")
+                    .font(SensenFonts.handwritten(size: 10))
+            }
+            .foregroundStyle(Color.warmBrown.opacity(0.72))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
     }
 }
 
