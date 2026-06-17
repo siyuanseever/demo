@@ -262,7 +262,7 @@ final class ChatService {
             return URL(string: "http://127.0.0.1:8765")!
         #else
             // 真机用公网隧道
-            return URL(string: "http://u456abe3.natappfree.cc")!
+            return URL(string: "https://u456abe3.natappfree.cc")!
             // 真机用局域网 IP
             // return URL(string: "http://192.168.2.124:8765")!
         #endif
