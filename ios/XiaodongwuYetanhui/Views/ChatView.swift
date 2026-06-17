@@ -280,26 +280,27 @@ private struct HomeInsightOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             let cloudWidth = geometry.size.width * 0.66
-            let cloudHeight = geometry.size.height * 0.11
+            let cloudHeight = geometry.size.height * 0.13
             let cloudCenterX = geometry.size.width * 0.43
             let cloudCenterY = geometry.size.height * 0.75
 
             ZStack {
                 Text(text.isEmpty ? "给自己留一个没有答案的问题。" : text)
-                    .font(SensenFonts.handwritten(size: 16))
+                    .font(SensenFonts.handwritten(size: 15))
                     .lineSpacing(4)
                     .foregroundStyle(Color(hex: 0x6f5a45).opacity(0.9))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.78)
                     .multilineTextAlignment(.center)
-                    .frame(width: cloudWidth * 0.68, height: cloudHeight, alignment: .center)
+                    .frame(width: cloudWidth * 0.74, height: cloudHeight, alignment: .center)
                     .position(x: cloudCenterX, y: cloudCenterY)
 
                 Button(action: openChat) {
-                    Color.clear
+                    Rectangle()
+                        .fill(Color.black.opacity(0.001))
                 }
                 .buttonStyle(.plain)
-                .frame(width: cloudWidth, height: cloudHeight * 1.25)
+                .frame(width: cloudWidth, height: cloudHeight * 1.18)
                 .contentShape(Rectangle())
                 .position(x: cloudCenterX, y: cloudCenterY)
                 .accessibilityLabel("进入和忧忧兔的对话")

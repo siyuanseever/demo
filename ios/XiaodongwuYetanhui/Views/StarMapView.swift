@@ -25,6 +25,10 @@ struct StarMapView: View {
                     .frame(width: geometry.size.width, height: fullHeight)
                     .offset(y: backgroundOffset)
 
+                StarMapHitOverlay()
+                    .frame(width: geometry.size.width, height: fullHeight)
+                    .offset(y: backgroundOffset)
+
                 StarMapBottomBar(
                     openHome: openHome,
                     openForest: openForest,
@@ -77,7 +81,7 @@ private struct StarMapTextOverlay: View {
                     .lineLimit(3)
                     .minimumScaleFactor(0.82)
                     .frame(width: width * 0.72, height: height * 0.18)
-                    .position(x: width * 0.5, y: height * 0.36)
+                    .position(x: width * 0.5, y: height * 0.335)
 
                 Text(patternText)
                     .font(.custom("HannotateSC-W5", size: 17))
@@ -116,6 +120,45 @@ private struct StarMapTextOverlay: View {
 
     private var flowText: String {
         insight.flowConditions.joined(separator: "\n")
+    }
+}
+
+private struct StarMapHitOverlay: View {
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let height = geometry.size.height
+
+            ZStack {
+                transparentButton(label: "星图核心发现")
+                    .frame(width: width * 0.76, height: height * 0.22)
+                    .position(x: width * 0.5, y: height * 0.34)
+
+                transparentButton(label: "最近的模式")
+                    .frame(width: width * 0.26, height: height * 0.28)
+                    .position(x: width * 0.17, y: height * 0.66)
+
+                transparentButton(label: "容易进入心流的时候")
+                    .frame(width: width * 0.28, height: height * 0.28)
+                    .position(x: width * 0.5, y: height * 0.66)
+
+                transparentButton(label: "一个温柔提醒")
+                    .frame(width: width * 0.26, height: height * 0.28)
+                    .position(x: width * 0.83, y: height * 0.66)
+            }
+        }
+    }
+
+    private func transparentButton(label: String) -> some View {
+        Button {
+            // TODO: Open detail pages for each star map area.
+        } label: {
+            Rectangle()
+                .fill(Color.black.opacity(0.001))
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .accessibilityLabel(label)
     }
 }
 
@@ -172,9 +215,7 @@ private struct StarMapRabbitTabButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                Image("sensen-rabbit-flat-icon-v1")
-                    .resizable()
-                    .scaledToFill()
+                StarMapBundleImage(name: "sensen-rabbit-flat-icon-v1")
                     .frame(width: 31, height: 31)
                     .clipShape(Circle())
                 Text("我的")

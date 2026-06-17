@@ -35,6 +35,7 @@ final class CompanionStore: ObservableObject {
     private let recommendationService = RecommendationService()
     private let careMomentsStorageKey = "xiaolu.careMoments.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
+    private var lastHomeEncouragementRefreshAt: Date?
 
     var selectedCharacter: CompanionCharacter {
         character(id: selectedCharacterID) ?? CompanionFixtures.characters[0]
@@ -190,7 +191,16 @@ final class CompanionStore: ObservableObject {
         interactionOffers.removeAll { $0.id == offer.id }
     }
 
-    func refreshHomeEncouragement() async {
+    func refreshHomeEncouragement(force: Bool = false) async {
+        let now = Date()
+        if
+            !force,
+            let lastHomeEncouragementRefreshAt,
+            now.timeIntervalSince(lastHomeEncouragementRefreshAt) < 6 * 60 * 60
+        {
+            return
+        }
+        lastHomeEncouragementRefreshAt = now
         do {
             let hint = try await chatService.homeHint()
             let text = hint.text.trimmingCharacters(in: .whitespacesAndNewlines)
