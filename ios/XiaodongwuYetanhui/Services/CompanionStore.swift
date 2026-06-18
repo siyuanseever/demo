@@ -87,7 +87,8 @@ final class CompanionStore: ObservableObject {
             let database = try SQLiteDatabase()
             if
                 let cached = database.latestStarMapInsight(),
-                Calendar.current.isDate(cached.generatedAt, equalTo: Date(), toGranularity: .month)
+                Calendar.current.isDate(cached.generatedAt, equalTo: Date(), toGranularity: .month),
+                !cached.isMockInsight
             {
                 return cached
             }

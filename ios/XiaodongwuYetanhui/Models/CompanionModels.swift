@@ -134,6 +134,10 @@ struct StarMapInsight: Identifiable, Codable, Hashable {
         return "\(formatter.string(from: periodStart)) - \(formatter.string(from: periodEnd))"
     }
 
+    var isMockInsight: Bool {
+        id == StarMapInsight.mock.id || sourceSummary.contains("mock 数据") || sourceSummary.contains("fake 模式")
+    }
+
     static let mock = StarMapInsight(
         id: "mock-star-map-insight",
         generatedAt: Date(),
