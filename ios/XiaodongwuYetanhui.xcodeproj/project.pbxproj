@@ -81,6 +81,10 @@
 		000000000000000000000179 /* home_background_cloud.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000369 /* home_background_cloud.png */; };
 		000000000000000000000180 /* starmap_background_cloud.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000370 /* starmap_background_cloud.png */; };
 		000000000000000000000181 /* forest_map_background.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000371 /* forest_map_background.png */; };
+		000000000000000000000182 /* bailan-rabbit-couch.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000372 /* bailan-rabbit-couch.png */; };
+		000000000000000000000183 /* bailan-destroy-button.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000373 /* bailan-destroy-button.png */; };
+		000000000000000000000184 /* bailan-world-destroyed.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000374 /* bailan-world-destroyed.png */; };
+		000000000000000000000185 /* bailan-world-pause.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000375 /* bailan-world-pause.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -166,6 +170,10 @@
 		000000000000000000000369 /* home_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "home_background_cloud.png"; path = "../app/static/home_background_cloud.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000370 /* starmap_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "starmap_background_cloud.png"; path = "../app/static/starmap_background_cloud.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000371 /* forest_map_background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "forest_map_background.png"; path = "../app/static/forest_map_background.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000372 /* bailan-rabbit-couch.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-rabbit-couch.png"; path = "../app/static/bailan-rabbit-couch.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000373 /* bailan-destroy-button.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-destroy-button.png"; path = "../app/static/bailan-destroy-button.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000374 /* bailan-world-destroyed.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-world-destroyed.png"; path = "../app/static/bailan-world-destroyed.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000375 /* bailan-world-pause.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-world-pause.png"; path = "../app/static/bailan-world-pause.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -321,6 +329,10 @@
 				000000000000000000000369 /* home_background_cloud.png */,
 				000000000000000000000370 /* starmap_background_cloud.png */,
 				000000000000000000000371 /* forest_map_background.png */,
+				000000000000000000000372 /* bailan-rabbit-couch.png */,
+				000000000000000000000373 /* bailan-destroy-button.png */,
+				000000000000000000000374 /* bailan-world-destroyed.png */,
+				000000000000000000000375 /* bailan-world-pause.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -463,6 +475,10 @@
 				000000000000000000000179 /* home_background_cloud.png in Resources */,
 				000000000000000000000180 /* starmap_background_cloud.png in Resources */,
 				000000000000000000000181 /* forest_map_background.png in Resources */,
+				000000000000000000000182 /* bailan-rabbit-couch.png in Resources */,
+				000000000000000000000183 /* bailan-destroy-button.png in Resources */,
+				000000000000000000000184 /* bailan-world-destroyed.png in Resources */,
+				000000000000000000000185 /* bailan-world-pause.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
