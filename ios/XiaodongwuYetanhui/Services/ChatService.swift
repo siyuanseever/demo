@@ -62,6 +62,51 @@ struct RemoteChatMessage {
     let knowledgeCardIDs: [String]
 }
 
+struct RemoteMemory {
+    let id: String
+    let userID: String
+    let category: String
+    let subcategory: String
+    let keywords: [String]
+    let status: String
+    let content: String
+    let evidence: String
+    let confidence: Double
+    let importance: Int
+    let sourceSessionID: String
+    let createdAt: String
+    let updatedAt: String
+}
+
+struct RemoteJournal {
+    let id: String
+    let sessionID: String
+    let summary: String
+    let emotionCurve: [String]
+    let keywords: [String]
+    let insights: [String]
+    let suggestedNextStep: String
+    let moodScore: Int
+    let dominantEmotion: String
+    let createdAt: String
+}
+
+struct RemoteStateProfile {
+    let id: String
+    let userID: String
+    let domain: String
+    let stage: String
+    let summary: String
+    let intensity: Int
+    let trend: String
+    let confidence: Double
+    let evidence: [String]
+    let supportStrategy: String
+    let sourceSessionID: String
+    let createdAt: String
+    let updatedAt: String
+}
+
 final class ChatService {
     private let baseURL: URL
     private let session: URLSession
@@ -207,6 +252,21 @@ final class ChatService {
         return response.remoteDetail(sessionID: sessionID)
     }
 
+    func fetchMemories() async throws -> [RemoteMemory] {
+        let response: RemoteMemoriesResponseBody = try await fetchData(type: "memories")
+        return response.items.map(\.remoteMemory)
+    }
+
+    func fetchJournals() async throws -> [RemoteJournal] {
+        let response: RemoteJournalsResponseBody = try await fetchData(type: "journals")
+        return response.items.map(\.remoteJournal)
+    }
+
+    func fetchStateProfiles() async throws -> [RemoteStateProfile] {
+        let response: RemoteStateProfilesResponseBody = try await fetchData(type: "state")
+        return response.items.compactMap { $0.current?.remoteStateProfile }
+    }
+
     func homeHint() async throws -> HomeHint {
         var request = URLRequest(url: baseURL.appendingPathComponent("api/home_hint"))
         request.httpMethod = "GET"
@@ -273,6 +333,16 @@ final class ChatService {
             throw ChatServiceError.invalidResponse
         }
         return url
+    }
+
+    private func fetchData<Response: Decodable>(type: String) async throws -> Response {
+        let url = try url(path: "/api/data", queryItems: [
+            URLQueryItem(name: "type", value: type),
+        ])
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        return try await decode(request)
     }
 
     private func decode<Response: Decodable>(_ request: URLRequest) async throws -> Response {
@@ -439,6 +509,163 @@ private struct RemoteMessageResponseBody: Decodable {
             action: action ?? "",
             expressionID: expressionID ?? "",
             knowledgeCardIDs: knowledgeCardIDs ?? []
+        )
+    }
+}
+
+private struct RemoteMemoriesResponseBody: Decodable {
+    let items: [RemoteMemoryResponseBody]
+}
+
+private struct RemoteMemoryResponseBody: Decodable {
+    let id: String
+    let userID: String
+    let category: String
+    let subcategory: String
+    let keywords: [String]
+    let status: String
+    let content: String
+    let evidence: String
+    let confidence: Double
+    let importance: Int
+    let sourceSessionID: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case category
+        case subcategory
+        case keywords
+        case status
+        case content
+        case evidence
+        case confidence
+        case importance
+        case sourceSessionID = "source_session_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    var remoteMemory: RemoteMemory {
+        RemoteMemory(
+            id: id,
+            userID: userID,
+            category: category,
+            subcategory: subcategory,
+            keywords: keywords,
+            status: status,
+            content: content,
+            evidence: evidence,
+            confidence: confidence,
+            importance: importance,
+            sourceSessionID: sourceSessionID,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+}
+
+private struct RemoteJournalsResponseBody: Decodable {
+    let items: [RemoteJournalResponseBody]
+}
+
+private struct RemoteJournalResponseBody: Decodable {
+    let id: String
+    let sessionID: String
+    let summary: String
+    let emotionCurve: [String]
+    let keywords: [String]
+    let insights: [String]
+    let suggestedNextStep: String
+    let moodScore: Int?
+    let dominantEmotion: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionID = "session_id"
+        case summary
+        case emotionCurve = "emotion_curve"
+        case keywords
+        case insights
+        case suggestedNextStep = "suggested_next_step"
+        case moodScore = "mood_score"
+        case dominantEmotion = "dominant_emotion"
+        case createdAt = "created_at"
+    }
+
+    var remoteJournal: RemoteJournal {
+        RemoteJournal(
+            id: id,
+            sessionID: sessionID,
+            summary: summary,
+            emotionCurve: emotionCurve,
+            keywords: keywords,
+            insights: insights,
+            suggestedNextStep: suggestedNextStep,
+            moodScore: moodScore ?? 0,
+            dominantEmotion: dominantEmotion,
+            createdAt: createdAt
+        )
+    }
+}
+
+private struct RemoteStateProfilesResponseBody: Decodable {
+    let items: [RemoteStateProfileOverviewResponseBody]
+}
+
+private struct RemoteStateProfileOverviewResponseBody: Decodable {
+    let current: RemoteStateProfileResponseBody?
+}
+
+private struct RemoteStateProfileResponseBody: Decodable {
+    let id: String
+    let userID: String
+    let domain: String
+    let stage: String
+    let summary: String
+    let intensity: Int
+    let trend: String
+    let confidence: Double
+    let evidence: [String]
+    let supportStrategy: String
+    let sourceSessionID: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case domain
+        case stage
+        case summary
+        case intensity
+        case trend
+        case confidence
+        case evidence
+        case supportStrategy = "support_strategy"
+        case sourceSessionID = "source_session_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    var remoteStateProfile: RemoteStateProfile {
+        RemoteStateProfile(
+            id: id,
+            userID: userID,
+            domain: domain,
+            stage: stage,
+            summary: summary,
+            intensity: intensity,
+            trend: trend,
+            confidence: confidence,
+            evidence: evidence,
+            supportStrategy: supportStrategy,
+            sourceSessionID: sourceSessionID,
+            createdAt: createdAt,
+            updatedAt: updatedAt
         )
     }
 }

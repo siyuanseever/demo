@@ -131,6 +131,113 @@ final class SQLiteDatabase {
         }
     }
 
+    func upsertRemoteMemories(_ memories: [RemoteMemory]) {
+        for memory in memories {
+            execute(
+                sql: """
+                INSERT INTO memories (
+                    id, user_id, category, subcategory, keywords, status, content,
+                    evidence, confidence, importance, source_session_id, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    user_id = excluded.user_id,
+                    category = excluded.category,
+                    subcategory = excluded.subcategory,
+                    keywords = excluded.keywords,
+                    status = excluded.status,
+                    content = excluded.content,
+                    evidence = excluded.evidence,
+                    confidence = excluded.confidence,
+                    importance = excluded.importance,
+                    source_session_id = excluded.source_session_id,
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at
+                """,
+                bindings: [
+                    memory.id,
+                    memory.userID,
+                    memory.category,
+                    memory.subcategory,
+                    Self.jsonString(from: memory.keywords),
+                    memory.status,
+                    memory.content,
+                    memory.evidence,
+                    String(memory.confidence),
+                    String(memory.importance),
+                    memory.sourceSessionID,
+                    memory.createdAt,
+                    memory.updatedAt,
+                ]
+            )
+        }
+    }
+
+    func upsertRemoteJournals(_ journals: [RemoteJournal]) {
+        for journal in journals {
+            execute(
+                sql: """
+                INSERT INTO journals (
+                    id, session_id, summary, emotion_curve, keywords, insights,
+                    suggested_next_step, mood_score, dominant_emotion, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    session_id = excluded.session_id,
+                    summary = excluded.summary,
+                    emotion_curve = excluded.emotion_curve,
+                    keywords = excluded.keywords,
+                    insights = excluded.insights,
+                    suggested_next_step = excluded.suggested_next_step,
+                    mood_score = excluded.mood_score,
+                    dominant_emotion = excluded.dominant_emotion,
+                    created_at = excluded.created_at
+                """,
+                bindings: [
+                    journal.id,
+                    journal.sessionID,
+                    journal.summary,
+                    Self.jsonString(from: journal.emotionCurve),
+                    Self.jsonString(from: journal.keywords),
+                    Self.jsonString(from: journal.insights),
+                    journal.suggestedNextStep,
+                    String(journal.moodScore),
+                    journal.dominantEmotion,
+                    journal.createdAt,
+                ]
+            )
+        }
+    }
+
+    func upsertRemoteStateProfiles(_ profiles: [RemoteStateProfile]) {
+        for profile in profiles {
+            execute(
+                sql: """
+                INSERT OR REPLACE INTO user_state_profiles (
+                    id, user_id, domain, stage, summary, intensity, trend, confidence,
+                    evidence, support_strategy, source_session_id, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                bindings: [
+                    profile.id,
+                    profile.userID,
+                    profile.domain,
+                    profile.stage,
+                    profile.summary,
+                    String(profile.intensity),
+                    profile.trend,
+                    String(profile.confidence),
+                    Self.jsonString(from: profile.evidence),
+                    profile.supportStrategy,
+                    profile.sourceSessionID,
+                    profile.createdAt,
+                    profile.updatedAt,
+                ]
+            )
+        }
+    }
+
     func messages(sessionID: String, limit: Int = 120) -> [ChatMessage] {
         rows(
             sql: """

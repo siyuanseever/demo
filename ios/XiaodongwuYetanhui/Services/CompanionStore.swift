@@ -25,7 +25,7 @@ final class CompanionStore: ObservableObject {
     @Published var recommendationHistory: [CompanionRecommendation] = []
     @Published var isGroupMode = true
     @Published var sessionNotice: String?
-    @Published var isSessionSyncing = false
+    @Published var isBackendSyncing = false
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
     @Published var homeEncouragementHint: HomeHint?
     @Published var isHomeEncouragementLiked = false
@@ -50,7 +50,7 @@ final class CompanionStore: ObservableObject {
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         load()
         Task {
-            await syncSessionsFromBackend()
+            await syncAllFromBackend()
         }
     }
 
@@ -82,10 +82,11 @@ final class CompanionStore: ObservableObject {
         refreshInteractionOffers()
     }
 
-    func fetchOrGenerateStarMapInsight() async -> StarMapInsight {
+    func fetchOrGenerateStarMapInsight(forceRefresh: Bool = false) async -> StarMapInsight {
         do {
             let database = try SQLiteDatabase()
             if
+                !forceRefresh,
                 let cached = database.latestStarMapInsight(),
                 Calendar.current.isDate(cached.generatedAt, equalTo: Date(), toGranularity: .month),
                 !cached.isMockInsight
@@ -104,8 +105,8 @@ final class CompanionStore: ObservableObject {
         }
     }
 
-    func refreshStarMapInsight() async {
-        starMapInsight = await fetchOrGenerateStarMapInsight()
+    func refreshStarMapInsight(forceRefresh: Bool = false) async {
+        starMapInsight = await fetchOrGenerateStarMapInsight(forceRefresh: forceRefresh)
     }
 
     func openSession(_ sessionID: String) {
@@ -151,7 +152,7 @@ final class CompanionStore: ObservableObject {
         do {
             let summary = try await chatService.closeCurrentSession()
             sessionNotice = "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
-            await syncSessionsFromBackend()
+            await syncAllFromBackend(forceStarMapRefresh: true)
             load()
             messages.append(
                 ChatMessage(
@@ -168,27 +169,65 @@ final class CompanionStore: ObservableObject {
         isSending = false
     }
 
-    func syncSessionsFromBackend() async {
-        guard !isSessionSyncing else { return }
-        isSessionSyncing = true
-        defer { isSessionSyncing = false }
-        do {
-            let remoteSessions = try await chatService.fetchSessions()
-            let database = try SQLiteDatabase()
+    func syncAllFromBackend(forceStarMapRefresh: Bool = false) async {
+        guard !isBackendSyncing else { return }
+        isBackendSyncing = true
+        defer { isBackendSyncing = false }
+
+        guard let database = try? SQLiteDatabase() else {
+            sessionNotice = "暂时无法打开手机本地数据库。"
+            return
+        }
+
+        async let fetchedSessions = try? chatService.fetchSessions()
+        async let fetchedMemories = try? chatService.fetchMemories()
+        async let fetchedJournals = try? chatService.fetchJournals()
+        async let fetchedProfiles = try? chatService.fetchStateProfiles()
+        let (remoteSessions, remoteMemories, remoteJournals, remoteProfiles) = await (
+            fetchedSessions,
+            fetchedMemories,
+            fetchedJournals,
+            fetchedProfiles
+        )
+
+        if let remoteSessions {
             for session in remoteSessions {
                 database.upsertRemoteSession(session)
             }
             for session in remoteSessions.prefix(20) {
-                let detail = try await chatService.fetchSessionDetail(sessionID: session.id)
-                database.upsertRemoteMessages(detail.messages)
+                if let detail = try? await chatService.fetchSessionDetail(sessionID: session.id) {
+                    database.upsertRemoteMessages(detail.messages)
+                }
             }
-            load()
-            if !remoteSessions.isEmpty {
-                sessionNotice = "已同步 Mac 后端的最近会话。"
-            }
-        } catch {
-            sessionNotice = "暂时无法同步 Mac 后端会话：\(Self.describe(error))"
         }
+        if let remoteMemories {
+            database.upsertRemoteMemories(remoteMemories)
+        }
+        if let remoteJournals {
+            database.upsertRemoteJournals(remoteJournals)
+        }
+        if let remoteProfiles {
+            database.upsertRemoteStateProfiles(remoteProfiles)
+        }
+
+        let shouldRefreshStarMap = forceStarMapRefresh
+            || database.latestStarMapInsight().map {
+                !Calendar.current.isDate($0.generatedAt, equalTo: Date(), toGranularity: .month)
+            } ?? true
+        if shouldRefreshStarMap, let insight = try? await chatService.fetchStarMapInsight() {
+            database.saveStarMapInsight(insight)
+        }
+
+        load()
+        let successfulKinds = [
+            remoteSessions != nil,
+            remoteMemories != nil,
+            remoteJournals != nil,
+            remoteProfiles != nil,
+        ].filter { $0 }.count
+        sessionNotice = successfulKinds == 4
+            ? "已同步会话、记忆、总结和长期画像。"
+            : "部分数据暂时未同步，已保留手机上的最近缓存。"
     }
 
     func syncSessionFromBackend(_ sessionID: String) async {
@@ -219,6 +258,9 @@ final class CompanionStore: ObservableObject {
             lastCheckedAt: backendStatus.lastCheckedAt
         )
         backendStatus = await chatService.checkConnection()
+        if backendStatus.isOnline {
+            await syncAllFromBackend()
+        }
     }
 
     func saveEmotionCheckIn(monster: EmotionMonster, intensity: Double, note: String) {
