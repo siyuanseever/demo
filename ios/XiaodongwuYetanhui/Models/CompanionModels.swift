@@ -296,6 +296,13 @@ struct CareMoment: Identifiable, Hashable, Codable {
     }
 }
 
+struct FlowMoment: Identifiable, Hashable, Codable {
+    let id: String
+    let intention: String
+    let ending: String
+    let createdAt: Date
+}
+
 enum RecommendationMedium: String, Codable, CaseIterable {
     case book
     case music

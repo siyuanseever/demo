@@ -1028,6 +1028,7 @@ private struct CompanionChatPage: View {
     @State private var isExitPromptVisible = false
     @State private var isSummaryResultVisible = false
     @State private var isClosingSession = false
+    @State private var didFinishSummary = false
     @State private var sentMessageCount = 0
     @FocusState private var isInputFocused: Bool
 
@@ -1054,7 +1055,7 @@ private struct CompanionChatPage: View {
 
                     Spacer()
 
-                    Text("忧忧兔")
+                    Text(activeCompanion.name)
                         .font(SensenFonts.handwritten(size: 19))
                         .foregroundStyle(Color.warmBrown)
 
@@ -1092,7 +1093,8 @@ private struct CompanionChatPage: View {
 
                 CurrentConversationText(
                     message: currentVisibleMessage,
-                    isWaitingForReply: store.isSending && currentVisibleMessage.role == .user
+                    isWaitingForReply: store.isSending && currentVisibleMessage.role == .user,
+                    waitingCompanionName: activeCompanion.name
                 )
                     .id(currentVisibleMessage.id)
                     .padding(.horizontal, 28)
@@ -1106,6 +1108,8 @@ private struct CompanionChatPage: View {
                     TextField("慢慢说，我在听。", text: $draft, axis: .vertical)
                         .font(SensenFonts.handwritten(size: 16))
                         .lineLimit(1...4)
+                        .submitLabel(.send)
+                        .onSubmit(sendDraft)
                         .focused($isInputFocused)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 13)
@@ -1159,13 +1163,23 @@ private struct CompanionChatPage: View {
         } message: {
             Text("如果结束并总结，系统会整理这次对话，生成日记和记忆。")
         }
-        .alert("本次对话总结", isPresented: $isSummaryResultVisible) {
-            Button("回到首页") {
-                dismiss()
+        .alert(didFinishSummary ? "本次对话总结" : "暂时没有总结成功", isPresented: $isSummaryResultVisible) {
+            if didFinishSummary {
+                Button("回到首页") {
+                    store.startNewSession()
+                    dismiss()
+                }
+            } else {
+                Button("回到对话") {}
             }
         } message: {
-            Text(store.sessionNotice ?? "这次对话已经整理好了。")
+            Text(store.sessionNotice ?? (didFinishSummary ? "这次对话已经整理好了。" : "当前对话仍然保留着，可以稍后再试。"))
         }
+    }
+
+    private var activeCompanion: CompanionCharacter {
+        let latestAssistant = store.messages.last(where: { $0.role == .assistant })
+        return store.character(id: latestAssistant?.characterID) ?? store.selectedCharacter
     }
 
     private var latestCompanionText: String {
@@ -1207,7 +1221,7 @@ private struct CompanionChatPage: View {
         guard !isClosingSession else { return }
         isClosingSession = true
         Task {
-            await store.closeCurrentSession()
+            didFinishSummary = await store.closeCurrentSession()
             isClosingSession = false
             isSummaryResultVisible = true
         }
@@ -1226,7 +1240,7 @@ private struct CurrentConversationHistoryView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             SectionHeader(
                                 title: "本次消息",
-                                subtitle: "只看当前正在和忧忧兔说的话。"
+                                subtitle: "只看当前正在和\(activeCompanionName)说的话。"
                             )
 
                             if store.messages.isEmpty {
@@ -1270,12 +1284,18 @@ private struct CurrentConversationHistoryView: View {
             proxy.scrollTo("session-notice", anchor: .bottom)
         }
     }
+
+    private var activeCompanionName: String {
+        let latestAssistant = store.messages.last(where: { $0.role == .assistant })
+        return store.character(id: latestAssistant?.characterID)?.name ?? store.selectedCharacter.name
+    }
 }
 
 private struct CurrentConversationText: View {
     @EnvironmentObject private var store: CompanionStore
     let message: ChatMessage
     let isWaitingForReply: Bool
+    let waitingCompanionName: String
 
     var body: some View {
         let isUser = message.role == .user
@@ -1300,7 +1320,7 @@ private struct CurrentConversationText: View {
                         ProgressView()
                             .controlSize(.small)
                             .tint(Color(hex: 0x9a6b72))
-                        Text("忧忧兔正在回应")
+                        Text("\(waitingCompanionName)正在回应")
                             .font(SensenFonts.handwritten(size: 13))
                     }
                     .foregroundStyle(Color(hex: 0x9a6b72).opacity(0.72))
@@ -2455,6 +2475,7 @@ private struct SessionHistoryView: View {
 }
 
 private struct RecentMessagesView: View {
+    @EnvironmentObject private var store: CompanionStore
     @State private var messages: [ChatMessage] = []
 
     var body: some View {
@@ -2481,8 +2502,16 @@ private struct RecentMessagesView: View {
         .navigationTitle("消息")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            messages = (try? SQLiteDatabase().recentMessages(limit: 120)) ?? []
+            await store.syncIfNeeded()
+            reloadMessages()
         }
+        .onChange(of: store.snapshot.messageCount) {
+            reloadMessages()
+        }
+    }
+
+    private func reloadMessages() {
+        messages = (try? SQLiteDatabase().recentMessages(limit: 120)) ?? []
     }
 }
 
@@ -2543,6 +2572,9 @@ private struct JournalHistoryView: View {
         }
         .navigationTitle("总结")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await store.syncIfNeeded()
+        }
     }
 }
 
@@ -2641,6 +2673,7 @@ private struct JournalDetailBlock: View {
 }
 
 private struct SessionDetailView: View {
+    @EnvironmentObject private var store: CompanionStore
     let session: SessionSummary
     let openSession: (String) -> Void
 
@@ -2683,10 +2716,16 @@ private struct SessionDetailView: View {
         }
         .navigationTitle("会话详情")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            guard messages.isEmpty else { return }
-            messages = (try? SQLiteDatabase().messages(sessionID: session.id)) ?? []
+        .task(id: session.id) {
+            reloadMessages()
+            await store.syncSessionFromBackend(session.id)
+            guard !Task.isCancelled else { return }
+            reloadMessages()
         }
+    }
+
+    private func reloadMessages() {
+        messages = (try? SQLiteDatabase().messages(sessionID: session.id)) ?? []
     }
 }
 

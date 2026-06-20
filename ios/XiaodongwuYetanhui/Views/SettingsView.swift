@@ -34,9 +34,7 @@ struct SettingsView: View {
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            if store.backendStatus.state == .unknown {
-                await store.checkBackendConnection()
-            }
+            await store.syncIfNeeded()
         }
     }
 }

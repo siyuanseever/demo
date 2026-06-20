@@ -57,6 +57,7 @@ struct StarMapView: View {
             switch detail {
             case .flowRitual(let insight):
                 FlowRitualSheet(insight: insight)
+                    .environmentObject(store)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             default:
@@ -286,8 +287,10 @@ private struct FlowRitualSheet: View {
     let insight: StarMapInsight
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
     @State private var activeIntention: String?
+    @State private var isClosing = false
     @FocusState private var isDraftFocused: Bool
 
     var body: some View {
@@ -296,7 +299,9 @@ private struct FlowRitualSheet: View {
                 Color(hex: 0xeee9f3)
                     .ignoresSafeArea()
 
-                if let activeIntention {
+                if let activeIntention, isClosing {
+                    closingView(intention: activeIntention)
+                } else if let activeIntention {
                     activeView(intention: activeIntention)
                 } else {
                     preparationView
@@ -350,6 +355,22 @@ private struct FlowRitualSheet: View {
                     }
                 }
 
+                if let recentMoment = store.flowMoments.first {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("上一次停在这里")
+                            .font(.custom("HannotateSC-W5", size: 14))
+                            .foregroundStyle(Color(hex: 0x81758d))
+                        Text(recentMoment.intention)
+                            .font(.custom("HannotateSC-W5", size: 16))
+                            .foregroundStyle(Color(hex: 0x5f5369))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(recentMoment.ending)
+                            .font(.custom("HannotateSC-W5", size: 13))
+                            .foregroundStyle(Color(hex: 0x8b8194))
+                    }
+                    .padding(.top, 2)
+                }
+
                 Button {
                     begin()
                 } label: {
@@ -397,7 +418,9 @@ private struct FlowRitualSheet: View {
             Spacer()
 
             Button("先停在这里") {
-                dismiss()
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    isClosing = true
+                }
             }
             .font(.custom("HannotateSC-W5", size: 16))
             .foregroundStyle(Color(hex: 0x5f5369))
@@ -405,6 +428,54 @@ private struct FlowRitualSheet: View {
             .padding(.bottom, 26)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func closingView(intention: String) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer()
+
+            Text("先停在这里")
+                .font(.custom("HannotateSC-W5", size: 28))
+                .foregroundStyle(Color(hex: 0x4f455d))
+
+            Text(intention)
+                .font(.custom("HannotateSC-W5", size: 19))
+                .lineSpacing(7)
+                .foregroundStyle(Color(hex: 0x665a73))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("不总结成果。只留下此刻最接近的一句话。")
+                .font(.custom("HannotateSC-W5", size: 15))
+                .foregroundStyle(Color(hex: 0x81758d))
+
+            VStack(spacing: 11) {
+                ForEach(flowEndings, id: \.self) { ending in
+                    Button {
+                        store.recordFlowMoment(intention: intention, ending: ending)
+                        dismiss()
+                    } label: {
+                        Text(ending)
+                            .font(.custom("HannotateSC-W5", size: 17))
+                            .foregroundStyle(Color(hex: 0x4f455d))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 13)
+                            .background(Color(hex: 0xf8f2e9), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button("不留痕迹，直接离开") {
+                dismiss()
+            }
+            .font(.custom("HannotateSC-W5", size: 14))
+            .foregroundStyle(Color(hex: 0x8b8194))
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            Spacer()
+        }
+        .padding(28)
     }
 
     private var suggestions: [String] {
@@ -425,9 +496,14 @@ private struct FlowRitualSheet: View {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var flowEndings: [String] {
+        ["更清楚一点", "还在里面", "今天先到这里"]
+    }
+
     private func begin() {
         guard !cleanDraft.isEmpty else { return }
         isDraftFocused = false
+        isClosing = false
         withAnimation(.easeInOut(duration: 0.28)) {
             activeIntention = cleanDraft
         }

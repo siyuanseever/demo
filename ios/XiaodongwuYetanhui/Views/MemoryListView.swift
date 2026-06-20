@@ -45,6 +45,9 @@ struct MemoryListView: View {
         }
         .navigationTitle("记忆")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await store.syncIfNeeded()
+        }
     }
 
     private var sortedMemories: [MemoryEntry] {

@@ -48,6 +48,8 @@ struct StateOverviewView: View {
                     )
                     MoreRecordsToggle(isExpanded: $showsMoreRecords)
                     if showsMoreRecords {
+                        FlowMomentPanel(moments: store.flowMoments)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         CareMomentPanel(careMoments: store.careMoments)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         RecommendationHistoryPanel(
@@ -78,9 +80,7 @@ struct StateOverviewView: View {
             .presentationDragIndicator(.visible)
         }
         .task {
-            if store.backendStatus.state == .unknown {
-                await store.checkBackendConnection()
-            }
+            await store.syncIfNeeded()
         }
     }
 }
@@ -105,7 +105,7 @@ private struct MoreRecordsToggle: View {
                     Text(isExpanded ? "收起更多记录" : "更多记录与陪伴")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.nightInk)
-                    Text("照顾记录、陪伴建议、情绪记录与最近总结")
+                    Text("心流片刻、照顾记录、陪伴建议与最近总结")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -126,6 +126,114 @@ private struct MoreRecordsToggle: View {
         }
         .buttonStyle(.plain)
         .accessibilityValue(isExpanded ? "已展开" : "已收起")
+    }
+}
+
+private struct FlowMomentPanel: View {
+    let moments: [FlowMoment]
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("最近心流片刻", systemImage: "moon.stars.fill")
+                        .font(.headline)
+
+                    Spacer()
+
+                    if !moments.isEmpty {
+                        NavigationLink {
+                            FlowMomentHistoryView(moments: moments)
+                        } label: {
+                            Label("全部", systemImage: "chevron.right")
+                                .labelStyle(.titleAndIcon)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color(hex: 0x756887))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("查看保存的全部心流片刻")
+                    }
+                }
+
+                if moments.isEmpty {
+                    EmptyHintView(
+                        systemImage: "sparkles",
+                        title: "还没有留下心流片刻",
+                        detail: "在心流页停下来时，可以只留下一句当时的感受。"
+                    )
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(moments.prefix(4).enumerated()), id: \.offset) { index, moment in
+                            FlowMomentRow(moment: moment)
+                            if index < min(moments.count, 4) - 1 {
+                                Divider()
+                                    .overlay(Color(hex: 0xd8cbbb).opacity(0.55))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FlowMomentHistoryView: View {
+    let moments: [FlowMoment]
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(moments.enumerated()), id: \.element.id) { index, moment in
+                        FlowMomentRow(moment: moment)
+
+                        if index < moments.count - 1 {
+                            Divider()
+                                .overlay(Color(hex: 0xd8cbbb).opacity(0.55))
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(18)
+            }
+        }
+        .navigationTitle("心流片刻")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct FlowMomentRow: View {
+    let moment: FlowMoment
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "sparkle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x8a78a5))
+                .frame(width: 32, height: 32)
+                .background(Color(hex: 0xeee9f3), in: Circle())
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(moment.intention)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.nightInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(moment.ending)
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: 0x756887))
+                Text(moment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 11)
+        .accessibilityElement(children: .combine)
     }
 }
 

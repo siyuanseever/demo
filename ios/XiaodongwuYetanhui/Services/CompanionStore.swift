@@ -20,6 +20,7 @@ final class CompanionStore: ObservableObject {
     @Published var interactionOffers: [CompanionInteractionOffer] = CompanionFixtures.interactionOffers
     @Published var isMonsterCareGameVisible = false
     @Published var careMoments: [CareMoment] = []
+    @Published var flowMoments: [FlowMoment] = []
     @Published var latestRecommendation: CompanionRecommendation?
     @Published var isRecommendationVisible = false
     @Published var recommendationHistory: [CompanionRecommendation] = []
@@ -36,6 +37,7 @@ final class CompanionStore: ObservableObject {
     private let interactionService = InteractionService()
     private let recommendationService = RecommendationService()
     private let careMomentsStorageKey = "xiaolu.careMoments.v1"
+    private let flowMomentsStorageKey = "sensen.flowMoments.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
     private let automaticSyncInterval: TimeInterval = 60
     private var lastHomeEncouragementRefreshAt: Date?
@@ -47,6 +49,7 @@ final class CompanionStore: ObservableObject {
     init() {
         backendStatus.baseURL = chatService.backendURLDescription
         careMoments = loadCareMoments()
+        flowMoments = loadFlowMoments()
         recommendationHistory = loadRecommendations()
         latestRecommendation = recommendationHistory.first
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
@@ -147,8 +150,9 @@ final class CompanionStore: ObservableObject {
         refreshInteractionOffers()
     }
 
-    func closeCurrentSession() async {
-        guard !isSending else { return }
+    @discardableResult
+    func closeCurrentSession() async -> Bool {
+        guard !isSending else { return false }
         isSending = true
         sessionNotice = "正在结束并总结这次夜谈..."
         do {
@@ -165,10 +169,13 @@ final class CompanionStore: ObservableObject {
                     createdAt: ""
                 )
             )
+            isSending = false
+            return true
         } catch {
             sessionNotice = "暂时无法结束会话：\(Self.describe(error))"
+            isSending = false
+            return false
         }
-        isSending = false
     }
 
     func syncAllFromBackend(forceStarMapRefresh: Bool = false) async {
@@ -473,6 +480,24 @@ final class CompanionStore: ObservableObject {
         CompanionFixtures.character(id: id)
     }
 
+    func recordFlowMoment(intention: String, ending: String) {
+        let cleanIntention = intention.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanIntention.isEmpty else { return }
+        flowMoments.insert(
+            FlowMoment(
+                id: UUID().uuidString,
+                intention: cleanIntention,
+                ending: ending,
+                createdAt: Date()
+            ),
+            at: 0
+        )
+        if flowMoments.count > 12 {
+            flowMoments = Array(flowMoments.prefix(12))
+        }
+        saveFlowMoments()
+    }
+
     private func recordCareMoment(_ careMoment: CareMoment) {
         careMoments.insert(careMoment, at: 0)
         if careMoments.count > 8 {
@@ -507,6 +532,22 @@ final class CompanionStore: ObservableObject {
             UserDefaults.standard.set(data, forKey: careMomentsStorageKey)
         } catch {
             UserDefaults.standard.removeObject(forKey: careMomentsStorageKey)
+        }
+    }
+
+    private func loadFlowMoments() -> [FlowMoment] {
+        guard let data = UserDefaults.standard.data(forKey: flowMomentsStorageKey) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([FlowMoment].self, from: data)) ?? []
+    }
+
+    private func saveFlowMoments() {
+        do {
+            let data = try JSONEncoder().encode(flowMoments)
+            UserDefaults.standard.set(data, forKey: flowMomentsStorageKey)
+        } catch {
+            UserDefaults.standard.removeObject(forKey: flowMomentsStorageKey)
         }
     }
 
