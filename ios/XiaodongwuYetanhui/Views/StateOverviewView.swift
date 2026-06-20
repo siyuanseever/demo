@@ -2,6 +2,8 @@ import SwiftUI
 
 struct StateOverviewView: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var selectedProfile: StateProfile?
+    @State private var showsMoreRecords = false
     let openChat: () -> Void
     let openMessages: () -> Void
     let openSessions: () -> Void
@@ -33,6 +35,10 @@ struct StateOverviewView: View {
                     PersonalOverviewHeader()
                     MoodPanel(journals: store.journals)
                     WeeklyReportPanel(journals: store.journals)
+                    StateProfilePanel(
+                        profiles: store.stateProfiles,
+                        selectProfile: { selectedProfile = $0 }
+                    )
                     SnapshotGrid(
                         snapshot: store.snapshot,
                         openMessages: openMessages,
@@ -40,26 +46,86 @@ struct StateOverviewView: View {
                         openMemory: openMemory,
                         openJournals: openJournals
                     )
-                    StateProfilePanel(profiles: store.stateProfiles, openSourceSession: openSourceSession)
-                    CareMomentPanel(careMoments: store.careMoments)
-                    RecommendationHistoryPanel(
-                        recommendations: store.recommendationHistory,
-                        openChat: openChat
-                    )
-                    NextInteractionPanel(openChat: openChat)
-                    EmotionCheckInView()
-                    RecentJournalList(journals: store.journals)
+                    MoreRecordsToggle(isExpanded: $showsMoreRecords)
+                    if showsMoreRecords {
+                        CareMomentPanel(careMoments: store.careMoments)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        RecommendationHistoryPanel(
+                            recommendations: store.recommendationHistory,
+                            openChat: openChat
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                        NextInteractionPanel(openChat: openChat)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        EmotionCheckInView()
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        RecentJournalList(journals: store.journals)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
                 .padding(18)
+                .padding(.bottom, 112)
             }
         }
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $selectedProfile) { profile in
+            StateProfileDetailSheet(
+                profile: profile,
+                openSourceSession: openSourceSession
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
         .task {
             if store.backendStatus.state == .unknown {
                 await store.checkBackendConnection()
             }
         }
+    }
+}
+
+private struct MoreRecordsToggle: View {
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "archivebox.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.warmBrown)
+                    .frame(width: 38, height: 38)
+                    .background(Color(hex: 0xffeee9), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isExpanded ? "收起更多记录" : "更多记录与陪伴")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.nightInk)
+                    Text("照顾记录、陪伴建议、情绪记录与最近总结")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.warmBrown)
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            }
+            .padding(.vertical, 12)
+            .overlay(alignment: .bottom) {
+                Divider()
+                    .overlay(Color.warmBrown.opacity(0.18))
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(isExpanded ? "已展开" : "已收起")
     }
 }
 
@@ -112,6 +178,15 @@ private struct PersonalOverviewHeader: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let lastSyncAt = store.lastBackendSyncAt {
+                Label(
+                    "最近同步：\(lastSyncAt.formatted(date: .omitted, time: .shortened))",
+                    systemImage: "checkmark.icloud.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(17)
@@ -398,7 +473,7 @@ private struct StatTile: View {
 
 private struct StateProfilePanel: View {
     let profiles: [StateProfile]
-    let openSourceSession: (String) -> Void
+    let selectProfile: (StateProfile) -> Void
 
     var body: some View {
         SoftPanel {
@@ -418,7 +493,9 @@ private struct StateProfilePanel: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
                         ForEach(profiles.prefix(5)) { profile in
-                            StateProfileCompactCard(profile: profile, openSourceSession: openSourceSession)
+                            StateProfileCompactCard(profile: profile) {
+                                selectProfile(profile)
+                            }
                         }
                         }
                         .padding(.vertical, 2)
@@ -431,14 +508,10 @@ private struct StateProfilePanel: View {
 
 private struct StateProfileCompactCard: View {
     let profile: StateProfile
-    let openSourceSession: (String) -> Void
+    let select: () -> Void
 
     var body: some View {
-        Button {
-            if !profile.sourceSessionID.isEmpty {
-                openSourceSession(profile.sourceSessionID)
-            }
-        } label: {
+        Button(action: select) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(profile.domain)
@@ -474,6 +547,103 @@ private struct StateProfileCompactCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityHint("查看完整画像")
+    }
+}
+
+private struct StateProfileDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let profile: StateProfile
+    let openSourceSession: (String) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                WarmBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(profile.domain)
+                                .font(SensenFonts.handwritten(size: 28))
+                                .foregroundStyle(Color.nightInk)
+                            Text([profile.stage, profile.trend].filter { !$0.isEmpty }.joined(separator: " · "))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        ProfileDetailBlock(
+                            title: "森森看到的状态",
+                            text: profile.summary,
+                            fallback: "这条状态还在慢慢形成。"
+                        )
+                        ProfileDetailBlock(
+                            title: "留下这条判断的线索",
+                            text: profile.evidence,
+                            fallback: "暂时没有单独保存线索。"
+                        )
+                        ProfileDetailBlock(
+                            title: "适合你的支持方式",
+                            text: profile.supportStrategy,
+                            fallback: "暂时没有形成明确的支持方式。"
+                        )
+
+                        HStack(spacing: 10) {
+                            Label("强度 \(profile.intensity)", systemImage: "waveform.path")
+                            if profile.confidence > 0 {
+                                Text("置信度 \(Int(profile.confidence * 100))%")
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                        if !profile.sourceSessionID.isEmpty {
+                            Button {
+                                let sessionID = profile.sourceSessionID
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    openSourceSession(sessionID)
+                                }
+                            } label: {
+                                Label("查看来源会话", systemImage: "arrow.up.right.circle.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.nightInk)
+                            .background(Color(hex: 0xffeee9), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle("长期画像")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct ProfileDetailBlock: View {
+    let title: String
+    let text: String
+    let fallback: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.nightInk)
+            Text(text.isEmpty ? fallback : text)
+                .font(.callout)
+                .foregroundStyle(Color.nightInk.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

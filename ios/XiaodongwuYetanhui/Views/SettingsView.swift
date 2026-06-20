@@ -20,6 +20,7 @@ struct SettingsView: View {
                     DataSyncPanel(
                         snapshot: store.snapshot,
                         isSyncing: store.isBackendSyncing,
+                        lastSyncAt: store.lastBackendSyncAt,
                         notice: store.sessionNotice
                     ) {
                         Task {
@@ -99,6 +100,7 @@ private struct BackendStatusPanel: View {
 private struct DataSyncPanel: View {
     let snapshot: DashboardSnapshot
     let isSyncing: Bool
+    let lastSyncAt: Date?
     let notice: String?
     let sync: () -> Void
 
@@ -117,6 +119,15 @@ private struct DataSyncPanel: View {
                     SettingsDataCount(title: "会话", value: snapshot.sessionCount)
                     SettingsDataCount(title: "记忆", value: snapshot.memoryCount)
                     SettingsDataCount(title: "总结", value: snapshot.journalCount)
+                }
+
+                if let lastSyncAt {
+                    Label(
+                        "最近同步：\(lastSyncAt.formatted(date: .abbreviated, time: .shortened))",
+                        systemImage: "checkmark.icloud.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
 
                 if let notice, !notice.isEmpty {

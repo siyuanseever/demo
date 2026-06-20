@@ -1090,7 +1090,10 @@ private struct CompanionChatPage: View {
                     UIApplication.shared.dismissKeyboard()
                 }
 
-                CurrentConversationText(message: currentVisibleMessage)
+                CurrentConversationText(
+                    message: currentVisibleMessage,
+                    isWaitingForReply: store.isSending && currentVisibleMessage.role == .user
+                )
                     .id(currentVisibleMessage.id)
                     .padding(.horizontal, 28)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1272,6 +1275,7 @@ private struct CurrentConversationHistoryView: View {
 private struct CurrentConversationText: View {
     @EnvironmentObject private var store: CompanionStore
     let message: ChatMessage
+    let isWaitingForReply: Bool
 
     var body: some View {
         let isUser = message.role == .user
@@ -1290,6 +1294,19 @@ private struct CurrentConversationText: View {
                     .multilineTextAlignment(isUser ? .trailing : .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+
+                if isWaitingForReply {
+                    HStack(spacing: 7) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(Color(hex: 0x9a6b72))
+                        Text("忧忧兔正在回应")
+                            .font(SensenFonts.handwritten(size: 13))
+                    }
+                    .foregroundStyle(Color(hex: 0x9a6b72).opacity(0.72))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .transition(.opacity)
+                }
             }
             .padding(.vertical, 8)
         }
@@ -2432,7 +2449,7 @@ private struct SessionHistoryView: View {
         .navigationTitle("会话")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await store.syncAllFromBackend()
+            await store.syncIfNeeded()
         }
     }
 }

@@ -13,7 +13,7 @@ struct XiaodongwuYetanhuiApp: App {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task {
-                await store.syncAllFromBackend()
+                await store.syncIfNeeded()
             }
         }
     }

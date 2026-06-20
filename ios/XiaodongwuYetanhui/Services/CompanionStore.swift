@@ -26,6 +26,7 @@ final class CompanionStore: ObservableObject {
     @Published var isGroupMode = true
     @Published var sessionNotice: String?
     @Published var isBackendSyncing = false
+    @Published var lastBackendSyncAt: Date?
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
     @Published var homeEncouragementHint: HomeHint?
     @Published var isHomeEncouragementLiked = false
@@ -36,6 +37,7 @@ final class CompanionStore: ObservableObject {
     private let recommendationService = RecommendationService()
     private let careMomentsStorageKey = "xiaolu.careMoments.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
+    private let automaticSyncInterval: TimeInterval = 60
     private var lastHomeEncouragementRefreshAt: Date?
 
     var selectedCharacter: CompanionCharacter {
@@ -176,6 +178,12 @@ final class CompanionStore: ObservableObject {
 
         guard let database = try? SQLiteDatabase() else {
             sessionNotice = "暂时无法打开手机本地数据库。"
+            backendStatus = BackendConnectionStatus(
+                state: .fallback,
+                baseURL: chatService.backendURLDescription,
+                detail: "手机本地数据库暂时无法打开，已停止本次同步。",
+                lastCheckedAt: Date()
+            )
             return
         }
 
@@ -225,9 +233,37 @@ final class CompanionStore: ObservableObject {
             remoteJournals != nil,
             remoteProfiles != nil,
         ].filter { $0 }.count
-        sessionNotice = successfulKinds == 4
-            ? "已同步会话、记忆、总结和长期画像。"
-            : "部分数据暂时未同步，已保留手机上的最近缓存。"
+        let checkedAt = Date()
+        if successfulKinds > 0 {
+            lastBackendSyncAt = checkedAt
+            let isComplete = successfulKinds == 4
+            sessionNotice = isComplete
+                ? "已同步会话、记忆、总结和长期画像。"
+                : "部分数据暂时未同步，已保留手机上的最近缓存。"
+            backendStatus = BackendConnectionStatus(
+                state: .online,
+                baseURL: chatService.backendURLDescription,
+                detail: isComplete ? "Mac 数据已同步到手机。" : "Mac 在线，但有部分数据暂时没有拉取成功。",
+                lastCheckedAt: checkedAt
+            )
+        } else {
+            sessionNotice = "暂时连不上 Mac，继续使用手机上的最近缓存。"
+            backendStatus = BackendConnectionStatus(
+                state: .fallback,
+                baseURL: chatService.backendURLDescription,
+                detail: "本次没有从 Mac 拉取到新数据，手机缓存仍可查看。",
+                lastCheckedAt: checkedAt
+            )
+        }
+    }
+
+    func syncIfNeeded() async {
+        guard !isBackendSyncing else { return }
+        if let lastBackendSyncAt,
+           Date().timeIntervalSince(lastBackendSyncAt) < automaticSyncInterval {
+            return
+        }
+        await syncAllFromBackend()
     }
 
     func syncSessionFromBackend(_ sessionID: String) async {
@@ -581,10 +617,12 @@ final class CompanionStore: ObservableObject {
         chatNotice = response.notice
         isChatCheckInVisible = shouldSuggestCheckIn && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + response.reply)
         refreshInteractionOffers()
-        if !response.usedFallback, let sessionID = response.sessionID {
-            await syncSessionFromBackend(sessionID)
-        }
         isSending = false
+        if !response.usedFallback, let sessionID = response.sessionID {
+            Task {
+                await syncSessionFromBackend(sessionID)
+            }
+        }
     }
 
     private static func greetingMessage(characterID: String) -> ChatMessage {

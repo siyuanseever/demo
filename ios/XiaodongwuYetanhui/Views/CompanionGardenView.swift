@@ -219,15 +219,22 @@ struct CompanionGardenView: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 10)], spacing: 10) {
                         ForEach(Array(dontCareItems.enumerated()), id: \.offset) { index, item in
-                            Text(item)
-                                .font(.custom("HannotateSC-W5", size: 13))
-                                .foregroundStyle(Color(hex: 0x393530))
-                                .lineLimit(2)
-                                .multilineTextAlignment(.center)
-                                .padding(10)
-                                .frame(minWidth: 72, minHeight: 54)
-                                .background(Color(hex: 0xd8d1c6), in: RoundedRectangle(cornerRadius: 16))
-                                .rotationEffect(.degrees(index.isMultiple(of: 2) ? -3 : 3))
+                            Button {
+                                removeDontCareItem(at: index)
+                            } label: {
+                                Text(item)
+                                    .font(.custom("HannotateSC-W5", size: 13))
+                                    .foregroundStyle(Color(hex: 0x393530))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
+                                    .padding(10)
+                                    .frame(minWidth: 72, minHeight: 54)
+                                    .background(Color(hex: 0xd8d1c6), in: RoundedRectangle(cornerRadius: 16))
+                                    .rotationEffect(.degrees(index.isMultiple(of: 2) ? -3 : 3))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("把\(item)丢掉")
+                            .accessibilityHint("不会再次确认")
                         }
                     }
                 }
@@ -236,6 +243,7 @@ struct CompanionGardenView: View {
     }
 
     private func bailan() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         let isFirstTap = pressureWordsVisible
         bailanMessage = bailanMessages.randomElement() ?? "先躺着"
 
@@ -262,6 +270,7 @@ struct CompanionGardenView: View {
     private func submitDiary() {
         let entry = diaryText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !entry.isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         savedDiary = entry
         diaryReply = diaryReplies.randomElement() ?? "嗯，先放这儿"
         diaryText = ""
@@ -271,9 +280,20 @@ struct CompanionGardenView: View {
     private func addDontCareItem() {
         let item = dontCareText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !item.isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         savedDontCareItems = (dontCareItems + [item]).joined(separator: "\n")
         dontCareText = ""
         focusedField = nil
+    }
+
+    private func removeDontCareItem(at index: Int) {
+        var items = dontCareItems
+        guard items.indices.contains(index) else { return }
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        items.remove(at: index)
+        withAnimation(.easeOut(duration: 0.2)) {
+            savedDontCareItems = items.joined(separator: "\n")
+        }
     }
 }
 
