@@ -318,7 +318,7 @@ private struct ImmersiveBottomBar: View {
         HStack(spacing: 0) {
             ImmersiveTabButton(title: "疗愈", systemImage: "house.fill", isSelected: selectedTab == .home, action: openHome)
             ImmersiveTabButton(title: "摆烂", systemImage: "sofa.fill", isSelected: selectedTab == .forest, action: openForest)
-            ImmersiveTabButton(title: "星图", systemImage: "sparkles", isSelected: selectedTab == .starMap, action: openStarMap)
+            ImmersiveTabButton(title: "心流", systemImage: "sparkles", isSelected: selectedTab == .starMap, action: openStarMap)
             ImmersiveRabbitTabButton(isSelected: selectedTab == .me, action: openMe)
         }
         .padding(.horizontal, 10)
@@ -591,7 +591,7 @@ private enum HomeSceneSelector {
     }
 }
 
-private enum SensenFonts {
+enum SensenFonts {
     static func handwritten(size: CGFloat) -> Font {
         .custom("HannotateSC-W5", size: size)
     }
@@ -920,7 +920,7 @@ private struct SensenBottomBar: View {
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
             BottomBarButton(title: "疗愈", systemImage: "house.fill", isSelected: true, action: openHome)
-            BottomBarButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
+            BottomBarButton(title: "摆烂", systemImage: "sofa.fill", isSelected: false, action: openForest)
 
             Button(action: openChat) {
                 BundleImage(
@@ -938,7 +938,7 @@ private struct SensenBottomBar: View {
             .frame(maxWidth: .infinity)
             .accessibilityLabel("忧忧兔")
 
-            BottomBarButton(title: "星图", systemImage: "sparkles", isSelected: false, action: openNotebook)
+            BottomBarButton(title: "心流", systemImage: "sparkles", isSelected: false, action: openNotebook)
             BottomBarButton(title: "我的", systemImage: "person", isSelected: false, action: openMe)
         }
         .padding(.horizontal, 8)

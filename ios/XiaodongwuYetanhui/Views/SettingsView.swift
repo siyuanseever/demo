@@ -9,15 +9,23 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(
-                        title: "连接与开发",
-                        subtitle: "这里用来确认 iOS 正在连接哪里，也保留离线 fallback 的边界。"
+                        title: "设置",
+                        subtitle: "管理 Mac 连接、数据同步和手机上的本地记录。"
                     )
                     BackendStatusPanel(status: store.backendStatus) {
                         Task {
                             await store.checkBackendConnection()
                         }
                     }
-                    DevelopmentNotesPanel()
+                    DataSyncPanel(
+                        snapshot: store.snapshot,
+                        isSyncing: store.isBackendSyncing,
+                        notice: store.sessionNotice
+                    ) {
+                        Task {
+                            await store.syncAllFromBackend()
+                        }
+                    }
                 }
                 .padding(18)
             }
@@ -88,21 +96,66 @@ private struct BackendStatusPanel: View {
     }
 }
 
-private struct DevelopmentNotesPanel: View {
+private struct DataSyncPanel: View {
+    let snapshot: DashboardSnapshot
+    let isSyncing: Bool
+    let notice: String?
+    let sync: () -> Void
+
     var body: some View {
         SoftPanel {
-            VStack(alignment: .leading, spacing: 10) {
-                Label("开发提示", systemImage: "hammer.fill")
+            VStack(alignment: .leading, spacing: 14) {
+                Label("数据与同步", systemImage: "externaldrive.fill")
                     .font(.headline)
-                Text("默认连接 README 里的 http://127.0.0.1:8765。模拟器调试时可以通过 XIAOLU_BACKEND_URL 覆盖，例如指向 fake provider 的 8768。")
+
+                Text("手机会保留最近同步的会话、记忆、总结和长期画像。Mac 暂时不在线时，仍然可以查看已经保存的内容。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("当后端不可用时，对话页会显示提示，并使用 iOS 原型回复，不会让用户卡在空白状态。")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 12) {
+                    SettingsDataCount(title: "会话", value: snapshot.sessionCount)
+                    SettingsDataCount(title: "记忆", value: snapshot.memoryCount)
+                    SettingsDataCount(title: "总结", value: snapshot.journalCount)
+                }
+
+                if let notice, !notice.isEmpty {
+                    Text(notice)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button(action: sync) {
+                    Label(isSyncing ? "正在同步" : "立即同步", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.nightInk)
+                .background(Color(hex: 0xffeee9), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .disabled(isSyncing)
             }
         }
+    }
+}
+
+private struct SettingsDataCount: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(value)")
+                .font(.system(.headline, design: .rounded, weight: .bold))
+                .foregroundStyle(Color.nightInk)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }

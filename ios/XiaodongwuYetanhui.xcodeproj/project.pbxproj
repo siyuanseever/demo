@@ -85,6 +85,24 @@
 		000000000000000000000183 /* bailan-destroy-button.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000373 /* bailan-destroy-button.png */; };
 		000000000000000000000184 /* bailan-world-destroyed.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000374 /* bailan-world-destroyed.png */; };
 		000000000000000000000185 /* bailan-world-pause.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000375 /* bailan-world-pause.png */; };
+		000000000000000000000186 /* bailan-background.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000376 /* bailan-background.png */; };
+		000000000000000000000187 /* bailan-sticker-sheet.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000377 /* bailan-sticker-sheet.png */; };
+		000000000000000000000188 /* bailan-sticker-suanle.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000378 /* bailan-sticker-suanle.png */; };
+		000000000000000000000189 /* bailan-sticker-dont-care.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000379 /* bailan-sticker-dont-care.png */; };
+		000000000000000000000190 /* bailan-sticker-lie-down.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000380 /* bailan-sticker-lie-down.png */; };
+		000000000000000000000191 /* bailan-sticker-milk-tea.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000381 /* bailan-sticker-milk-tea.png */; };
+		000000000000000000000192 /* bailan-sticker-tomorrow.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000382 /* bailan-sticker-tomorrow.png */; };
+		000000000000000000000193 /* bailan-sticker-not-moving.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000383 /* bailan-sticker-not-moving.png */; };
+		000000000000000000000194 /* bailan-sticker-not-listening.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000384 /* bailan-sticker-not-listening.png */; };
+		000000000000000000000195 /* bailan-sticker-tired.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000385 /* bailan-sticker-tired.png */; };
+		000000000000000000000196 /* bailan-sticker-no-meaning.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000386 /* bailan-sticker-no-meaning.png */; };
+		000000000000000000000197 /* bailan-sticker-none-of-my-business.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000387 /* bailan-sticker-none-of-my-business.png */; };
+		A00000000000000000000198 /* bailan-sticker-tomorrow-chips.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000388 /* bailan-sticker-tomorrow-chips.png */; };
+		A00000000000000000000199 /* bailan-sticker-lying-flat.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000389 /* bailan-sticker-lying-flat.png */; };
+		A00000000000000000000200 /* bailan-sticker-not-listening-blanket.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000390 /* bailan-sticker-not-listening-blanket.png */; };
+		A00000000000000000000201 /* bailan-sticker-tired-table.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000391 /* bailan-sticker-tired-table.png */; };
+		A00000000000000000000202 /* bailan-sticker-no-meaning-phone.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000392 /* bailan-sticker-no-meaning-phone.png */; };
+		A00000000000000000000203 /* bailan-sticker-none-of-my-business-butterfly.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000393 /* bailan-sticker-none-of-my-business-butterfly.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -174,6 +192,24 @@
 		000000000000000000000373 /* bailan-destroy-button.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-destroy-button.png"; path = "../app/static/bailan-destroy-button.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000374 /* bailan-world-destroyed.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-world-destroyed.png"; path = "../app/static/bailan-world-destroyed.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000375 /* bailan-world-pause.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-world-pause.png"; path = "../app/static/bailan-world-pause.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000376 /* bailan-background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-background.png"; path = "../app/static/bailan-background.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000377 /* bailan-sticker-sheet.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-sheet.png"; path = "../app/static/bailan-sticker-sheet.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000378 /* bailan-sticker-suanle.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-suanle.png"; path = "../app/static/bailan-sticker-suanle.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000379 /* bailan-sticker-dont-care.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-dont-care.png"; path = "../app/static/bailan-sticker-dont-care.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000380 /* bailan-sticker-lie-down.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-lie-down.png"; path = "../app/static/bailan-sticker-lie-down.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000381 /* bailan-sticker-milk-tea.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-milk-tea.png"; path = "../app/static/bailan-sticker-milk-tea.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000382 /* bailan-sticker-tomorrow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-tomorrow.png"; path = "../app/static/bailan-sticker-tomorrow.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000383 /* bailan-sticker-not-moving.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-not-moving.png"; path = "../app/static/bailan-sticker-not-moving.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000384 /* bailan-sticker-not-listening.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-not-listening.png"; path = "../app/static/bailan-sticker-not-listening.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000385 /* bailan-sticker-tired.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-tired.png"; path = "../app/static/bailan-sticker-tired.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000386 /* bailan-sticker-no-meaning.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-no-meaning.png"; path = "../app/static/bailan-sticker-no-meaning.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000387 /* bailan-sticker-none-of-my-business.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-none-of-my-business.png"; path = "../app/static/bailan-sticker-none-of-my-business.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000388 /* bailan-sticker-tomorrow-chips.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-tomorrow-chips.png"; path = "../app/static/bailan-sticker-tomorrow-chips.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000389 /* bailan-sticker-lying-flat.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-lying-flat.png"; path = "../app/static/bailan-sticker-lying-flat.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000390 /* bailan-sticker-not-listening-blanket.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-not-listening-blanket.png"; path = "../app/static/bailan-sticker-not-listening-blanket.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000391 /* bailan-sticker-tired-table.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-tired-table.png"; path = "../app/static/bailan-sticker-tired-table.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000392 /* bailan-sticker-no-meaning-phone.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-no-meaning-phone.png"; path = "../app/static/bailan-sticker-no-meaning-phone.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000393 /* bailan-sticker-none-of-my-business-butterfly.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-none-of-my-business-butterfly.png"; path = "../app/static/bailan-sticker-none-of-my-business-butterfly.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -333,6 +369,24 @@
 				000000000000000000000373 /* bailan-destroy-button.png */,
 				000000000000000000000374 /* bailan-world-destroyed.png */,
 				000000000000000000000375 /* bailan-world-pause.png */,
+				000000000000000000000376 /* bailan-background.png */,
+				000000000000000000000377 /* bailan-sticker-sheet.png */,
+				000000000000000000000378 /* bailan-sticker-suanle.png */,
+				000000000000000000000379 /* bailan-sticker-dont-care.png */,
+				000000000000000000000380 /* bailan-sticker-lie-down.png */,
+				000000000000000000000381 /* bailan-sticker-milk-tea.png */,
+				000000000000000000000382 /* bailan-sticker-tomorrow.png */,
+				000000000000000000000383 /* bailan-sticker-not-moving.png */,
+				000000000000000000000384 /* bailan-sticker-not-listening.png */,
+				000000000000000000000385 /* bailan-sticker-tired.png */,
+				000000000000000000000386 /* bailan-sticker-no-meaning.png */,
+				000000000000000000000387 /* bailan-sticker-none-of-my-business.png */,
+				000000000000000000000388 /* bailan-sticker-tomorrow-chips.png */,
+				000000000000000000000389 /* bailan-sticker-lying-flat.png */,
+				000000000000000000000390 /* bailan-sticker-not-listening-blanket.png */,
+				000000000000000000000391 /* bailan-sticker-tired-table.png */,
+				000000000000000000000392 /* bailan-sticker-no-meaning-phone.png */,
+				000000000000000000000393 /* bailan-sticker-none-of-my-business-butterfly.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -479,6 +533,24 @@
 				000000000000000000000183 /* bailan-destroy-button.png in Resources */,
 				000000000000000000000184 /* bailan-world-destroyed.png in Resources */,
 				000000000000000000000185 /* bailan-world-pause.png in Resources */,
+				000000000000000000000186 /* bailan-background.png in Resources */,
+				000000000000000000000187 /* bailan-sticker-sheet.png in Resources */,
+				000000000000000000000188 /* bailan-sticker-suanle.png in Resources */,
+				000000000000000000000189 /* bailan-sticker-dont-care.png in Resources */,
+				000000000000000000000190 /* bailan-sticker-lie-down.png in Resources */,
+				000000000000000000000191 /* bailan-sticker-milk-tea.png in Resources */,
+				000000000000000000000192 /* bailan-sticker-tomorrow.png in Resources */,
+				000000000000000000000193 /* bailan-sticker-not-moving.png in Resources */,
+				000000000000000000000194 /* bailan-sticker-not-listening.png in Resources */,
+				000000000000000000000195 /* bailan-sticker-tired.png in Resources */,
+				000000000000000000000196 /* bailan-sticker-no-meaning.png in Resources */,
+				000000000000000000000197 /* bailan-sticker-none-of-my-business.png in Resources */,
+				A00000000000000000000198 /* bailan-sticker-tomorrow-chips.png in Resources */,
+				A00000000000000000000199 /* bailan-sticker-lying-flat.png in Resources */,
+				A00000000000000000000200 /* bailan-sticker-not-listening-blanket.png in Resources */,
+				A00000000000000000000201 /* bailan-sticker-tired-table.png in Resources */,
+				A00000000000000000000202 /* bailan-sticker-no-meaning-phone.png in Resources */,
+				A00000000000000000000203 /* bailan-sticker-none-of-my-business-butterfly.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

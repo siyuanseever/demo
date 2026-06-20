@@ -30,7 +30,7 @@ struct StateOverviewView: View {
             WarmBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    SectionHeader(title: "状态花园", subtitle: "把长期对话留下的轨迹，整理成可以回看的状态。")
+                    PersonalOverviewHeader()
                     MoodPanel(journals: store.journals)
                     WeeklyReportPanel(journals: store.journals)
                     SnapshotGrid(
@@ -53,8 +53,91 @@ struct StateOverviewView: View {
                 .padding(18)
             }
         }
-        .navigationTitle("状态")
+        .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if store.backendStatus.state == .unknown {
+                await store.checkBackendConnection()
+            }
+        }
+    }
+}
+
+private struct PersonalOverviewHeader: View {
+    @EnvironmentObject private var store: CompanionStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("此刻的你")
+                    .font(SensenFonts.handwritten(size: 26))
+                    .foregroundStyle(Color.nightInk)
+                Text("这里收好对话留下的心情、记忆、总结、周报和长期状态。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 10) {
+                Label(connectionLabel, systemImage: connectionIcon)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(store.backendStatus.isOnline ? Color.green : Color.warmBrown)
+
+                Spacer()
+
+                Button {
+                    Task {
+                        await store.syncAllFromBackend()
+                    }
+                } label: {
+                    Label(store.isBackendSyncing ? "同步中" : "同步", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.warmBrown)
+                .disabled(store.isBackendSyncing)
+
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    Label("设置", systemImage: "gearshape.fill")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.warmBrown)
+            }
+
+            if let notice = store.sessionNotice, !notice.isEmpty {
+                Text(notice)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(17)
+        .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.warmBrown.opacity(0.12), lineWidth: 1)
+        }
+    }
+
+    private var connectionLabel: String {
+        switch store.backendStatus.state {
+        case .unknown: return "尚未检查连接"
+        case .checking: return "正在连接 Mac"
+        case .online: return "已连接 Mac"
+        case .fallback: return "正在使用手机缓存"
+        }
+    }
+
+    private var connectionIcon: String {
+        switch store.backendStatus.state {
+        case .unknown: return "questionmark.circle"
+        case .checking: return "arrow.triangle.2.circlepath"
+        case .online: return "checkmark.circle.fill"
+        case .fallback: return "iphone"
+        }
     }
 }
 

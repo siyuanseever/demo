@@ -31,7 +31,8 @@ struct StarMapView: View {
                     openCoreInsight: { selectedDetail = .coreInsight(store.starMapInsight) },
                     openRecentPattern: { selectedDetail = .recentPattern(store.starMapInsight) },
                     openFlowCondition: { selectedDetail = .flowCondition(store.starMapInsight) },
-                    openGentleReminder: { selectedDetail = .gentleReminder(store.starMapInsight) }
+                    openGentleReminder: { selectedDetail = .gentleReminder(store.starMapInsight) },
+                    openFlowRitual: { selectedDetail = .flowRitual(store.starMapInsight) }
                 )
                     .frame(width: geometry.size.width, height: fullHeight)
                     .offset(y: backgroundOffset)
@@ -53,9 +54,16 @@ struct StarMapView: View {
             await store.refreshStarMapInsight()
         }
         .sheet(item: $selectedDetail) { detail in
-            StarMapDetailSheet(detail: detail)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+            switch detail {
+            case .flowRitual(let insight):
+                FlowRitualSheet(insight: insight)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            default:
+                StarMapDetailSheet(detail: detail)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
         }
     }
 }
@@ -141,6 +149,7 @@ private struct StarMapHitOverlay: View {
     let openRecentPattern: () -> Void
     let openFlowCondition: () -> Void
     let openGentleReminder: () -> Void
+    let openFlowRitual: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -148,7 +157,7 @@ private struct StarMapHitOverlay: View {
             let height = geometry.size.height
 
             ZStack {
-                transparentButton(label: "本月生命力观察", action: openCoreInsight)
+                transparentButton(label: "本月心流观察", action: openCoreInsight)
                     .frame(width: width * 0.76, height: height * 0.22)
                     .position(x: width * 0.5, y: height * 0.34)
 
@@ -163,6 +172,10 @@ private struct StarMapHitOverlay: View {
                 transparentButton(label: insight.gentleReminderTitle, action: openGentleReminder)
                     .frame(width: width * 0.26, height: height * 0.28)
                     .position(x: width * 0.83, y: height * 0.66)
+
+                transparentButton(label: "进入此刻的心流", action: openFlowRitual)
+                    .frame(width: width * 0.56, height: height * 0.12)
+                    .position(x: width * 0.52, y: height * 0.86)
             }
         }
     }
@@ -184,6 +197,7 @@ private enum StarMapDetailArea: Identifiable {
     case recentPattern(StarMapInsight)
     case flowCondition(StarMapInsight)
     case gentleReminder(StarMapInsight)
+    case flowRitual(StarMapInsight)
 
     var id: String {
         switch self {
@@ -195,19 +209,23 @@ private enum StarMapDetailArea: Identifiable {
             return "\(insight.id)-flow"
         case .gentleReminder(let insight):
             return "\(insight.id)-reminder"
+        case .flowRitual(let insight):
+            return "\(insight.id)-ritual"
         }
     }
 
     var title: String {
         switch self {
         case .coreInsight:
-            return "本月生命力观察"
+            return "本月心流观察"
         case .recentPattern(let insight):
             return insight.recentPatternTitle
         case .flowCondition(let insight):
             return insight.flowConditionTitle
         case .gentleReminder(let insight):
             return insight.gentleReminderTitle
+        case .flowRitual:
+            return "进入此刻"
         }
     }
 
@@ -221,6 +239,8 @@ private enum StarMapDetailArea: Identifiable {
             return insight.flowConditions.joined(separator: " · ")
         case .gentleReminder(let insight):
             return insight.gentleReminder
+        case .flowRitual:
+            return "先只和一件事待在一起。"
         }
     }
 
@@ -234,6 +254,8 @@ private enum StarMapDetailArea: Identifiable {
             return insight.flowConditionDetail
         case .gentleReminder(let insight):
             return insight.gentleReminderDetail
+        case .flowRitual:
+            return "不计时，也不要求完成。"
         }
     }
 
@@ -242,7 +264,8 @@ private enum StarMapDetailArea: Identifiable {
         case .coreInsight(let insight),
              .recentPattern(let insight),
              .flowCondition(let insight),
-             .gentleReminder(let insight):
+             .gentleReminder(let insight),
+             .flowRitual(let insight):
             return insight.periodLabel
         }
     }
@@ -252,8 +275,183 @@ private enum StarMapDetailArea: Identifiable {
         case .coreInsight(let insight),
              .recentPattern(let insight),
              .flowCondition(let insight),
-             .gentleReminder(let insight):
+             .gentleReminder(let insight),
+             .flowRitual(let insight):
             return insight.sourceSummary
+        }
+    }
+}
+
+private struct FlowRitualSheet: View {
+    let insight: StarMapInsight
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = ""
+    @State private var activeIntention: String?
+    @FocusState private var isDraftFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color(hex: 0xeee9f3)
+                    .ignoresSafeArea()
+
+                if let activeIntention {
+                    activeView(intention: activeIntention)
+                } else {
+                    preparationView
+                }
+            }
+            .navigationTitle("进入此刻")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("先离开") {
+                        dismiss()
+                    }
+                    .font(.custom("HannotateSC-W5", size: 15))
+                    .foregroundStyle(Color(hex: 0x756887))
+                }
+            }
+        }
+    }
+
+    private var preparationView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("现在想把注意力放在哪里？")
+                        .font(.custom("HannotateSC-W5", size: 25))
+                        .foregroundStyle(Color(hex: 0x4f455d))
+                    Text("不用完成，也不用证明效率。先只和一件事待在一起。")
+                        .font(.custom("HannotateSC-W5", size: 16))
+                        .lineSpacing(6)
+                        .foregroundStyle(Color(hex: 0x71677b))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                TextField("写下一件此刻愿意靠近的事", text: $draft, axis: .vertical)
+                    .font(.custom("HannotateSC-W5", size: 18))
+                    .lineLimit(2...4)
+                    .focused($isDraftFocused)
+                    .padding(16)
+                    .background(Color(hex: 0xf8f2e9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                if !suggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("也可以从最近会亮起来的事开始")
+                            .font(.custom("HannotateSC-W5", size: 14))
+                            .foregroundStyle(Color(hex: 0x81758d))
+
+                        FlowSuggestionLayout(items: suggestions) { suggestion in
+                            draft = suggestion
+                            isDraftFocused = false
+                        }
+                    }
+                }
+
+                Button {
+                    begin()
+                } label: {
+                    Text("先只做这一件事")
+                        .font(.custom("HannotateSC-W5", size: 17))
+                        .foregroundStyle(Color(hex: 0x4f455d))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(hex: 0xd9cdea), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(cleanDraft.isEmpty)
+                .opacity(cleanDraft.isEmpty ? 0.42 : 1)
+
+                Text("这里不会计时，不会打卡，也不会评价你做了多少。")
+                    .font(.custom("HannotateSC-W5", size: 13))
+                    .foregroundStyle(Color(hex: 0x8b8194))
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func activeView(intention: String) -> some View {
+        VStack(spacing: 28) {
+            Spacer()
+
+            Image(systemName: "moon.stars.fill")
+                .font(.system(size: 42, weight: .light))
+                .foregroundStyle(Color(hex: 0x8a78a5))
+
+            Text(intention)
+                .font(.custom("HannotateSC-W5", size: 27))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color(hex: 0x4f455d))
+                .padding(.horizontal, 28)
+
+            Text("不需要马上完成。\n注意力回来时，就再靠近一点点。")
+                .font(.custom("HannotateSC-W5", size: 16))
+                .lineSpacing(7)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color(hex: 0x756b7e))
+
+            Spacer()
+
+            Button("先停在这里") {
+                dismiss()
+            }
+            .font(.custom("HannotateSC-W5", size: 16))
+            .foregroundStyle(Color(hex: 0x5f5369))
+            .buttonStyle(.plain)
+            .padding(.bottom, 26)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var suggestions: [String] {
+        var result: [String] = []
+        for item in insight.recentPattern + insight.flowConditions {
+            let cleaned = item.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty, !result.contains(cleaned) {
+                result.append(cleaned)
+            }
+            if result.count == 5 {
+                break
+            }
+        }
+        return result
+    }
+
+    private var cleanDraft: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func begin() {
+        guard !cleanDraft.isEmpty else { return }
+        isDraftFocused = false
+        withAnimation(.easeInOut(duration: 0.28)) {
+            activeIntention = cleanDraft
+        }
+    }
+}
+
+private struct FlowSuggestionLayout: View {
+    let items: [String]
+    let select: (String) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(items, id: \.self) { item in
+                Button(item) {
+                    select(item)
+                }
+                .font(.custom("HannotateSC-W5", size: 14))
+                .foregroundStyle(Color(hex: 0x665a73))
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity)
+                .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
         }
     }
 }
@@ -321,8 +519,8 @@ private struct StarMapBottomBar: View {
     var body: some View {
         HStack(spacing: 0) {
             StarMapTabButton(title: "疗愈", systemImage: "house.fill", isSelected: false, action: openHome)
-            StarMapTabButton(title: "森林", systemImage: "tree.fill", isSelected: false, action: openForest)
-            StarMapTabButton(title: "星图", systemImage: "sparkles", isSelected: true, action: openStarMap)
+            StarMapTabButton(title: "摆烂", systemImage: "sofa.fill", isSelected: false, action: openForest)
+            StarMapTabButton(title: "心流", systemImage: "sparkles", isSelected: true, action: openStarMap)
             StarMapRabbitTabButton(action: openMe)
         }
         .padding(.horizontal, 10)
