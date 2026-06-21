@@ -103,6 +103,12 @@
 		A00000000000000000000201 /* bailan-sticker-tired-table.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000391 /* bailan-sticker-tired-table.png */; };
 		A00000000000000000000202 /* bailan-sticker-no-meaning-phone.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000392 /* bailan-sticker-no-meaning-phone.png */; };
 		A00000000000000000000203 /* bailan-sticker-none-of-my-business-butterfly.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000393 /* bailan-sticker-none-of-my-business-butterfly.png */; };
+		A00000000000000000000204 /* sensen-healing-wind-hill.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000394 /* sensen-healing-wind-hill.png */; };
+		A00000000000000000000205 /* sensen-healing-seaside-nap.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000395 /* sensen-healing-seaside-nap.png */; };
+		A00000000000000000000206 /* sensen-healing-sea-overlook.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000396 /* sensen-healing-sea-overlook.png */; };
+		A00000000000000000000207 /* sensen-healing-sunny-rest.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000397 /* sensen-healing-sunny-rest.png */; };
+		A00000000000000000000208 /* sensen-healing-blue-balcony.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000398 /* sensen-healing-blue-balcony.png */; };
+		A00000000000000000000209 /* sensen-healing-sunset-field.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000399 /* sensen-healing-sunset-field.png */; };
 		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
 		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
 		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
@@ -210,6 +216,12 @@
 		000000000000000000000391 /* bailan-sticker-tired-table.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-tired-table.png"; path = "../app/static/bailan-sticker-tired-table.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000392 /* bailan-sticker-no-meaning-phone.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-no-meaning-phone.png"; path = "../app/static/bailan-sticker-no-meaning-phone.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000393 /* bailan-sticker-none-of-my-business-butterfly.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-sticker-none-of-my-business-butterfly.png"; path = "../app/static/bailan-sticker-none-of-my-business-butterfly.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000394 /* sensen-healing-wind-hill.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-wind-hill.png"; path = "../app/static/sensen-healing-wind-hill.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000395 /* sensen-healing-seaside-nap.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-seaside-nap.png"; path = "../app/static/sensen-healing-seaside-nap.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000396 /* sensen-healing-sea-overlook.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-sea-overlook.png"; path = "../app/static/sensen-healing-sea-overlook.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000397 /* sensen-healing-sunny-rest.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-sunny-rest.png"; path = "../app/static/sensen-healing-sunny-rest.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000398 /* sensen-healing-blue-balcony.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-blue-balcony.png"; path = "../app/static/sensen-healing-blue-balcony.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000399 /* sensen-healing-sunset-field.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-sunset-field.png"; path = "../app/static/sensen-healing-sunset-field.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
 		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
 		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -387,6 +399,12 @@
 				000000000000000000000391 /* bailan-sticker-tired-table.png */,
 				000000000000000000000392 /* bailan-sticker-no-meaning-phone.png */,
 				000000000000000000000393 /* bailan-sticker-none-of-my-business-butterfly.png */,
+				000000000000000000000394 /* sensen-healing-wind-hill.png */,
+				000000000000000000000395 /* sensen-healing-seaside-nap.png */,
+				000000000000000000000396 /* sensen-healing-sea-overlook.png */,
+				000000000000000000000397 /* sensen-healing-sunny-rest.png */,
+				000000000000000000000398 /* sensen-healing-blue-balcony.png */,
+				000000000000000000000399 /* sensen-healing-sunset-field.png */,
 			);
 			name = "Linked Resources";
 			sourceTree = "<group>";
@@ -551,6 +569,12 @@
 				A00000000000000000000201 /* bailan-sticker-tired-table.png in Resources */,
 				A00000000000000000000202 /* bailan-sticker-no-meaning-phone.png in Resources */,
 				A00000000000000000000203 /* bailan-sticker-none-of-my-business-butterfly.png in Resources */,
+				A00000000000000000000204 /* sensen-healing-wind-hill.png in Resources */,
+				A00000000000000000000205 /* sensen-healing-seaside-nap.png in Resources */,
+				A00000000000000000000206 /* sensen-healing-sea-overlook.png in Resources */,
+				A00000000000000000000207 /* sensen-healing-sunny-rest.png in Resources */,
+				A00000000000000000000208 /* sensen-healing-blue-balcony.png in Resources */,
+				A00000000000000000000209 /* sensen-healing-sunset-field.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
