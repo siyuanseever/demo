@@ -229,7 +229,7 @@ final class ChatService {
         self.sessionID = sessionID
     }
 
-    func fetchSessions(limit: Int = 80) async throws -> [RemoteSessionSummary] {
+    func fetchSessions(limit: Int = 200) async throws -> [RemoteSessionSummary] {
         let url = try url(path: "/api/data", queryItems: [
             URLQueryItem(name: "type", value: "sessions"),
             URLQueryItem(name: "limit", value: String(limit)),
@@ -252,13 +252,18 @@ final class ChatService {
         return response.remoteDetail(sessionID: sessionID)
     }
 
-    func fetchMemories() async throws -> [RemoteMemory] {
-        let response: RemoteMemoriesResponseBody = try await fetchData(type: "memories")
+    func fetchMessages(limit: Int = 2000) async throws -> [RemoteChatMessage] {
+        let response: RemoteMessagesResponseBody = try await fetchData(type: "messages", limit: limit)
+        return response.items.map(\.remoteMessage)
+    }
+
+    func fetchMemories(limit: Int = 500) async throws -> [RemoteMemory] {
+        let response: RemoteMemoriesResponseBody = try await fetchData(type: "memories", limit: limit)
         return response.items.map(\.remoteMemory)
     }
 
-    func fetchJournals() async throws -> [RemoteJournal] {
-        let response: RemoteJournalsResponseBody = try await fetchData(type: "journals")
+    func fetchJournals(limit: Int = 300) async throws -> [RemoteJournal] {
+        let response: RemoteJournalsResponseBody = try await fetchData(type: "journals", limit: limit)
         return response.items.map(\.remoteJournal)
     }
 
@@ -335,10 +340,12 @@ final class ChatService {
         return url
     }
 
-    private func fetchData<Response: Decodable>(type: String) async throws -> Response {
-        let url = try url(path: "/api/data", queryItems: [
-            URLQueryItem(name: "type", value: type),
-        ])
+    private func fetchData<Response: Decodable>(type: String, limit: Int? = nil) async throws -> Response {
+        var queryItems = [URLQueryItem(name: "type", value: type)]
+        if let limit {
+            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+        let url = try url(path: "/api/data", queryItems: queryItems)
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 20
@@ -467,6 +474,10 @@ private struct RemoteSessionDetailResponseBody: Decodable {
             messages: messages.map(\.remoteMessage)
         )
     }
+}
+
+private struct RemoteMessagesResponseBody: Decodable {
+    let items: [RemoteMessageResponseBody]
 }
 
 private struct RemoteMessageResponseBody: Decodable {

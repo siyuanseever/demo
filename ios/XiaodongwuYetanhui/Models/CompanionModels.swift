@@ -303,6 +303,13 @@ struct FlowMoment: Identifiable, Hashable, Codable {
     let createdAt: Date
 }
 
+struct BailanDiaryEntry: Identifiable, Hashable, Codable {
+    let id: String
+    let content: String
+    let response: String
+    let createdAt: Date
+}
+
 enum RecommendationMedium: String, Codable, CaseIterable {
     case book
     case music

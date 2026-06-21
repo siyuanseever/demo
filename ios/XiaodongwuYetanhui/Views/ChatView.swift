@@ -1116,13 +1116,17 @@ private struct CompanionChatPage: View {
                         .background(Color.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
 
                     HStack(spacing: 12) {
-                        Button(action: {}) {
-                            Label("语音", systemImage: "mic.fill")
+                        Button {
+                            UISelectionFeedbackGenerator().selectionChanged()
+                            isInputFocused = true
+                        } label: {
+                            Label("听写", systemImage: "mic.fill")
                                 .font(SensenFonts.handwritten(size: 15))
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .tint(Color(hex: 0xb7a0d4))
+                        .accessibilityHint("打开系统键盘后，可以使用键盘上的麦克风听写")
 
                         Button {
                             sendDraft()
@@ -1133,7 +1137,7 @@ private struct CompanionChatPage: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(Color(hex: 0xb7a0d4))
-                        .disabled(store.isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(!canSendDraft)
                     }
                 }
                 .padding(18)
@@ -1205,9 +1209,17 @@ private struct CompanionChatPage: View {
         )
     }
 
+    private var cleanDraft: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSendDraft: Bool {
+        !cleanDraft.isEmpty && !store.isSending
+    }
+
     private func sendDraft() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard canSendDraft else { return }
+        let text = cleanDraft
         draft = ""
         sentMessageCount += 1
         isInputFocused = false

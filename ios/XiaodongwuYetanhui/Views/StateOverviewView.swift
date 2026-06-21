@@ -48,6 +48,8 @@ struct StateOverviewView: View {
                     )
                     MoreRecordsToggle(isExpanded: $showsMoreRecords)
                     if showsMoreRecords {
+                        BailanDiaryPanel(entries: store.bailanDiaryEntries)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         FlowMomentPanel(moments: store.flowMoments)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         CareMomentPanel(careMoments: store.careMoments)
@@ -105,7 +107,7 @@ private struct MoreRecordsToggle: View {
                     Text(isExpanded ? "收起更多记录" : "更多记录与陪伴")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.nightInk)
-                    Text("心流片刻、照顾记录、陪伴建议与最近总结")
+                    Text("摆烂日记、心流片刻、照顾记录与陪伴建议")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -126,6 +128,113 @@ private struct MoreRecordsToggle: View {
         }
         .buttonStyle(.plain)
         .accessibilityValue(isExpanded ? "已展开" : "已收起")
+    }
+}
+
+private struct BailanDiaryPanel: View {
+    let entries: [BailanDiaryEntry]
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Label("摆烂日记", systemImage: "tray.full.fill")
+                        .font(.headline)
+
+                    Spacer()
+
+                    if !entries.isEmpty {
+                        NavigationLink {
+                            BailanDiaryHistoryView(entries: entries)
+                        } label: {
+                            Label("全部", systemImage: "chevron.right")
+                                .labelStyle(.titleAndIcon)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color(hex: 0x676a52))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("查看保存的全部摆烂日记")
+                    }
+                }
+
+                if entries.isEmpty {
+                    EmptyHintView(
+                        systemImage: "rectangle.and.pencil.and.ellipsis",
+                        title: "这里还没有东西",
+                        detail: "摆烂页写下的话会原样放在这里，不分析，也不处理。"
+                    )
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(entries.prefix(3).enumerated()), id: \.element.id) { index, entry in
+                            BailanDiaryRow(entry: entry)
+                            if index < min(entries.count, 3) - 1 {
+                                Divider()
+                                    .overlay(Color(hex: 0xd8cbbb).opacity(0.55))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct BailanDiaryHistoryView: View {
+    let entries: [BailanDiaryEntry]
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        BailanDiaryRow(entry: entry)
+                        if index < entries.count - 1 {
+                            Divider()
+                                .overlay(Color(hex: 0xd8cbbb).opacity(0.55))
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(18)
+            }
+        }
+        .navigationTitle("摆烂日记")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct BailanDiaryRow: View {
+    let entry: BailanDiaryEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "shippingbox.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x676a52))
+                .frame(width: 32, height: 32)
+                .background(Color(hex: 0xe4e1d2), in: Circle())
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(entry.content)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.nightInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(entry.response)
+                    .font(.caption)
+                    .foregroundStyle(Color(hex: 0x676a52))
+                Text(entry.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 11)
+        .accessibilityElement(children: .combine)
     }
 }
 

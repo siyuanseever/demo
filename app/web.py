@@ -2634,16 +2634,23 @@ class Handler(BaseHTTPRequestHandler):
         params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
         data_type = params.get("type", "sessions")
         store = self.app.orchestrator.store
+        requested_limit = None
+        if "limit" in params:
+            try:
+                requested_limit = max(1, min(int(params["limit"]), 2000))
+            except (TypeError, ValueError):
+                self.respond_json({"error": "limit must be an integer"}, status=400)
+                return
         if data_type == "sessions":
-            items = store.list_sessions()
+            items = store.list_sessions(limit=requested_limit or 50)
         elif data_type == "memories":
-            items = store.list_memories()
+            items = store.list_memories(limit=requested_limit or 200)
         elif data_type == "state":
             items = store.state_profile_overview()
         elif data_type == "journals":
-            items = store.list_journals()
+            items = store.list_journals(limit=requested_limit or 100)
         elif data_type == "messages":
-            items = store.list_messages()
+            items = store.list_messages(limit=requested_limit or 200)
         elif data_type == "knowledge":
             items = self.app.orchestrator.knowledge.list_cards()
         elif data_type == "content":

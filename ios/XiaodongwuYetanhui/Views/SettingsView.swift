@@ -113,8 +113,9 @@ private struct DataSyncPanel: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 12) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     SettingsDataCount(title: "会话", value: snapshot.sessionCount)
+                    SettingsDataCount(title: "消息", value: snapshot.messageCount)
                     SettingsDataCount(title: "记忆", value: snapshot.memoryCount)
                     SettingsDataCount(title: "总结", value: snapshot.journalCount)
                 }

@@ -21,6 +21,7 @@ final class CompanionStore: ObservableObject {
     @Published var isMonsterCareGameVisible = false
     @Published var careMoments: [CareMoment] = []
     @Published var flowMoments: [FlowMoment] = []
+    @Published var bailanDiaryEntries: [BailanDiaryEntry] = []
     @Published var latestRecommendation: CompanionRecommendation?
     @Published var isRecommendationVisible = false
     @Published var recommendationHistory: [CompanionRecommendation] = []
@@ -38,6 +39,7 @@ final class CompanionStore: ObservableObject {
     private let recommendationService = RecommendationService()
     private let careMomentsStorageKey = "xiaolu.careMoments.v1"
     private let flowMomentsStorageKey = "sensen.flowMoments.v1"
+    private let bailanDiaryStorageKey = "sensen.bailanDiaryEntries.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
     private let automaticSyncInterval: TimeInterval = 60
     private var lastHomeEncouragementRefreshAt: Date?
@@ -50,6 +52,7 @@ final class CompanionStore: ObservableObject {
         backendStatus.baseURL = chatService.backendURLDescription
         careMoments = loadCareMoments()
         flowMoments = loadFlowMoments()
+        bailanDiaryEntries = loadBailanDiaryEntries()
         recommendationHistory = loadRecommendations()
         latestRecommendation = recommendationHistory.first
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
@@ -195,11 +198,13 @@ final class CompanionStore: ObservableObject {
         }
 
         async let fetchedSessions = try? chatService.fetchSessions()
+        async let fetchedMessages = try? chatService.fetchMessages()
         async let fetchedMemories = try? chatService.fetchMemories()
         async let fetchedJournals = try? chatService.fetchJournals()
         async let fetchedProfiles = try? chatService.fetchStateProfiles()
-        let (remoteSessions, remoteMemories, remoteJournals, remoteProfiles) = await (
+        let (remoteSessions, remoteMessages, remoteMemories, remoteJournals, remoteProfiles) = await (
             fetchedSessions,
+            fetchedMessages,
             fetchedMemories,
             fetchedJournals,
             fetchedProfiles
@@ -209,11 +214,9 @@ final class CompanionStore: ObservableObject {
             for session in remoteSessions {
                 database.upsertRemoteSession(session)
             }
-            for session in remoteSessions.prefix(20) {
-                if let detail = try? await chatService.fetchSessionDetail(sessionID: session.id) {
-                    database.upsertRemoteMessages(detail.messages)
-                }
-            }
+        }
+        if let remoteMessages {
+            database.upsertRemoteMessages(remoteMessages)
         }
         if let remoteMemories {
             database.upsertRemoteMemories(remoteMemories)
@@ -236,6 +239,7 @@ final class CompanionStore: ObservableObject {
         load()
         let successfulKinds = [
             remoteSessions != nil,
+            remoteMessages != nil,
             remoteMemories != nil,
             remoteJournals != nil,
             remoteProfiles != nil,
@@ -243,9 +247,9 @@ final class CompanionStore: ObservableObject {
         let checkedAt = Date()
         if successfulKinds > 0 {
             lastBackendSyncAt = checkedAt
-            let isComplete = successfulKinds == 4
+            let isComplete = successfulKinds == 5
             sessionNotice = isComplete
-                ? "已同步会话、记忆、总结和长期画像。"
+                ? "已同步会话消息、记忆、总结和长期画像。"
                 : "部分数据暂时未同步，已保留手机上的最近缓存。"
             backendStatus = BackendConnectionStatus(
                 state: .online,
@@ -498,6 +502,24 @@ final class CompanionStore: ObservableObject {
         saveFlowMoments()
     }
 
+    func recordBailanDiary(content: String, response: String) {
+        let cleanContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanContent.isEmpty else { return }
+        bailanDiaryEntries.insert(
+            BailanDiaryEntry(
+                id: UUID().uuidString,
+                content: cleanContent,
+                response: response,
+                createdAt: Date()
+            ),
+            at: 0
+        )
+        if bailanDiaryEntries.count > 24 {
+            bailanDiaryEntries = Array(bailanDiaryEntries.prefix(24))
+        }
+        saveBailanDiaryEntries()
+    }
+
     private func recordCareMoment(_ careMoment: CareMoment) {
         careMoments.insert(careMoment, at: 0)
         if careMoments.count > 8 {
@@ -549,6 +571,35 @@ final class CompanionStore: ObservableObject {
         } catch {
             UserDefaults.standard.removeObject(forKey: flowMomentsStorageKey)
         }
+    }
+
+    private func loadBailanDiaryEntries() -> [BailanDiaryEntry] {
+        if let data = UserDefaults.standard.data(forKey: bailanDiaryStorageKey),
+           let entries = try? JSONDecoder().decode([BailanDiaryEntry].self, from: data) {
+            return entries
+        }
+
+        let legacyEntry = UserDefaults.standard
+            .string(forKey: "bailan.latestDiary")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !legacyEntry.isEmpty else { return [] }
+        let migratedEntries = [
+            BailanDiaryEntry(
+                id: UUID().uuidString,
+                content: legacyEntry,
+                response: "嗯，先放这儿",
+                createdAt: Date()
+            )
+        ]
+        if let data = try? JSONEncoder().encode(migratedEntries) {
+            UserDefaults.standard.set(data, forKey: bailanDiaryStorageKey)
+        }
+        return migratedEntries
+    }
+
+    private func saveBailanDiaryEntries() {
+        guard let data = try? JSONEncoder().encode(bailanDiaryEntries) else { return }
+        UserDefaults.standard.set(data, forKey: bailanDiaryStorageKey)
     }
 
     private func loadRecommendations() -> [CompanionRecommendation] {

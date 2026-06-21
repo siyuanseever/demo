@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 struct CompanionGardenView: View {
-    @AppStorage("bailan.latestDiary") private var savedDiary = ""
+    @EnvironmentObject private var store: CompanionStore
     @AppStorage("bailan.dontCareItems") private var savedDontCareItems = ""
 
     @State private var diaryText = ""
@@ -153,7 +153,7 @@ struct CompanionGardenView: View {
                     .background(Color(hex: 0xe4ddd3), in: RoundedRectangle(cornerRadius: 8))
 
                 HStack {
-                    Text(diaryReply.isEmpty ? (savedDiary.isEmpty ? "" : "嗯，先放这儿") : diaryReply)
+                    Text(diaryReply.isEmpty ? (store.bailanDiaryEntries.first?.response ?? "") : diaryReply)
                         .font(.custom("HannotateSC-W5", size: 13))
                         .foregroundStyle(Color(hex: 0x5a554f))
                     Spacer()
@@ -271,8 +271,9 @@ struct CompanionGardenView: View {
         let entry = diaryText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !entry.isEmpty else { return }
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        savedDiary = entry
-        diaryReply = diaryReplies.randomElement() ?? "嗯，先放这儿"
+        let reply = diaryReplies.randomElement() ?? "嗯，先放这儿"
+        diaryReply = reply
+        store.recordBailanDiary(content: entry, response: reply)
         diaryText = ""
         focusedField = nil
     }
