@@ -31,6 +31,31 @@ def read_prompt(name: str) -> str:
     return (PROMPT_DIR / name).read_text(encoding="utf-8")
 
 
+def parse_json_object(content: str) -> dict:
+    text = str(content or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as original_error:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        try:
+            payload = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            raise original_error
+    if not isinstance(payload, dict):
+        raise ValueError("LLM response must be a JSON object")
+    return payload
+
+
 def render_memories(memories: list) -> str:
     if not memories:
         return "暂无长期记忆。"
@@ -1034,7 +1059,20 @@ class ConversationOrchestrator:
         results = []
         for candidate in candidates[:3]:
             existing = self.store.find_memory_candidates(candidate)
-            decision = self._decide_memory_merge(candidate, existing)
+            try:
+                decision = self._decide_memory_merge(candidate, existing)
+            except Exception as error:
+                self.logger.exception(
+                    "memory merge decision failed; fallback=create session=%s error=%s",
+                    session_id,
+                    error,
+                )
+                decision = {
+                    "action": "create",
+                    "target_memory_id": "",
+                    "memory": candidate,
+                    "reason": "记忆合并判断暂时失败，已保留为新记忆。",
+                }
             action = decision.get("action", "create")
             memory = decision.get("memory") or candidate
             reason = decision.get("reason", "")
@@ -1197,7 +1235,20 @@ class ConversationOrchestrator:
             max_tokens=700,
             response_format={"type": "json_object"},
         )
-        decision = json.loads(response.content)
+        try:
+            decision = parse_json_object(response.content)
+        except (json.JSONDecodeError, TypeError, ValueError) as error:
+            self.logger.warning(
+                "memory merge response invalid; fallback=create error=%s chars=%s",
+                error,
+                len(response.content or ""),
+            )
+            return {
+                "action": "create",
+                "target_memory_id": "",
+                "memory": candidate,
+                "reason": "记忆合并判断返回格式异常，已保留为新记忆。",
+            }
         if decision.get("action") not in {
             "create",
             "merge",
