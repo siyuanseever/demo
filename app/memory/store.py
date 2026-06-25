@@ -1068,6 +1068,173 @@ class Store:
             )
             return cursor.rowcount
 
+    def merge_sync_bundle(self, payload: dict[str, Any]) -> dict[str, int]:
+        counts = {
+            "sessions": 0,
+            "messages": 0,
+            "memories": 0,
+            "journals": 0,
+            "state_profiles": 0,
+        }
+        with self.connect() as conn:
+            for item in payload.get("sessions", []):
+                if not item.get("id") or not item.get("created_at"):
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO sessions (id, created_at, ended_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        created_at = MIN(sessions.created_at, excluded.created_at),
+                        ended_at = CASE
+                            WHEN excluded.ended_at IS NOT NULL AND excluded.ended_at != ''
+                            THEN excluded.ended_at
+                            ELSE sessions.ended_at
+                        END
+                    """,
+                    (item["id"], item["created_at"], item.get("ended_at") or None),
+                )
+                counts["sessions"] += 1
+
+            for item in payload.get("messages", []):
+                if not item.get("id") or not item.get("session_id"):
+                    continue
+                metadata = item.get("metadata", {})
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                cursor = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO messages (
+                        id, session_id, role, content, model, metadata, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        item["id"],
+                        item["session_id"],
+                        item.get("role", "assistant"),
+                        item.get("content", ""),
+                        item.get("model") or None,
+                        json.dumps(metadata, ensure_ascii=False),
+                        item.get("created_at") or utc_now(),
+                    ),
+                )
+                counts["messages"] += max(cursor.rowcount, 0)
+
+            for item in payload.get("memories", []):
+                if not item.get("id") or not item.get("updated_at"):
+                    continue
+                cursor = conn.execute(
+                    """
+                    INSERT INTO memories (
+                        id, user_id, category, subcategory, keywords, status,
+                        content, evidence, confidence, importance, source_session_id,
+                        created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        user_id = excluded.user_id,
+                        category = excluded.category,
+                        subcategory = excluded.subcategory,
+                        keywords = excluded.keywords,
+                        status = excluded.status,
+                        content = excluded.content,
+                        evidence = excluded.evidence,
+                        confidence = excluded.confidence,
+                        importance = excluded.importance,
+                        source_session_id = excluded.source_session_id,
+                        updated_at = excluded.updated_at
+                    WHERE excluded.updated_at >= memories.updated_at
+                    """,
+                    (
+                        item["id"],
+                        item.get("user_id", "default"),
+                        item.get("category", "memory"),
+                        item.get("subcategory", "general"),
+                        json.dumps(item.get("keywords", []), ensure_ascii=False),
+                        item.get("status", "active"),
+                        item.get("content", ""),
+                        item.get("evidence", ""),
+                        float(item.get("confidence", 0.5)),
+                        int(item.get("importance", 1)),
+                        item.get("source_session_id", ""),
+                        item.get("created_at") or item["updated_at"],
+                        item["updated_at"],
+                    ),
+                )
+                counts["memories"] += max(cursor.rowcount, 0)
+
+            for item in payload.get("journals", []):
+                if not item.get("id") or not item.get("session_id"):
+                    continue
+                cursor = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO journals (
+                        id, session_id, summary, emotion_curve, keywords, insights,
+                        suggested_next_step, mood_score, dominant_emotion, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        item["id"],
+                        item["session_id"],
+                        item.get("summary", ""),
+                        json.dumps(item.get("emotion_curve", []), ensure_ascii=False),
+                        json.dumps(item.get("keywords", []), ensure_ascii=False),
+                        json.dumps(item.get("insights", []), ensure_ascii=False),
+                        item.get("suggested_next_step", ""),
+                        item.get("mood_score"),
+                        item.get("dominant_emotion", ""),
+                        item.get("created_at") or utc_now(),
+                    ),
+                )
+                counts["journals"] += max(cursor.rowcount, 0)
+
+            for item in payload.get("state_profiles", []):
+                if not item.get("id") or not item.get("domain") or not item.get("updated_at"):
+                    continue
+                existing = conn.execute(
+                    """
+                    SELECT updated_at
+                    FROM user_state_profiles
+                    WHERE user_id = ? AND domain = ?
+                    """,
+                    (item.get("user_id", "default"), item["domain"]),
+                ).fetchone()
+                if existing and existing["updated_at"] > item["updated_at"]:
+                    continue
+                conn.execute(
+                    "DELETE FROM user_state_profiles WHERE user_id = ? AND domain = ?",
+                    (item.get("user_id", "default"), item["domain"]),
+                )
+                conn.execute(
+                    """
+                    INSERT INTO user_state_profiles (
+                        id, user_id, domain, stage, summary, intensity, trend,
+                        confidence, evidence, support_strategy, source_session_id,
+                        created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        item["id"],
+                        item.get("user_id", "default"),
+                        item["domain"],
+                        item.get("stage", ""),
+                        item.get("summary", ""),
+                        int(item.get("intensity", 0)),
+                        item.get("trend", ""),
+                        float(item.get("confidence", 0)),
+                        json.dumps(item.get("evidence", []), ensure_ascii=False),
+                        item.get("support_strategy", ""),
+                        item.get("source_session_id", ""),
+                        item.get("created_at") or item["updated_at"],
+                        item["updated_at"],
+                    ),
+                )
+                counts["state_profiles"] += 1
+        return counts
+
     def journal_analytics(self) -> dict[str, Any]:
         journals = self.list_journals(limit=10000)
         points = []

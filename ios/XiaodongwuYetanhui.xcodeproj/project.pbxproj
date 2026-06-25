@@ -115,6 +115,8 @@
 		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
 		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
 		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
+		B00000000000000000000101 /* SecureSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000201 /* SecureSettingsStore.swift */; };
+		B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000202 /* LocalDeepSeekService.swift */; };
 		000000000000000000000178 /* StarMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000368 /* StarMapView.swift */; };
 /* End PBXBuildFile section */
 
@@ -229,6 +231,8 @@
 		000000000000000000000318 /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
 		000000000000000000000319 /* InteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionViews.swift; sourceTree = "<group>"; };
 		000000000000000000000320 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
+		B00000000000000000000201 /* SecureSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureSettingsStore.swift; sourceTree = "<group>"; };
+		B00000000000000000000202 /* LocalDeepSeekService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDeepSeekService.swift; sourceTree = "<group>"; };
 		000000000000000000000401 /* XiaodongwuYetanhui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XiaodongwuYetanhui.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -292,6 +296,8 @@
 				000000000000000000000315 /* ChatService.swift */,
 				000000000000000000000318 /* InteractionService.swift */,
 				000000000000000000000320 /* RecommendationService.swift */,
+				B00000000000000000000201 /* SecureSettingsStore.swift */,
+				B00000000000000000000202 /* LocalDeepSeekService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -593,6 +599,8 @@
 				000000000000000000000125 /* ChatService.swift in Sources */,
 				000000000000000000000128 /* InteractionService.swift in Sources */,
 				000000000000000000000130 /* RecommendationService.swift in Sources */,
+				B00000000000000000000101 /* SecureSettingsStore.swift in Sources */,
+				B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */,
 				000000000000000000000106 /* SharedViews.swift in Sources */,
 				000000000000000000000107 /* ChatView.swift in Sources */,
 				000000000000000000000129 /* InteractionViews.swift in Sources */,

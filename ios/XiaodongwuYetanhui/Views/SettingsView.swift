@@ -2,6 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var apiKey = ""
+    @State private var macBackendURL = ""
+    @State private var macSyncToken = ""
 
     var body: some View {
         ZStack {
@@ -10,7 +13,30 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(
                         title: "设置",
-                        subtitle: "管理 Mac 连接、数据同步和手机上的本地记录。"
+                        subtitle: "手机可以独立保存和对话；需要时再与同一局域网里的 Mac 同步。"
+                    )
+                    LocalAISettingsPanel(
+                        apiKey: $apiKey,
+                        isConfigured: store.isLocalAIConfigured,
+                        notice: store.localAISettingsNotice,
+                        save: {
+                            store.saveDeepSeekAPIKey(apiKey)
+                            apiKey = ""
+                        },
+                        clear: store.clearDeepSeekAPIKey
+                    )
+                    MacConnectionPanel(
+                        backendURL: $macBackendURL,
+                        syncToken: $macSyncToken,
+                        isTokenConfigured: store.isMacSyncTokenConfigured,
+                        status: store.backendStatus,
+                        save: {
+                            store.saveMacBackendURL(macBackendURL)
+                        },
+                        saveToken: {
+                            store.saveMacSyncToken(macSyncToken)
+                            macSyncToken = ""
+                        }
                     )
                     BackendStatusPanel(status: store.backendStatus) {
                         Task {
@@ -33,8 +59,130 @@ struct SettingsView: View {
         }
         .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await store.syncIfNeeded()
+        .onAppear {
+            macBackendURL = store.macBackendURL
+        }
+    }
+}
+
+private struct LocalAISettingsPanel: View {
+    @Binding var apiKey: String
+    let isConfigured: Bool
+    let notice: String?
+    let save: () -> Void
+    let clear: () -> Void
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("手机独立模式", systemImage: "iphone.gen3")
+                        .font(.headline)
+                    Spacer()
+                    Text(isConfigured ? "已启用" : "未配置")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isConfigured ? Color.green : Color.warmBrown)
+                }
+
+                Text("配置后，聊天会由手机直接调用 DeepSeek，session 和消息保存在手机数据库中，不需要连接 Mac。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                SecureField(isConfigured ? "输入新 Key 可替换现有 Key" : "DeepSeek API Key", text: $apiKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.callout.monospaced())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+
+                HStack(spacing: 10) {
+                    Button(action: save) {
+                        Label("保存 Key", systemImage: "key.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.warmBrown)
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    if isConfigured {
+                        Button(role: .destructive, action: clear) {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("移除 DeepSeek API Key")
+                    }
+                }
+
+                if let notice {
+                    Text(notice)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Label("API Key 仅保存在这台设备的系统钥匙串，不会写入数据库或同步给 Mac。", systemImage: "lock.shield.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct MacConnectionPanel: View {
+    @Binding var backendURL: String
+    @Binding var syncToken: String
+    let isTokenConfigured: Bool
+    let status: BackendConnectionStatus
+    let save: () -> Void
+    let saveToken: () -> Void
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Mac 局域网连接", systemImage: "desktopcomputer")
+                    .font(.headline)
+
+                TextField("例如 http://192.168.1.20:8765", text: $backendURL)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .font(.callout.monospaced())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+
+                Button(action: save) {
+                    Label("保存局域网地址", systemImage: "checkmark")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color.warmBrown)
+
+                SecureField(
+                    isTokenConfigured ? "输入新令牌可替换现有令牌" : "Mac 同步令牌",
+                    text: $syncToken
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.callout.monospaced())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 11)
+                .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+
+                Button(action: saveToken) {
+                    Label(isTokenConfigured ? "更新同步令牌" : "保存同步令牌", systemImage: "lock.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color.warmBrown)
+                .disabled(syncToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                Text("Mac 启动前设置相同的 SENSEN_SYNC_TOKEN。只有点击下面的同步按钮时，App 才会连接 Mac。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -108,7 +256,7 @@ private struct DataSyncPanel: View {
                 Label("数据与同步", systemImage: "externaldrive.fill")
                     .font(.headline)
 
-                Text("手机会保留最近同步的会话、记忆、总结和长期画像。Mac 暂时不在线时，仍然可以查看已经保存的内容。")
+                Text("手机本地数据始终可用。连接同一局域网的 Mac 后，可手动交换会话、记忆、总结和长期画像。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +285,7 @@ private struct DataSyncPanel: View {
                 }
 
                 Button(action: sync) {
-                    Label(isSyncing ? "正在同步" : "立即同步", systemImage: "arrow.triangle.2.circlepath")
+                    Label(isSyncing ? "正在同步" : "与 Mac 同步", systemImage: "arrow.triangle.2.circlepath")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)

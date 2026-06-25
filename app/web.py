@@ -1,5 +1,6 @@
 import json
 import logging
+import secrets
 import socket
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -2568,6 +2569,18 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/cleanup_empty_sessions":
                 deleted = self.app.orchestrator.store.delete_empty_sessions()
                 self.respond_json({"deleted": deleted})
+                return
+            if path == "/api/sync/merge":
+                settings = get_settings()
+                supplied_token = self.headers.get("X-Sensen-Sync-Token", "")
+                if not settings.sync_token:
+                    self.respond_json({"error": "sync is not configured on this Mac"}, status=503)
+                    return
+                if not secrets.compare_digest(supplied_token, settings.sync_token):
+                    self.respond_json({"error": "invalid sync token"}, status=401)
+                    return
+                result = self.app.orchestrator.store.merge_sync_bundle(payload)
+                self.respond_json({"ok": True, "merged": result})
                 return
             self.send_error(404)
         except Exception as error:

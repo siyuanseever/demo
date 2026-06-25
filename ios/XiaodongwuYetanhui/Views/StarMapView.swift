@@ -2,7 +2,7 @@ import SwiftUI
 
 struct StarMapView: View {
     @EnvironmentObject private var store: CompanionStore
-    @State private var selectedDetail: StarMapDetailArea?
+    @State private var selectedDestination: FlowDestination?
 
     let openHome: () -> Void
     let openForest: () -> Void
@@ -10,32 +10,120 @@ struct StarMapView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let safeTop = geometry.safeAreaInsets.top
-            let safeBottom = geometry.safeAreaInsets.bottom
-            let fullHeight = geometry.size.height + safeTop + safeBottom
-            let backgroundOffset = -(safeTop - safeBottom) / 2
-
             ZStack {
                 StarMapBundleImage(name: "starmap_background_cloud")
-                    .frame(width: geometry.size.width, height: fullHeight)
-                    .offset(y: backgroundOffset)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
-                    .ignoresSafeArea(.all)
+                    .ignoresSafeArea()
 
-                StarMapTextOverlay(insight: store.starMapInsight)
-                    .frame(width: geometry.size.width, height: fullHeight)
-                    .offset(y: backgroundOffset)
-
-                StarMapHitOverlay(
-                    insight: store.starMapInsight,
-                    openCoreInsight: { selectedDetail = .coreInsight(store.starMapInsight) },
-                    openRecentPattern: { selectedDetail = .recentPattern(store.starMapInsight) },
-                    openFlowCondition: { selectedDetail = .flowCondition(store.starMapInsight) },
-                    openGentleReminder: { selectedDetail = .gentleReminder(store.starMapInsight) },
-                    openFlowRitual: { selectedDetail = .flowRitual(store.starMapInsight) }
+                LinearGradient(
+                    colors: [
+                        Color(hex: 0xeee9f3).opacity(0.48),
+                        Color(hex: 0xf7f0e7).opacity(0.78),
+                        Color(hex: 0xebe2ef).opacity(0.92),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
-                    .frame(width: geometry.size.width, height: fullHeight)
-                    .offset(y: backgroundOffset)
+                .ignoresSafeArea()
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        FlowPageHeader(
+                            insight: store.starMapInsight,
+                            notice: store.flowInsightNotice,
+                            isRefreshing: store.isFlowInsightRefreshing
+                        ) {
+                            Task {
+                                await store.refreshStarMapInsight(forceRefresh: true)
+                            }
+                        }
+
+                        FlowGoalCard(
+                            title: store.starMapInsight.primaryGoalTitle,
+                            reason: store.starMapInsight.primaryGoalReason,
+                            nextStep: store.starMapInsight.primaryGoalNextStep,
+                            challenge: store.starMapInsight.primaryGoalChallenge,
+                            role: "主要目标",
+                            tint: Color(hex: 0xd8cbea)
+                        ) {
+                            if store.starMapInsight.isMockInsight {
+                                Task {
+                                    await store.refreshStarMapInsight(forceRefresh: true)
+                                }
+                            } else {
+                                selectedDestination = .ritual(
+                                    store.starMapInsight,
+                                    store.starMapInsight.primaryGoalNextStep
+                                )
+                            }
+                        }
+
+                        if store.starMapInsight.hasSecondaryGoal {
+                            FlowGoalCard(
+                                title: store.starMapInsight.secondaryGoalTitle,
+                                reason: store.starMapInsight.secondaryGoalReason,
+                                nextStep: store.starMapInsight.secondaryGoalNextStep,
+                                challenge: store.starMapInsight.secondaryGoalChallenge,
+                            role: "次要目标",
+                            tint: Color(hex: 0xcddfd7)
+                        ) {
+                                if store.starMapInsight.isMockInsight {
+                                    Task {
+                                        await store.refreshStarMapInsight(forceRefresh: true)
+                                    }
+                                } else {
+                                    selectedDestination = .ritual(
+                                        store.starMapInsight,
+                                        store.starMapInsight.secondaryGoalNextStep
+                                    )
+                                }
+                            }
+                        }
+
+                        FlowEmotionCard(insight: store.starMapInsight)
+                        FlowSupportCard(insight: store.starMapInsight)
+                        FlowMemoryCard(cues: store.starMapInsight.memoryCues)
+                        FlowMonthlyThreadCard(insight: store.starMapInsight)
+                        FlowReminderCard(insight: store.starMapInsight)
+
+                        Button {
+                            selectedDestination = .ritual(store.starMapInsight, "")
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 19, weight: .semibold))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("进入此刻的心流")
+                                        .font(.custom("HannotateSC-W5", size: 18))
+                                    Text("带上一个合适的小目标，只和它待一会儿")
+                                        .font(.custom("HannotateSC-W5", size: 13))
+                                        .opacity(0.72)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 15, weight: .bold))
+                            }
+                            .foregroundStyle(Color(hex: 0x4f455d))
+                            .padding(18)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: 0xd9cdea), Color(hex: 0xe9d9cb)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.starMapInsight.isMockInsight)
+                        .opacity(store.starMapInsight.isMockInsight ? 0.55 : 1)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, max(52, geometry.safeAreaInsets.top + 12))
+                    .padding(.bottom, 118)
+                }
+                .scrollIndicators(.hidden)
 
                 StarMapBottomBar(
                     openHome: openHome,
@@ -44,27 +132,33 @@ struct StarMapView: View {
                     openMe: openMe
                 )
                 .padding(.horizontal, 24)
-                .padding(.bottom, 26)
+                .padding(.bottom, 16)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .ignoresSafeArea(.container, edges: .bottom)
             }
-            .ignoresSafeArea(.all)
         }
         .task {
             await store.refreshStarMapInsight()
         }
-        .sheet(item: $selectedDetail) { detail in
-            switch detail {
-            case .flowRitual(let insight):
-                FlowRitualSheet(insight: insight)
+        .sheet(item: $selectedDestination) { destination in
+            switch destination {
+            case .ritual(let insight, let intention):
+                FlowRitualSheet(insight: insight, initialIntention: intention)
                     .environmentObject(store)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
-            default:
-                StarMapDetailSheet(detail: detail)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
             }
+        }
+    }
+}
+
+private enum FlowDestination: Identifiable {
+    case ritual(StarMapInsight, String)
+
+    var id: String {
+        switch self {
+        case .ritual(let insight, let intention):
+            return "\(insight.id)-\(intention)"
         }
     }
 }
@@ -85,220 +179,322 @@ private struct StarMapBundleImage: View {
     }
 }
 
-private struct StarMapTextOverlay: View {
+private struct FlowPageHeader: View {
+    let insight: StarMapInsight
+    let notice: String
+    let isRefreshing: Bool
+    let refresh: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("心流导航")
+                        .font(.custom("HannotateSC-W5", size: 31))
+                        .foregroundStyle(Color(hex: 0x4f455d))
+                    Text("把记忆变成此刻可以靠近的方向")
+                        .font(.custom("HannotateSC-W5", size: 14))
+                        .foregroundStyle(Color(hex: 0x766b7e))
+                }
+                Spacer()
+                Button(action: refresh) {
+                    Image(systemName: isRefreshing ? "hourglass" : "arrow.clockwise")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x695c78))
+                        .frame(width: 40, height: 40)
+                        .background(Color.white.opacity(0.56), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isRefreshing)
+                .accessibilityLabel("重新生成心流导航")
+            }
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(insight.isMockInsight ? Color.orange.opacity(0.72) : Color(hex: 0x6f946f))
+                    .frame(width: 7, height: 7)
+                Text(isRefreshing ? "正在提炼..." : notice)
+                    .font(.custom("HannotateSC-W5", size: 12))
+                    .foregroundStyle(Color(hex: 0x766b7e))
+                    .lineLimit(2)
+                Spacer(minLength: 4)
+                Text(insight.periodLabel)
+                    .font(.custom("HannotateSC-W5", size: 11))
+                    .foregroundStyle(Color(hex: 0x8d8294))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.white.opacity(0.48), in: Capsule())
+        }
+    }
+}
+
+private struct FlowGoalCard: View {
+    let title: String
+    let reason: String
+    let nextStep: String
+    let challenge: String
+    let role: String
+    let tint: Color
+    let begin: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text(role)
+                    .font(.custom("HannotateSC-W5", size: 13))
+                    .foregroundStyle(Color(hex: 0x655872))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.6), in: Capsule())
+                Spacer()
+                FlowChallengeBadge(level: challenge)
+            }
+
+            Text(title)
+                .font(.custom("HannotateSC-W5", size: 22))
+                .lineSpacing(6)
+                .foregroundStyle(Color(hex: 0x493f55))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(reason)
+                .font(.custom("HannotateSC-W5", size: 15))
+                .lineSpacing(6)
+                .foregroundStyle(Color(hex: 0x685f70))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: begin) {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 22))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("可以从这里开始")
+                            .font(.custom("HannotateSC-W5", size: 12))
+                            .opacity(0.7)
+                        Text(nextStep)
+                            .font(.custom("HannotateSC-W5", size: 15))
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 2)
+                }
+                .foregroundStyle(Color(hex: 0x4f455d))
+                .padding(13)
+                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(18)
+        .background(tint.opacity(0.82), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.48), lineWidth: 1)
+        }
+        .shadow(color: Color(hex: 0x5b4968).opacity(0.08), radius: 18, x: 0, y: 8)
+    }
+}
+
+private struct FlowChallengeBadge: View {
+    let level: String
+
+    private var activeDots: Int {
+        switch level {
+        case "稍有挑战": return 3
+        case "适中": return 2
+        default: return 1
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(1...3, id: \.self) { index in
+                Circle()
+                    .fill(index <= activeDots ? Color(hex: 0x756488) : Color.white.opacity(0.55))
+                    .frame(width: 6, height: 6)
+            }
+            Text(level.isEmpty ? "轻量" : level)
+                .font(.custom("HannotateSC-W5", size: 11))
+                .foregroundStyle(Color(hex: 0x655872))
+        }
+    }
+}
+
+private struct FlowEmotionCard: View {
     let insight: StarMapInsight
 
     var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
+        FlowSectionCard(icon: "cloud.sun.fill", title: "近期情绪天气", tint: Color(hex: 0xf1d9c6)) {
+            FlowTagRow(items: insight.recentEmotionTags)
+            Text(insight.recentEmotionSummary)
+                .flowBodyStyle()
+        }
+    }
+}
 
-            ZStack {
-                Text(insight.coreInsight)
-                    .font(.custom("HannotateSC-W5", size: 22))
-                    .lineSpacing(8)
-                    .foregroundStyle(Color(hex: 0x5d536f))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.82)
-                    .frame(width: width * 0.72, height: height * 0.18)
-                    .position(x: width * 0.5, y: height * 0.335)
+private struct FlowSupportCard: View {
+    let insight: StarMapInsight
 
-                Text(patternText)
-                    .font(.custom("HannotateSC-W5", size: 17))
-                    .lineSpacing(8)
-                    .foregroundStyle(Color(hex: 0x5f5369))
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.78)
-                    .frame(width: width * 0.2, height: height * 0.15)
-                    .position(x: width * 0.17, y: height * 0.64)
+    var body: some View {
+        FlowSectionCard(icon: "scope", title: "怎样更容易进入", tint: Color(hex: 0xcfe1dc)) {
+            Text(insight.flowSupport)
+                .flowBodyStyle()
+            FlowTagRow(items: insight.flowConditions)
+        }
+    }
+}
 
-                Text(flowText)
-                    .font(.custom("HannotateSC-W5", size: 15))
-                    .lineSpacing(7)
-                    .foregroundStyle(Color(hex: 0x5f5369))
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.74)
-                    .frame(width: width * 0.24, height: height * 0.16)
-                    .position(x: width * 0.5, y: height * 0.64)
+private struct FlowMemoryCard: View {
+    let cues: [String]
 
+    var body: some View {
+        FlowSectionCard(icon: "bookmark.fill", title: "记忆在提醒你", tint: Color(hex: 0xe5d4bb)) {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(cues.prefix(4).enumerated()), id: \.offset) { index, cue in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("\(index + 1)")
+                            .font(.custom("HannotateSC-W5", size: 12))
+                            .foregroundStyle(Color(hex: 0x76654f))
+                            .frame(width: 24, height: 24)
+                            .background(Color.white.opacity(0.6), in: Circle())
+                        Text(cue)
+                            .font(.custom("HannotateSC-W5", size: 15))
+                            .lineSpacing(6)
+                            .foregroundStyle(Color(hex: 0x5d544c))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FlowMonthlyThreadCard: View {
+    let insight: StarMapInsight
+
+    var body: some View {
+        FlowSectionCard(icon: "sparkles", title: "这段时间的心流主线", tint: Color(hex: 0xd8cdea)) {
+            Text(insight.coreInsight)
+                .font(.custom("HannotateSC-W5", size: 19))
+                .lineSpacing(7)
+                .foregroundStyle(Color(hex: 0x50465b))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(insight.coreInsightDetail)
+                .flowBodyStyle()
+            FlowTagRow(items: insight.recentPattern)
+            Label(insight.sourceSummary, systemImage: "tray.full.fill")
+                .font(.custom("HannotateSC-W5", size: 11))
+                .lineSpacing(4)
+                .foregroundStyle(Color(hex: 0x81758d))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct FlowReminderCard: View {
+    let insight: StarMapInsight
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "hand.raised.fill")
+                .foregroundStyle(Color(hex: 0x8d6e63))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(insight.gentleReminderTitle)
+                    .font(.custom("HannotateSC-W5", size: 14))
+                    .foregroundStyle(Color(hex: 0x77615b))
                 Text(insight.gentleReminder)
-                    .font(.custom("HannotateSC-W5", size: 16))
-                    .lineSpacing(7)
-                    .foregroundStyle(Color(hex: 0x6a5c59))
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.76)
-                    .frame(width: width * 0.23, height: height * 0.16)
-                    .position(x: width * 0.83, y: height * 0.64)
+                    .font(.custom("HannotateSC-W5", size: 17))
+                    .lineSpacing(6)
+                    .foregroundStyle(Color(hex: 0x5e514d))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .allowsHitTesting(false)
-    }
-
-    private var patternText: String {
-        insight.recentPattern.joined(separator: "\n↓\n")
-    }
-
-    private var flowText: String {
-        insight.flowConditions.joined(separator: "\n")
+        .padding(17)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: 0xf0ddd4).opacity(0.82), in: RoundedRectangle(cornerRadius: 21, style: .continuous))
     }
 }
 
-private struct StarMapHitOverlay: View {
-    let insight: StarMapInsight
-    let openCoreInsight: () -> Void
-    let openRecentPattern: () -> Void
-    let openFlowCondition: () -> Void
-    let openGentleReminder: () -> Void
-    let openFlowRitual: () -> Void
+private struct FlowSectionCard<Content: View>: View {
+    let icon: String
+    let title: String
+    let tint: Color
+    @ViewBuilder let content: Content
+
+    init(
+        icon: String,
+        title: String,
+        tint: Color,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.icon = icon
+        self.title = title
+        self.tint = tint
+        self.content = content()
+    }
 
     var body: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-
-            ZStack {
-                transparentButton(label: "本月心流观察", action: openCoreInsight)
-                    .frame(width: width * 0.76, height: height * 0.22)
-                    .position(x: width * 0.5, y: height * 0.34)
-
-                transparentButton(label: insight.recentPatternTitle, action: openRecentPattern)
-                    .frame(width: width * 0.26, height: height * 0.28)
-                    .position(x: width * 0.17, y: height * 0.66)
-
-                transparentButton(label: insight.flowConditionTitle, action: openFlowCondition)
-                    .frame(width: width * 0.28, height: height * 0.28)
-                    .position(x: width * 0.5, y: height * 0.66)
-
-                transparentButton(label: insight.gentleReminderTitle, action: openGentleReminder)
-                    .frame(width: width * 0.26, height: height * 0.28)
-                    .position(x: width * 0.83, y: height * 0.66)
-
-                transparentButton(label: "进入此刻的心流", action: openFlowRitual)
-                    .frame(width: width * 0.56, height: height * 0.12)
-                    .position(x: width * 0.52, y: height * 0.86)
-            }
+        VStack(alignment: .leading, spacing: 13) {
+            Label(title, systemImage: icon)
+                .font(.custom("HannotateSC-W5", size: 17))
+                .foregroundStyle(Color(hex: 0x584c62))
+            content
         }
-    }
-
-    private func transparentButton(label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Rectangle()
-                .fill(Color.black.opacity(0.001))
+        .padding(17)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.76), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.45), lineWidth: 1)
         }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .accessibilityLabel(label)
-        .accessibilityHint("查看这个月度观察的详细说明")
     }
 }
 
-private enum StarMapDetailArea: Identifiable {
-    case coreInsight(StarMapInsight)
-    case recentPattern(StarMapInsight)
-    case flowCondition(StarMapInsight)
-    case gentleReminder(StarMapInsight)
-    case flowRitual(StarMapInsight)
+private struct FlowTagRow: View {
+    let items: [String]
 
-    var id: String {
-        switch self {
-        case .coreInsight(let insight):
-            return "\(insight.id)-core"
-        case .recentPattern(let insight):
-            return "\(insight.id)-pattern"
-        case .flowCondition(let insight):
-            return "\(insight.id)-flow"
-        case .gentleReminder(let insight):
-            return "\(insight.id)-reminder"
-        case .flowRitual(let insight):
-            return "\(insight.id)-ritual"
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 7)], alignment: .leading, spacing: 7) {
+            ForEach(items.filter { !$0.isEmpty }.prefix(5), id: \.self) { item in
+                Text(item)
+                    .font(.custom("HannotateSC-W5", size: 12))
+                    .foregroundStyle(Color(hex: 0x655b6c))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.55), in: Capsule())
+            }
         }
     }
+}
 
-    var title: String {
-        switch self {
-        case .coreInsight:
-            return "本月心流观察"
-        case .recentPattern(let insight):
-            return insight.recentPatternTitle
-        case .flowCondition(let insight):
-            return insight.flowConditionTitle
-        case .gentleReminder(let insight):
-            return insight.gentleReminderTitle
-        case .flowRitual:
-            return "进入此刻"
-        }
-    }
-
-    var summary: String {
-        switch self {
-        case .coreInsight(let insight):
-            return insight.coreInsight
-        case .recentPattern(let insight):
-            return insight.recentPattern.joined(separator: " · ")
-        case .flowCondition(let insight):
-            return insight.flowConditions.joined(separator: " · ")
-        case .gentleReminder(let insight):
-            return insight.gentleReminder
-        case .flowRitual:
-            return "先只和一件事待在一起。"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .coreInsight(let insight):
-            return insight.coreInsightDetail
-        case .recentPattern(let insight):
-            return insight.recentPatternDetail
-        case .flowCondition(let insight):
-            return insight.flowConditionDetail
-        case .gentleReminder(let insight):
-            return insight.gentleReminderDetail
-        case .flowRitual:
-            return "不计时，也不要求完成。"
-        }
-    }
-
-    var periodLabel: String {
-        switch self {
-        case .coreInsight(let insight),
-             .recentPattern(let insight),
-             .flowCondition(let insight),
-             .gentleReminder(let insight),
-             .flowRitual(let insight):
-            return insight.periodLabel
-        }
-    }
-
-    var sourceSummary: String {
-        switch self {
-        case .coreInsight(let insight),
-             .recentPattern(let insight),
-             .flowCondition(let insight),
-             .gentleReminder(let insight),
-             .flowRitual(let insight):
-            return insight.sourceSummary
-        }
+private extension Text {
+    func flowBodyStyle() -> some View {
+        font(.custom("HannotateSC-W5", size: 15))
+            .lineSpacing(6)
+            .foregroundStyle(Color(hex: 0x655c69))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
 private struct FlowRitualSheet: View {
     let insight: StarMapInsight
+    let initialIntention: String
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: CompanionStore
-    @State private var draft = ""
+    @State private var draft: String
     @State private var activeIntention: String?
     @State private var isClosing = false
     @FocusState private var isDraftFocused: Bool
 
+    init(insight: StarMapInsight, initialIntention: String) {
+        self.insight = insight
+        self.initialIntention = initialIntention
+        _draft = State(initialValue: initialIntention)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(hex: 0xeee9f3)
-                    .ignoresSafeArea()
-
+                Color(hex: 0xeee9f3).ignoresSafeArea()
                 if let activeIntention, isClosing {
                     closingView(intention: activeIntention)
                 } else if let activeIntention {
@@ -323,16 +519,15 @@ private struct FlowRitualSheet: View {
 
     private var preparationView: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("现在想把注意力放在哪里？")
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("这一轮，只靠近一件事")
                         .font(.custom("HannotateSC-W5", size: 25))
                         .foregroundStyle(Color(hex: 0x4f455d))
-                    Text("不用完成，也不用证明效率。先只和一件事待在一起。")
-                        .font(.custom("HannotateSC-W5", size: 16))
+                    Text("目标已经尽量缩小。你仍然可以改成此刻更合适的表达。")
+                        .font(.custom("HannotateSC-W5", size: 15))
                         .lineSpacing(6)
                         .foregroundStyle(Color(hex: 0x71677b))
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 TextField("写下一件此刻愿意靠近的事", text: $draft, axis: .vertical)
@@ -342,33 +537,24 @@ private struct FlowRitualSheet: View {
                     .padding(16)
                     .background(Color(hex: 0xf8f2e9), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                if !suggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("也可以从最近会亮起来的事开始")
-                            .font(.custom("HannotateSC-W5", size: 14))
-                            .foregroundStyle(Color(hex: 0x81758d))
-
-                        FlowSuggestionLayout(items: suggestions) { suggestion in
-                            draft = suggestion
-                            isDraftFocused = false
-                        }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("为什么这个难度可能合适")
+                        .font(.custom("HannotateSC-W5", size: 13))
+                        .foregroundStyle(Color(hex: 0x81758d))
+                    HStack(spacing: 9) {
+                        FlowChallengeBadge(level: insight.primaryGoalChallenge)
+                        Text(insight.flowSupport)
+                            .font(.custom("HannotateSC-W5", size: 13))
+                            .lineSpacing(5)
+                            .foregroundStyle(Color(hex: 0x71677b))
                     }
                 }
+                .padding(14)
+                .background(Color.white.opacity(0.46), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
 
-                if let recentMoment = store.flowMoments.first {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("上一次停在这里")
-                            .font(.custom("HannotateSC-W5", size: 14))
-                            .foregroundStyle(Color(hex: 0x81758d))
-                        Text(recentMoment.intention)
-                            .font(.custom("HannotateSC-W5", size: 16))
-                            .foregroundStyle(Color(hex: 0x5f5369))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(recentMoment.ending)
-                            .font(.custom("HannotateSC-W5", size: 13))
-                            .foregroundStyle(Color(hex: 0x8b8194))
-                    }
-                    .padding(.top, 2)
+                FlowSuggestionLayout(items: suggestions) { suggestion in
+                    draft = suggestion
+                    isDraftFocused = false
                 }
 
                 Button {
@@ -398,25 +584,20 @@ private struct FlowRitualSheet: View {
     private func activeView(intention: String) -> some View {
         VStack(spacing: 28) {
             Spacer()
-
             Image(systemName: "moon.stars.fill")
                 .font(.system(size: 42, weight: .light))
                 .foregroundStyle(Color(hex: 0x8a78a5))
-
             Text(intention)
                 .font(.custom("HannotateSC-W5", size: 27))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Color(hex: 0x4f455d))
                 .padding(.horizontal, 28)
-
             Text("不需要马上完成。\n注意力回来时，就再靠近一点点。")
                 .font(.custom("HannotateSC-W5", size: 16))
                 .lineSpacing(7)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Color(hex: 0x756b7e))
-
             Spacer()
-
             Button("先停在这里") {
                 withAnimation(.easeInOut(duration: 0.24)) {
                     isClosing = true
@@ -433,23 +614,19 @@ private struct FlowRitualSheet: View {
     private func closingView(intention: String) -> some View {
         VStack(alignment: .leading, spacing: 24) {
             Spacer()
-
             Text("先停在这里")
                 .font(.custom("HannotateSC-W5", size: 28))
                 .foregroundStyle(Color(hex: 0x4f455d))
-
             Text(intention)
                 .font(.custom("HannotateSC-W5", size: 19))
                 .lineSpacing(7)
                 .foregroundStyle(Color(hex: 0x665a73))
                 .fixedSize(horizontal: false, vertical: true)
-
             Text("不总结成果。只留下此刻最接近的一句话。")
                 .font(.custom("HannotateSC-W5", size: 15))
                 .foregroundStyle(Color(hex: 0x81758d))
-
             VStack(spacing: 11) {
-                ForEach(flowEndings, id: \.self) { ending in
+                ForEach(["更清楚一点", "还在里面", "今天先到这里"], id: \.self) { ending in
                     Button {
                         store.recordFlowMoment(intention: intention, ending: ending)
                         dismiss()
@@ -465,28 +642,27 @@ private struct FlowRitualSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-
             Button("不留痕迹，直接离开") {
                 dismiss()
             }
             .font(.custom("HannotateSC-W5", size: 14))
             .foregroundStyle(Color(hex: 0x8b8194))
             .frame(maxWidth: .infinity, alignment: .center)
-
             Spacer()
         }
         .padding(28)
     }
 
     private var suggestions: [String] {
+        let candidates = [
+            insight.primaryGoalNextStep,
+            insight.secondaryGoalNextStep,
+        ] + insight.flowConditions
         var result: [String] = []
-        for item in insight.recentPattern + insight.flowConditions {
-            let cleaned = item.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !cleaned.isEmpty, !result.contains(cleaned) {
-                result.append(cleaned)
-            }
-            if result.count == 5 {
-                break
+        for candidate in candidates {
+            let item = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !item.isEmpty, !result.contains(item), result.count < 5 {
+                result.append(item)
             }
         }
         return result
@@ -494,10 +670,6 @@ private struct FlowRitualSheet: View {
 
     private var cleanDraft: String {
         draft.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var flowEndings: [String] {
-        ["更清楚一点", "还在里面", "今天先到这里"]
     }
 
     private func begin() {
@@ -515,72 +687,18 @@ private struct FlowSuggestionLayout: View {
     let select: (String) -> Void
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(items, id: \.self) { item in
                 Button(item) {
                     select(item)
                 }
-                .font(.custom("HannotateSC-W5", size: 14))
+                .font(.custom("HannotateSC-W5", size: 13))
                 .foregroundStyle(Color(hex: 0x665a73))
                 .buttonStyle(.plain)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 11)
                 .padding(.vertical, 9)
                 .frame(maxWidth: .infinity)
                 .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            }
-        }
-    }
-}
-
-private struct StarMapDetailSheet: View {
-    let detail: StarMapDetailArea
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(detail.title)
-                            .font(.custom("HannotateSC-W5", size: 24))
-                            .foregroundStyle(Color(hex: 0x5d536f))
-                        Text(detail.periodLabel)
-                            .font(.custom("HannotateSC-W5", size: 13))
-                            .foregroundStyle(Color(hex: 0x8b7b78))
-                    }
-
-                    Text(detail.summary)
-                        .font(.custom("HannotateSC-W5", size: 18))
-                        .lineSpacing(7)
-                        .foregroundStyle(Color(hex: 0x4f455d))
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                    Text(detail.detail)
-                        .font(.custom("HannotateSC-W5", size: 16))
-                        .lineSpacing(8)
-                        .foregroundStyle(Color(hex: 0x5e544f))
-                        .padding(18)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(hex: 0xf8f1e7), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                    Label(detail.sourceSummary, systemImage: "sparkles")
-                        .font(.footnote)
-                        .foregroundStyle(Color(hex: 0x8b7b78))
-                        .padding(.horizontal, 4)
-                }
-                .padding(20)
-            }
-            .background(Color(hex: 0xf5ede4).ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("知道了") {
-                        dismiss()
-                    }
-                    .font(.custom("HannotateSC-W5", size: 16))
-                    .foregroundStyle(Color(hex: 0x8a6ea8))
-                }
             }
         }
     }
@@ -597,11 +715,11 @@ private struct StarMapBottomBar: View {
             StarMapTabButton(title: "疗愈", systemImage: "house.fill", isSelected: false, action: openHome)
             StarMapTabButton(title: "摆烂", systemImage: "sofa.fill", isSelected: false, action: openForest)
             StarMapTabButton(title: "心流", systemImage: "sparkles", isSelected: true, action: openStarMap)
-            StarMapRabbitTabButton(action: openMe)
+            StarMapTabButton(title: "自我", systemImage: "person.crop.circle", isSelected: false, action: openMe)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Color(hex: 0xf2e6d0), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(hex: 0xf2e6d0).opacity(0.96), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color(hex: 0xd8c8b2).opacity(0.72), lineWidth: 1)
@@ -627,25 +745,6 @@ private struct StarMapTabButton: View {
                     .font(.custom("HannotateSC-W5", size: 10))
             }
             .foregroundStyle(isSelected ? Color(hex: 0x8a6ea8) : Color.warmBrown.opacity(0.72))
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct StarMapRabbitTabButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                StarMapBundleImage(name: "sensen-rabbit-flat-icon-v1")
-                    .frame(width: 31, height: 31)
-                    .clipShape(Circle())
-                Text("我的")
-                    .font(.custom("HannotateSC-W5", size: 10))
-            }
-            .foregroundStyle(Color.warmBrown.opacity(0.72))
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)

@@ -28,20 +28,28 @@ final class CompanionStore: ObservableObject {
     @Published var isGroupMode = true
     @Published var sessionNotice: String?
     @Published var isBackendSyncing = false
+    @Published var summarizingSessionID: String?
     @Published var lastBackendSyncAt: Date?
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
     @Published var homeEncouragementHint: HomeHint?
     @Published var isHomeEncouragementLiked = false
     @Published var starMapInsight = StarMapInsight.mock
+    @Published var isFlowInsightRefreshing = false
+    @Published var flowInsightNotice = "正在读取最近的记忆、总结和长期状态。"
+    @Published var isLocalAIConfigured = false
+    @Published var localAISettingsNotice: String?
+    @Published var macBackendURL = ""
+    @Published var isMacSyncTokenConfigured = false
 
     private let chatService = ChatService()
+    private let localDeepSeekService = LocalDeepSeekService()
+    private let secureSettings = SecureSettingsStore.shared
     private let interactionService = InteractionService()
     private let recommendationService = RecommendationService()
     private let careMomentsStorageKey = "xiaolu.careMoments.v1"
     private let flowMomentsStorageKey = "sensen.flowMoments.v1"
     private let bailanDiaryStorageKey = "sensen.bailanDiaryEntries.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
-    private let automaticSyncInterval: TimeInterval = 60
     private var lastHomeEncouragementRefreshAt: Date?
 
     var selectedCharacter: CompanionCharacter {
@@ -50,6 +58,9 @@ final class CompanionStore: ObservableObject {
 
     init() {
         backendStatus.baseURL = chatService.backendURLDescription
+        macBackendURL = UserDefaults.standard.string(forKey: "sensen.macBackendURL") ?? ""
+        isLocalAIConfigured = secureSettings.deepSeekAPIKey()?.isEmpty == false
+        isMacSyncTokenConfigured = secureSettings.macSyncToken()?.isEmpty == false
         careMoments = loadCareMoments()
         flowMoments = loadFlowMoments()
         bailanDiaryEntries = loadBailanDiaryEntries()
@@ -57,9 +68,6 @@ final class CompanionStore: ObservableObject {
         latestRecommendation = recommendationHistory.first
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         load()
-        Task {
-            await syncAllFromBackend()
-        }
     }
 
     func load() {
@@ -114,11 +122,20 @@ final class CompanionStore: ObservableObject {
     }
 
     func refreshStarMapInsight(forceRefresh: Bool = false) async {
-        starMapInsight = await fetchOrGenerateStarMapInsight(forceRefresh: forceRefresh)
+        guard !isFlowInsightRefreshing else { return }
+        isFlowInsightRefreshing = true
+        flowInsightNotice = forceRefresh ? "正在重新提炼心流导航..." : "正在检查本月心流导航..."
+        let insight = await fetchOrGenerateStarMapInsight(forceRefresh: forceRefresh)
+        starMapInsight = insight
+        flowInsightNotice = insight.isMockInsight
+            ? "暂时没有取得真实分析，当前仅显示结构占位。"
+            : "已根据记忆、单次总结、近期情绪和长期状态生成。"
+        isFlowInsightRefreshing = false
     }
 
     func openSession(_ sessionID: String) {
         chatService.useSession(sessionID)
+        localDeepSeekService.useSession(sessionID)
         do {
             let database = try SQLiteDatabase()
             let loadedMessages = database.messages(sessionID: sessionID)
@@ -147,10 +164,68 @@ final class CompanionStore: ObservableObject {
 
     func startNewSession() {
         chatService.resetSession()
+        localDeepSeekService.resetSession()
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         sessionNotice = "已经准备好一个新的夜谈。"
         chatNotice = nil
         refreshInteractionOffers()
+    }
+
+    func saveDeepSeekAPIKey(_ apiKey: String) {
+        do {
+            try secureSettings.saveDeepSeekAPIKey(apiKey)
+            isLocalAIConfigured = secureSettings.deepSeekAPIKey()?.isEmpty == false
+            localAISettingsNotice = isLocalAIConfigured
+                ? "API Key 已保存在这台设备的系统钥匙串中。"
+                : "API Key 已清除。"
+        } catch {
+            localAISettingsNotice = error.localizedDescription
+        }
+    }
+
+    func clearDeepSeekAPIKey() {
+        do {
+            try secureSettings.deleteDeepSeekAPIKey()
+            isLocalAIConfigured = false
+            localAISettingsNotice = "API Key 已从这台设备移除。"
+        } catch {
+            localAISettingsNotice = error.localizedDescription
+        }
+    }
+
+    func saveMacBackendURL(_ rawValue: String) {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            let url = URL(string: value),
+            let scheme = url.scheme?.lowercased(),
+            ["http", "https"].contains(scheme),
+            url.host != nil
+        else {
+            sessionNotice = "请输入完整的 Mac 地址，例如 http://192.168.1.20:8765。"
+            return
+        }
+        UserDefaults.standard.set(value, forKey: "sensen.macBackendURL")
+        macBackendURL = value
+        chatService.updateBaseURL(url)
+        backendStatus = BackendConnectionStatus(
+            state: .unknown,
+            baseURL: value,
+            detail: "Mac 地址已保存。请在同一局域网内点击同步。",
+            lastCheckedAt: nil
+        )
+        sessionNotice = "Mac 局域网地址已保存。"
+    }
+
+    func saveMacSyncToken(_ rawValue: String) {
+        do {
+            try secureSettings.saveMacSyncToken(rawValue)
+            isMacSyncTokenConfigured = secureSettings.macSyncToken()?.isEmpty == false
+            sessionNotice = isMacSyncTokenConfigured
+                ? "Mac 同步令牌已保存在系统钥匙串。"
+                : "Mac 同步令牌已清除。"
+        } catch {
+            sessionNotice = error.localizedDescription
+        }
     }
 
     @discardableResult
@@ -159,9 +234,21 @@ final class CompanionStore: ObservableObject {
         isSending = true
         sessionNotice = "正在结束并总结这次夜谈..."
         do {
-            let summary = try await chatService.closeCurrentSession()
-            sessionNotice = "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
-            await syncAllFromBackend(forceStarMapRefresh: true)
+            let summary: SessionCloseSummary
+            if isLocalAIConfigured, let apiKey = secureSettings.deepSeekAPIKey() {
+                summary = try await localDeepSeekService.closeCurrentSession(
+                    apiKey: apiKey,
+                    database: SQLiteDatabase()
+                )
+            } else {
+                summary = try await chatService.closeCurrentSession()
+            }
+            sessionNotice = isLocalAIConfigured
+                ? summary.journalSummary
+                : "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
+            if !isLocalAIConfigured {
+                await syncAllFromBackend(forceStarMapRefresh: true)
+            }
             load()
             messages.append(
                 ChatMessage(
@@ -181,6 +268,26 @@ final class CompanionStore: ObservableObject {
         }
     }
 
+    func summarizeHistoricalSession(_ sessionID: String) async -> SessionCloseSummary? {
+        let trimmedID = sessionID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty, summarizingSessionID == nil else { return nil }
+
+        summarizingSessionID = trimmedID
+        sessionNotice = "正在整理这次历史会话..."
+        defer { summarizingSessionID = nil }
+
+        do {
+            let summary = try await chatService.summarizeSession(trimmedID)
+            sessionNotice = "历史会话已整理：形成 \(summary.memoryCount) 条记忆，更新 \(summary.stateProfileCount) 条长期状态。"
+            await syncAllFromBackend(forceStarMapRefresh: true)
+            load()
+            return summary
+        } catch {
+            sessionNotice = "暂时无法整理这次历史会话：\(Self.describe(error))"
+            return nil
+        }
+    }
+
     func syncAllFromBackend(forceStarMapRefresh: Bool = false) async {
         guard !isBackendSyncing else { return }
         isBackendSyncing = true
@@ -192,6 +299,26 @@ final class CompanionStore: ObservableObject {
                 state: .fallback,
                 baseURL: chatService.backendURLDescription,
                 detail: "手机本地数据库暂时无法打开，已停止本次同步。",
+                lastCheckedAt: Date()
+            )
+            return
+        }
+        guard let syncToken = secureSettings.macSyncToken(), !syncToken.isEmpty else {
+            sessionNotice = "请先在设置中填写 Mac 同步令牌。"
+            return
+        }
+
+        do {
+            try await chatService.uploadSyncBundle(
+                database.makeSyncUploadBundle(),
+                token: syncToken
+            )
+        } catch {
+            sessionNotice = "手机数据上传到 Mac 失败：\(error.localizedDescription)"
+            backendStatus = BackendConnectionStatus(
+                state: .fallback,
+                baseURL: chatService.backendURLDescription,
+                detail: sessionNotice ?? "双向同步失败。",
                 lastCheckedAt: Date()
             )
             return
@@ -230,7 +357,8 @@ final class CompanionStore: ObservableObject {
 
         let shouldRefreshStarMap = forceStarMapRefresh
             || database.latestStarMapInsight().map {
-                !Calendar.current.isDate($0.generatedAt, equalTo: Date(), toGranularity: .month)
+                $0.isMockInsight
+                    || !Calendar.current.isDate($0.generatedAt, equalTo: Date(), toGranularity: .month)
             } ?? true
         if shouldRefreshStarMap, let insight = try? await chatService.fetchStarMapInsight() {
             database.saveStarMapInsight(insight)
@@ -269,12 +397,7 @@ final class CompanionStore: ObservableObject {
     }
 
     func syncIfNeeded() async {
-        guard !isBackendSyncing else { return }
-        if let lastBackendSyncAt,
-           Date().timeIntervalSince(lastBackendSyncAt) < automaticSyncInterval {
-            return
-        }
-        await syncAllFromBackend()
+        // Local-first mode never contacts the Mac automatically.
     }
 
     func syncSessionFromBackend(_ sessionID: String) async {
@@ -655,6 +778,18 @@ final class CompanionStore: ObservableObject {
         )
         isSending = true
         chatNotice = nil
+
+        if let apiKey = secureSettings.deepSeekAPIKey(), !apiKey.isEmpty {
+            await sendLocalChatText(
+                text,
+                character: character,
+                apiKey: apiKey,
+                fallbackReply: fallbackReply,
+                shouldSuggestCheckIn: shouldSuggestCheckIn
+            )
+            return
+        }
+
         let response = await chatService.send(
             text: text,
             character: character,
@@ -715,6 +850,43 @@ final class CompanionStore: ObservableObject {
                 await syncSessionFromBackend(sessionID)
             }
         }
+    }
+
+    private func sendLocalChatText(
+        _ text: String,
+        character: CompanionCharacter,
+        apiKey: String,
+        fallbackReply: String?,
+        shouldSuggestCheckIn: Bool
+    ) async {
+        do {
+            let database = try SQLiteDatabase()
+            let result = try await localDeepSeekService.send(
+                text: text,
+                character: character,
+                apiKey: apiKey,
+                database: database
+            )
+            messages.append(result.assistantMessage)
+            chatNotice = "本地模式：无需连接 Mac。"
+            load()
+        } catch {
+            let fallback = fallbackReply ?? "这一轮暂时没有成功连接 DeepSeek。你刚才写下的话已经保存在手机上，可以稍后再试。"
+            let fallbackMessage = ChatMessage(
+                id: UUID().uuidString,
+                role: .assistant,
+                content: fallback,
+                characterID: character.id,
+                createdAt: "",
+                expressionID: character.defaultExpressionID
+            )
+            messages.append(fallbackMessage)
+            chatNotice = error.localizedDescription
+        }
+        isChatCheckInVisible = shouldSuggestCheckIn
+            && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + (messages.last?.content ?? ""))
+        refreshInteractionOffers()
+        isSending = false
     }
 
     private static func greetingMessage(characterID: String) -> ChatMessage {

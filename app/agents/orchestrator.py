@@ -330,7 +330,18 @@ class ConversationOrchestrator:
         recent_journals = self.store.list_journals(limit=80)
         recent_messages = self.store.list_messages(limit=300)
         state_profiles = self.store.list_state_profiles(limit=8)
-        memories = self.store.list_memories(limit=20)
+        memories = [
+            item
+            for item in self.store.list_memories(limit=80)
+            if item.get("status") == "active"
+        ]
+        memories.sort(
+            key=lambda item: (
+                str(item.get("updated_at", "")),
+                int(item.get("importance") or 0),
+            ),
+            reverse=True,
+        )
 
         month_cutoff = now - timedelta(days=30)
         two_month_cutoff = now - timedelta(days=60)
@@ -346,7 +357,9 @@ class ConversationOrchestrator:
             selected_journals = self._filter_items_since(recent_journals, "created_at", two_month_cutoff)
             selected_messages = self._filter_items_since(recent_messages, "created_at", two_month_cutoff)
 
-        selected_memories = self._filter_items_since(memories, "updated_at", period_start)
+        # Active memories are cross-session knowledge. Keep relevant older memories
+        # available instead of limiting them to the journal review window.
+        selected_memories = memories[:40]
         fallback = self._fallback_star_map_insight(
             period_start=period_start,
             period_end=now,
@@ -386,10 +399,12 @@ class ConversationOrchestrator:
                     "category": item.get("category", ""),
                     "subcategory": item.get("subcategory", ""),
                     "content": item.get("content", ""),
+                    "evidence": item.get("evidence", ""),
                     "keywords": item.get("keywords", []),
+                    "importance": item.get("importance", 0),
                     "updated_at": item.get("updated_at", ""),
                 }
-                for item in selected_memories[:10]
+                for item in selected_memories[:30]
             ],
             "message_snippets": [
                 {
@@ -450,6 +465,28 @@ class ConversationOrchestrator:
             return result[:4] or list(fallback.get(key, []))[:4]
 
         return {
+            "primary_goal_title": short_text("primary_goal_title", 40),
+            "primary_goal_reason": short_text("primary_goal_reason", 180),
+            "primary_goal_next_step": short_text("primary_goal_next_step", 100),
+            "primary_goal_challenge": self._normalize_flow_challenge(
+                payload.get("primary_goal_challenge"),
+                fallback.get("primary_goal_challenge", "轻量"),
+            ),
+            "secondary_goal_title": short_text("secondary_goal_title", 40),
+            "secondary_goal_reason": short_text("secondary_goal_reason", 180),
+            "secondary_goal_next_step": short_text("secondary_goal_next_step", 100),
+            "secondary_goal_challenge": self._normalize_flow_challenge(
+                payload.get("secondary_goal_challenge"),
+                fallback.get("secondary_goal_challenge", ""),
+                allow_empty=True,
+            ),
+            "recent_emotion_summary": short_text("recent_emotion_summary", 220),
+            "recent_emotion_tags": string_list("recent_emotion_tags"),
+            "flow_support": short_text("flow_support", 220),
+            "memory_cues": self._normalize_flow_memory_cues(
+                payload.get("memory_cues"),
+                fallback.get("memory_cues", []),
+            ),
             "core_insight": short_text("core_insight", 120),
             "core_insight_detail": short_text("core_insight_detail", 240),
             "recent_pattern_title": short_text("recent_pattern_title", 20),
@@ -463,6 +500,24 @@ class ConversationOrchestrator:
             "gentle_reminder_detail": short_text("gentle_reminder_detail", 240),
             "source_summary": short_text("source_summary", 160),
         }
+
+    @staticmethod
+    def _normalize_flow_challenge(
+        value: object,
+        fallback: str,
+        *,
+        allow_empty: bool = False,
+    ) -> str:
+        text = str(value or "").strip()
+        if allow_empty and not text:
+            return ""
+        return text if text in {"轻量", "适中", "稍有挑战"} else fallback
+
+    @staticmethod
+    def _normalize_flow_memory_cues(value: object, fallback: list[str]) -> list[str]:
+        values = value if isinstance(value, list) else fallback
+        result = [str(item).strip()[:120] for item in values if str(item).strip()]
+        return result[:4] or fallback[:4]
 
     def _fallback_star_map_insight(
         self,
@@ -495,7 +550,54 @@ class ConversationOrchestrator:
         if not pattern_items:
             pattern_items = ["先感受", "再整理", "慢慢说"]
 
+        recent_emotions = []
+        for journal in journals[:6]:
+            emotion = str(journal.get("dominant_emotion", "")).strip()
+            if emotion and emotion not in recent_emotions:
+                recent_emotions.append(emotion)
+
+        primary_memory = memories[0] if memories else {}
+        primary_memory_text = str(primary_memory.get("content", "")).strip()
+        primary_keyword = (
+            str(primary_memory.get("subcategory", "")).strip()
+            or (keywords[0] if keywords else "真实感受")
+        )
+        profile_strategy = str(profiles[0].get("support_strategy", "")).strip() if profiles else ""
+        challenge = "轻量" if any(
+            emotion in {"疲惫", "焦虑", "难过", "无力", "压抑", "混乱"}
+            for emotion in recent_emotions
+        ) else "适中"
+
+        memory_cues = []
+        for memory in memories[:4]:
+            content = str(memory.get("content", "")).strip()
+            if content:
+                memory_cues.append(f"记录里曾留下：{content[:96]}")
+        if not memory_cues:
+            memory_cues = ["目前可用的长期记忆还不多，可以先从最近反复出现的兴趣或牵挂开始。"]
+
         return {
+            "primary_goal_title": f"靠近「{primary_keyword}」里最重要的一小步",
+            "primary_goal_reason": (
+                f"最近的记录反复指向这个方向。{primary_memory_text[:90]}"
+                if primary_memory_text
+                else "目前资料还不多，先把目标放在能被感受到、也能轻轻开始的一小步上。"
+            ),
+            "primary_goal_next_step": "选一个十几分钟内可以开始的动作，只做到能继续的位置。",
+            "primary_goal_challenge": challenge,
+            "secondary_goal_title": "",
+            "secondary_goal_reason": "",
+            "secondary_goal_next_step": "",
+            "secondary_goal_challenge": "",
+            "recent_emotion_summary": (
+                f"最近较常出现的情绪是{'、'.join(recent_emotions[:3])}。"
+                "这些感受可能会让注意力更容易分散，所以目标需要更小、更清楚，也允许中途停下。"
+                if recent_emotions
+                else "近期情绪记录还不够完整，暂时更适合用低压力的小目标观察自己的专注和能量。"
+            ),
+            "recent_emotion_tags": recent_emotions[:4] or ["待观察"],
+            "flow_support": profile_strategy or "先收窄到一件具体的事，移开结果压力，为开始动作留出清楚的边界。",
+            "memory_cues": memory_cues,
             "core_insight": "这段时间里，\n你比较有生命力的时刻，\n常出现在能慢慢靠近真实感受的时候。",
             "core_insight_detail": f"从最近的总结和对话看，当你不急着把自己定性，而是允许自己先感受、再整理时，内在会更容易松开一点。{evidence_text}",
             "recent_pattern_title": "最近的模式",

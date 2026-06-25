@@ -107,8 +107,162 @@ struct RemoteStateProfile {
     let updatedAt: String
 }
 
+struct SyncUploadBundle: Encodable {
+    let sessions: [SyncSessionRecord]
+    let messages: [SyncMessageRecord]
+    let memories: [SyncMemoryRecord]
+    let journals: [SyncJournalRecord]
+    let stateProfiles: [SyncStateProfileRecord]
+
+    enum CodingKeys: String, CodingKey {
+        case sessions
+        case messages
+        case memories
+        case journals
+        case stateProfiles = "state_profiles"
+    }
+}
+
+struct SyncSessionRecord: Encodable {
+    let id: String
+    let createdAt: String
+    let endedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case createdAt = "created_at"
+        case endedAt = "ended_at"
+    }
+}
+
+struct SyncMessageRecord: Encodable {
+    let id: String
+    let sessionID: String
+    let role: String
+    let content: String
+    let model: String?
+    let metadata: SyncMessageMetadata
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionID = "session_id"
+        case role
+        case content
+        case model
+        case metadata
+        case createdAt = "created_at"
+    }
+}
+
+struct SyncMessageMetadata: Encodable {
+    let characterID: String?
+    let groupRole: String?
+    let action: String?
+    let expressionID: String?
+    let knowledgeCardIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case characterID = "character_id"
+        case groupRole = "group_role"
+        case action
+        case expressionID = "expression_id"
+        case knowledgeCardIDs = "knowledge_card_ids"
+    }
+}
+
+struct SyncMemoryRecord: Encodable {
+    let id: String
+    let userID: String
+    let category: String
+    let subcategory: String
+    let keywords: [String]
+    let status: String
+    let content: String
+    let evidence: String
+    let confidence: Double
+    let importance: Int
+    let sourceSessionID: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case category
+        case subcategory
+        case keywords
+        case status
+        case content
+        case evidence
+        case confidence
+        case importance
+        case sourceSessionID = "source_session_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct SyncJournalRecord: Encodable {
+    let id: String
+    let sessionID: String
+    let summary: String
+    let emotionCurve: [String]
+    let keywords: [String]
+    let insights: [String]
+    let suggestedNextStep: String
+    let moodScore: Int?
+    let dominantEmotion: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionID = "session_id"
+        case summary
+        case emotionCurve = "emotion_curve"
+        case keywords
+        case insights
+        case suggestedNextStep = "suggested_next_step"
+        case moodScore = "mood_score"
+        case dominantEmotion = "dominant_emotion"
+        case createdAt = "created_at"
+    }
+}
+
+struct SyncStateProfileRecord: Encodable {
+    let id: String
+    let userID: String
+    let domain: String
+    let stage: String
+    let summary: String
+    let intensity: Int
+    let trend: String
+    let confidence: Double
+    let evidence: [String]
+    let supportStrategy: String
+    let sourceSessionID: String
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case domain
+        case stage
+        case summary
+        case intensity
+        case trend
+        case confidence
+        case evidence
+        case supportStrategy = "support_strategy"
+        case sourceSessionID = "source_session_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
 final class ChatService {
-    private let baseURL: URL
+    private var baseURL: URL
     private let session: URLSession
     private var sessionID: String?
 
@@ -122,6 +276,10 @@ final class ChatService {
 
     var backendURLDescription: String {
         baseURL.absoluteString
+    }
+
+    func updateBaseURL(_ url: URL) {
+        baseURL = url
     }
 
     func checkConnection() async -> BackendConnectionStatus {
@@ -211,9 +369,14 @@ final class ChatService {
         guard let sessionID else {
             throw ChatServiceError.noActiveSession
         }
+        let summary = try await summarizeSession(sessionID)
+        self.sessionID = nil
+        return summary
+    }
+
+    func summarizeSession(_ sessionID: String) async throws -> SessionCloseSummary {
         let request = try makeJSONRequest(path: "/api/end", body: EndSessionRequestBody(sessionID: sessionID))
         let response: EndSessionResponseBody = try await decode(request)
-        self.sessionID = nil
         return SessionCloseSummary(
             journalSummary: response.journal.summary,
             memoryCount: response.memories.count,
@@ -270,6 +433,17 @@ final class ChatService {
     func fetchStateProfiles() async throws -> [RemoteStateProfile] {
         let response: RemoteStateProfilesResponseBody = try await fetchData(type: "state")
         return response.items.compactMap { $0.current?.remoteStateProfile }
+    }
+
+    func uploadSyncBundle(_ bundle: SyncUploadBundle, token: String) async throws {
+        let normalizedPath = "api/sync/merge"
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue(token, forHTTPHeaderField: "X-Sensen-Sync-Token")
+        request.httpBody = try JSONEncoder().encode(bundle)
+        let _: SyncMergeResponseBody = try await decode(request)
     }
 
     func homeHint() async throws -> HomeHint {
@@ -413,8 +587,13 @@ final class ChatService {
         #if targetEnvironment(simulator)
             return URL(string: "http://127.0.0.1:8765")!
         #else
-            // 真机用公网隧道
-            return URL(string: "http://u456abe3.natappfree.cc")!
+            if
+                let rawValue = UserDefaults.standard.string(forKey: "sensen.macBackendURL"),
+                let url = URL(string: rawValue)
+            {
+                return url
+            }
+            return URL(string: "http://127.0.0.1:8765")!
         #endif
     }
 
@@ -430,6 +609,10 @@ final class ChatService {
 private struct EmptyBody: Encodable {}
 
 private struct EmptyResponseBody: Decodable {}
+
+private struct SyncMergeResponseBody: Decodable {
+    let ok: Bool
+}
 
 private struct SessionResponseBody: Decodable {
     let sessionID: String
@@ -775,6 +958,18 @@ private struct StarMapInsightResponseBody: Decodable {
     let generatedAt: String
     let periodStart: String
     let periodEnd: String
+    let primaryGoalTitle: String
+    let primaryGoalReason: String
+    let primaryGoalNextStep: String
+    let primaryGoalChallenge: String
+    let secondaryGoalTitle: String
+    let secondaryGoalReason: String
+    let secondaryGoalNextStep: String
+    let secondaryGoalChallenge: String
+    let recentEmotionSummary: String
+    let recentEmotionTags: [String]
+    let flowSupport: String
+    let memoryCues: [String]
     let coreInsight: String
     let coreInsightDetail: String
     let recentPatternTitle: String
@@ -793,6 +988,18 @@ private struct StarMapInsightResponseBody: Decodable {
         case generatedAt = "generated_at"
         case periodStart = "period_start"
         case periodEnd = "period_end"
+        case primaryGoalTitle = "primary_goal_title"
+        case primaryGoalReason = "primary_goal_reason"
+        case primaryGoalNextStep = "primary_goal_next_step"
+        case primaryGoalChallenge = "primary_goal_challenge"
+        case secondaryGoalTitle = "secondary_goal_title"
+        case secondaryGoalReason = "secondary_goal_reason"
+        case secondaryGoalNextStep = "secondary_goal_next_step"
+        case secondaryGoalChallenge = "secondary_goal_challenge"
+        case recentEmotionSummary = "recent_emotion_summary"
+        case recentEmotionTags = "recent_emotion_tags"
+        case flowSupport = "flow_support"
+        case memoryCues = "memory_cues"
         case coreInsight = "core_insight"
         case coreInsightDetail = "core_insight_detail"
         case recentPatternTitle = "recent_pattern_title"
@@ -807,12 +1014,56 @@ private struct StarMapInsightResponseBody: Decodable {
         case sourceSummary = "source_summary"
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt) ?? ""
+        periodStart = try container.decodeIfPresent(String.self, forKey: .periodStart) ?? ""
+        periodEnd = try container.decodeIfPresent(String.self, forKey: .periodEnd) ?? ""
+        primaryGoalTitle = try container.decodeIfPresent(String.self, forKey: .primaryGoalTitle) ?? StarMapInsight.mock.primaryGoalTitle
+        primaryGoalReason = try container.decodeIfPresent(String.self, forKey: .primaryGoalReason) ?? StarMapInsight.mock.primaryGoalReason
+        primaryGoalNextStep = try container.decodeIfPresent(String.self, forKey: .primaryGoalNextStep) ?? StarMapInsight.mock.primaryGoalNextStep
+        primaryGoalChallenge = try container.decodeIfPresent(String.self, forKey: .primaryGoalChallenge) ?? StarMapInsight.mock.primaryGoalChallenge
+        secondaryGoalTitle = try container.decodeIfPresent(String.self, forKey: .secondaryGoalTitle) ?? ""
+        secondaryGoalReason = try container.decodeIfPresent(String.self, forKey: .secondaryGoalReason) ?? ""
+        secondaryGoalNextStep = try container.decodeIfPresent(String.self, forKey: .secondaryGoalNextStep) ?? ""
+        secondaryGoalChallenge = try container.decodeIfPresent(String.self, forKey: .secondaryGoalChallenge) ?? ""
+        recentEmotionSummary = try container.decodeIfPresent(String.self, forKey: .recentEmotionSummary) ?? StarMapInsight.mock.recentEmotionSummary
+        recentEmotionTags = try container.decodeIfPresent([String].self, forKey: .recentEmotionTags) ?? StarMapInsight.mock.recentEmotionTags
+        flowSupport = try container.decodeIfPresent(String.self, forKey: .flowSupport) ?? StarMapInsight.mock.flowSupport
+        memoryCues = try container.decodeIfPresent([String].self, forKey: .memoryCues) ?? StarMapInsight.mock.memoryCues
+        coreInsight = try container.decodeIfPresent(String.self, forKey: .coreInsight) ?? StarMapInsight.mock.coreInsight
+        coreInsightDetail = try container.decodeIfPresent(String.self, forKey: .coreInsightDetail) ?? StarMapInsight.mock.coreInsightDetail
+        recentPatternTitle = try container.decodeIfPresent(String.self, forKey: .recentPatternTitle) ?? StarMapInsight.mock.recentPatternTitle
+        recentPatternItems = try container.decodeIfPresent([String].self, forKey: .recentPatternItems) ?? StarMapInsight.mock.recentPatternItems
+        recentPatternDetail = try container.decodeIfPresent(String.self, forKey: .recentPatternDetail) ?? StarMapInsight.mock.recentPatternDetail
+        flowConditionTitle = try container.decodeIfPresent(String.self, forKey: .flowConditionTitle) ?? StarMapInsight.mock.flowConditionTitle
+        flowConditionItems = try container.decodeIfPresent([String].self, forKey: .flowConditionItems) ?? StarMapInsight.mock.flowConditionItems
+        flowConditionDetail = try container.decodeIfPresent(String.self, forKey: .flowConditionDetail) ?? StarMapInsight.mock.flowConditionDetail
+        gentleReminderTitle = try container.decodeIfPresent(String.self, forKey: .gentleReminderTitle) ?? StarMapInsight.mock.gentleReminderTitle
+        gentleReminder = try container.decodeIfPresent(String.self, forKey: .gentleReminder) ?? StarMapInsight.mock.gentleReminder
+        gentleReminderDetail = try container.decodeIfPresent(String.self, forKey: .gentleReminderDetail) ?? StarMapInsight.mock.gentleReminderDetail
+        sourceSummary = try container.decodeIfPresent(String.self, forKey: .sourceSummary) ?? ""
+    }
+
     var starMapInsight: StarMapInsight {
         StarMapInsight(
             id: id,
             generatedAt: Self.date(from: generatedAt) ?? Date(),
             periodStart: Self.date(from: periodStart) ?? Date(),
             periodEnd: Self.date(from: periodEnd) ?? Date(),
+            primaryGoalTitle: primaryGoalTitle,
+            primaryGoalReason: primaryGoalReason,
+            primaryGoalNextStep: primaryGoalNextStep,
+            primaryGoalChallenge: primaryGoalChallenge,
+            secondaryGoalTitle: secondaryGoalTitle,
+            secondaryGoalReason: secondaryGoalReason,
+            secondaryGoalNextStep: secondaryGoalNextStep,
+            secondaryGoalChallenge: secondaryGoalChallenge,
+            recentEmotionSummary: recentEmotionSummary,
+            recentEmotionTags: recentEmotionTags,
+            flowSupport: flowSupport,
+            memoryCues: memoryCues,
             coreInsight: coreInsight,
             coreInsightDetail: coreInsightDetail,
             recentPatternTitle: recentPatternTitle,

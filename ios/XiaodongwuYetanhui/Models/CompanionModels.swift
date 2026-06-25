@@ -106,6 +106,18 @@ struct StarMapInsight: Identifiable, Codable, Hashable {
     let generatedAt: Date
     let periodStart: Date
     let periodEnd: Date
+    let primaryGoalTitle: String
+    let primaryGoalReason: String
+    let primaryGoalNextStep: String
+    let primaryGoalChallenge: String
+    let secondaryGoalTitle: String
+    let secondaryGoalReason: String
+    let secondaryGoalNextStep: String
+    let secondaryGoalChallenge: String
+    let recentEmotionSummary: String
+    let recentEmotionTags: [String]
+    let flowSupport: String
+    let memoryCues: [String]
     let coreInsight: String
     let coreInsightDetail: String
     let recentPatternTitle: String
@@ -135,7 +147,14 @@ struct StarMapInsight: Identifiable, Codable, Hashable {
     }
 
     var isMockInsight: Bool {
-        id == StarMapInsight.mock.id || sourceSummary.contains("mock 数据") || sourceSummary.contains("fake 模式")
+        id == StarMapInsight.mock.id
+            || primaryGoalTitle == StarMapInsight.mock.primaryGoalTitle
+            || sourceSummary.contains("mock 数据")
+            || sourceSummary.contains("fake 模式")
+    }
+
+    var hasSecondaryGoal: Bool {
+        !secondaryGoalTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static let mock = StarMapInsight(
@@ -143,6 +162,18 @@ struct StarMapInsight: Identifiable, Codable, Hashable {
         generatedAt: Date(),
         periodStart: Calendar.current.date(byAdding: .day, value: -60, to: Date()) ?? Date(),
         periodEnd: Date(),
+        primaryGoalTitle: "先连接真实数据，再生成你的主要目标",
+        primaryGoalReason: "目前还没有读取到后端生成的心流导航。这一页暂时只展示结构，不代表对你的真实判断。",
+        primaryGoalNextStep: "检查后端连接并重新生成心流导航。",
+        primaryGoalChallenge: "轻量",
+        secondaryGoalTitle: "",
+        secondaryGoalReason: "",
+        secondaryGoalNextStep: "",
+        secondaryGoalChallenge: "",
+        recentEmotionSummary: "还没有足够的真实总结和情绪记录可供分析。",
+        recentEmotionTags: ["等待数据"],
+        flowSupport: "真实数据连接后，这里会根据目标、情绪和长期记忆给出更具体的进入方式。",
+        memoryCues: ["这里将显示与当前目标有关的跨会话记忆提醒。"],
         coreInsight: "过去两个月里，\n你最有生命力的时刻，\n都发生在探索未知的时候。",
         coreInsightDetail: "这是一版本地 mock 的云朵观察。后续会根据最近 30-60 天的夜谈、总结、长期状态和记忆，让这里变成真正按月更新的生命力摘要。",
         recentPatternTitle: "最近的模式",

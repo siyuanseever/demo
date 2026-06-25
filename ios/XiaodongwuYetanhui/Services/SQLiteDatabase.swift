@@ -9,10 +9,91 @@ final class SQLiteDatabase {
         if sqlite3_open(databaseURL.path, &handle) != SQLITE_OK {
             throw DatabaseError.openFailed(String(cString: sqlite3_errmsg(handle)))
         }
+        migrateLocalSchema()
     }
 
     deinit {
         sqlite3_close(handle)
+    }
+
+    private func migrateLocalSchema() {
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                ended_at TEXT
+            )
+            """
+        )
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                model TEXT,
+                metadata TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS memories (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL DEFAULT 'default',
+                category TEXT NOT NULL,
+                subcategory TEXT NOT NULL DEFAULT 'general',
+                keywords TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL DEFAULT 'active',
+                content TEXT NOT NULL,
+                evidence TEXT NOT NULL,
+                confidence REAL NOT NULL DEFAULT 0.5,
+                importance INTEGER NOT NULL DEFAULT 1,
+                source_session_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS journals (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                emotion_curve TEXT NOT NULL DEFAULT '[]',
+                keywords TEXT NOT NULL DEFAULT '[]',
+                insights TEXT NOT NULL DEFAULT '[]',
+                suggested_next_step TEXT NOT NULL DEFAULT '',
+                mood_score INTEGER,
+                dominant_emotion TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS user_state_profiles (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL DEFAULT 'default',
+                domain TEXT NOT NULL,
+                stage TEXT NOT NULL DEFAULT '',
+                summary TEXT NOT NULL DEFAULT '',
+                intensity INTEGER NOT NULL DEFAULT 0,
+                trend TEXT NOT NULL DEFAULT '',
+                confidence REAL NOT NULL DEFAULT 0,
+                evidence TEXT NOT NULL DEFAULT '[]',
+                support_strategy TEXT NOT NULL DEFAULT '',
+                source_session_id TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, domain)
+            )
+            """
+        )
     }
 
     func count(table: String) -> Int {
@@ -85,6 +166,150 @@ final class SQLiteDatabase {
                 preview: row["preview"] ?? ""
             )
         }
+    }
+
+    func createLocalSession() -> String {
+        let sessionID = UUID().uuidString
+        execute(
+            sql: "INSERT INTO sessions (id, created_at) VALUES (?, ?)",
+            bindings: [sessionID, Self.string(from: Date())]
+        )
+        return sessionID
+    }
+
+    func endLocalSession(_ sessionID: String) {
+        execute(
+            sql: "UPDATE sessions SET ended_at = ? WHERE id = ?",
+            bindings: [Self.string(from: Date()), sessionID]
+        )
+    }
+
+    func addLocalJournal(sessionID: String, journal: LocalJournalDraft) {
+        execute(
+            sql: """
+            INSERT INTO journals (
+                id, session_id, summary, emotion_curve, keywords, insights,
+                suggested_next_step, mood_score, dominant_emotion, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            bindings: [
+                UUID().uuidString,
+                sessionID,
+                journal.summary,
+                Self.jsonString(from: journal.emotionCurve),
+                Self.jsonString(from: journal.keywords),
+                Self.jsonString(from: journal.insights),
+                journal.suggestedNextStep,
+                String(journal.moodScore),
+                journal.dominantEmotion,
+                Self.string(from: Date()),
+            ]
+        )
+    }
+
+    func addLocalMemories(sessionID: String, memories: [LocalMemoryDraft]) {
+        let now = Self.string(from: Date())
+        for memory in memories {
+            execute(
+                sql: """
+                INSERT INTO memories (
+                    id, user_id, category, subcategory, keywords, status, content,
+                    evidence, confidence, importance, source_session_id, created_at, updated_at
+                )
+                VALUES (?, 'default', ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)
+                """,
+                bindings: [
+                    UUID().uuidString,
+                    memory.category,
+                    memory.subcategory,
+                    Self.jsonString(from: memory.keywords),
+                    memory.content,
+                    memory.evidence,
+                    String(memory.confidence),
+                    String(memory.importance),
+                    sessionID,
+                    now,
+                    now,
+                ]
+            )
+        }
+    }
+
+    func upsertLocalStateProfiles(sessionID: String, profiles: [LocalStateProfileDraft]) {
+        let now = Self.string(from: Date())
+        for profile in profiles {
+            execute(
+                sql: "DELETE FROM user_state_profiles WHERE user_id = 'default' AND domain = ?",
+                bindings: [profile.domain]
+            )
+            execute(
+                sql: """
+                INSERT INTO user_state_profiles (
+                    id, user_id, domain, stage, summary, intensity, trend, confidence,
+                    evidence, support_strategy, source_session_id, created_at, updated_at
+                )
+                VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                bindings: [
+                    UUID().uuidString,
+                    profile.domain,
+                    profile.stage,
+                    profile.summary,
+                    String(profile.intensity),
+                    profile.trend,
+                    String(profile.confidence),
+                    Self.jsonString(from: profile.evidence),
+                    profile.supportStrategy,
+                    sessionID,
+                    now,
+                    now,
+                ]
+            )
+        }
+    }
+
+    @discardableResult
+    func addLocalMessage(
+        sessionID: String,
+        role: MessageRole,
+        content: String,
+        characterID: String? = nil,
+        expressionID: String = "",
+        model: String = ""
+    ) -> ChatMessage {
+        let messageID = UUID().uuidString
+        let createdAt = Self.string(from: Date())
+        var metadata: [String: Any] = [:]
+        if let characterID, !characterID.isEmpty {
+            metadata["character_id"] = characterID
+        }
+        if !expressionID.isEmpty {
+            metadata["expression_id"] = expressionID
+        }
+        execute(
+            sql: """
+            INSERT INTO messages (id, session_id, role, content, model, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            bindings: [
+                messageID,
+                sessionID,
+                role.rawValue,
+                content,
+                model,
+                Self.jsonString(from: metadata),
+                createdAt,
+            ]
+        )
+        return ChatMessage(
+            id: messageID,
+            role: role,
+            content: content,
+            characterID: characterID,
+            createdAt: createdAt,
+            expressionID: expressionID
+        )
     }
 
     func upsertRemoteSession(_ session: RemoteSessionSummary) {
@@ -331,6 +556,147 @@ final class SQLiteDatabase {
         }
     }
 
+    func makeSyncUploadBundle() -> SyncUploadBundle {
+        let sessionRecords = rows(
+            sql: "SELECT id, created_at, ended_at FROM sessions ORDER BY created_at ASC"
+        ).compactMap { row -> SyncSessionRecord? in
+            guard let id = row["id"], let createdAt = row["created_at"] else { return nil }
+            let endedAt = row["ended_at"].flatMap { $0.isEmpty ? nil : $0 }
+            return SyncSessionRecord(id: id, createdAt: createdAt, endedAt: endedAt)
+        }
+
+        let messageRecords = rows(
+            sql: """
+            SELECT id, session_id, role, content, model, metadata, created_at
+            FROM messages
+            ORDER BY created_at ASC
+            """
+        ).compactMap { row -> SyncMessageRecord? in
+            guard
+                let id = row["id"],
+                let sessionID = row["session_id"],
+                let createdAt = row["created_at"]
+            else {
+                return nil
+            }
+            let metadata = Self.metadataObject(from: row["metadata"] ?? "{}")
+            return SyncMessageRecord(
+                id: id,
+                sessionID: sessionID,
+                role: row["role"] ?? "assistant",
+                content: row["content"] ?? "",
+                model: row["model"].flatMap { $0.isEmpty ? nil : $0 },
+                metadata: SyncMessageMetadata(
+                    characterID: metadata["character_id"] as? String,
+                    groupRole: metadata["group_role"] as? String,
+                    action: metadata["action"] as? String,
+                    expressionID: metadata["expression_id"] as? String,
+                    knowledgeCardIDs: metadata["knowledge_card_ids"] as? [String] ?? []
+                ),
+                createdAt: createdAt
+            )
+        }
+
+        let memoryRecords = rows(
+            sql: """
+            SELECT id, user_id, category, subcategory, keywords, status, content,
+                   evidence, confidence, importance, source_session_id, created_at, updated_at
+            FROM memories
+            """
+        ).compactMap { row -> SyncMemoryRecord? in
+            guard
+                let id = row["id"],
+                let createdAt = row["created_at"],
+                let updatedAt = row["updated_at"]
+            else {
+                return nil
+            }
+            return SyncMemoryRecord(
+                id: id,
+                userID: row["user_id"] ?? "default",
+                category: row["category"] ?? "memory",
+                subcategory: row["subcategory"] ?? "general",
+                keywords: Self.stringArray(from: row["keywords"] ?? "[]"),
+                status: row["status"] ?? "active",
+                content: row["content"] ?? "",
+                evidence: row["evidence"] ?? "",
+                confidence: Double(row["confidence"] ?? "0.5") ?? 0.5,
+                importance: Int(row["importance"] ?? "1") ?? 1,
+                sourceSessionID: row["source_session_id"] ?? "",
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+
+        let journalRecords = rows(
+            sql: """
+            SELECT id, session_id, summary, emotion_curve, keywords, insights,
+                   suggested_next_step, mood_score, dominant_emotion, created_at
+            FROM journals
+            """
+        ).compactMap { row -> SyncJournalRecord? in
+            guard
+                let id = row["id"],
+                let sessionID = row["session_id"],
+                let createdAt = row["created_at"]
+            else {
+                return nil
+            }
+            return SyncJournalRecord(
+                id: id,
+                sessionID: sessionID,
+                summary: row["summary"] ?? "",
+                emotionCurve: Self.stringArray(from: row["emotion_curve"] ?? "[]"),
+                keywords: Self.stringArray(from: row["keywords"] ?? "[]"),
+                insights: Self.stringArray(from: row["insights"] ?? "[]"),
+                suggestedNextStep: row["suggested_next_step"] ?? "",
+                moodScore: Int(row["mood_score"] ?? ""),
+                dominantEmotion: row["dominant_emotion"] ?? "",
+                createdAt: createdAt
+            )
+        }
+
+        let profileRecords = rows(
+            sql: """
+            SELECT id, user_id, domain, stage, summary, intensity, trend, confidence,
+                   evidence, support_strategy, source_session_id, created_at, updated_at
+            FROM user_state_profiles
+            """
+        ).compactMap { row -> SyncStateProfileRecord? in
+            guard
+                let id = row["id"],
+                let domain = row["domain"],
+                let createdAt = row["created_at"],
+                let updatedAt = row["updated_at"]
+            else {
+                return nil
+            }
+            return SyncStateProfileRecord(
+                id: id,
+                userID: row["user_id"] ?? "default",
+                domain: domain,
+                stage: row["stage"] ?? "",
+                summary: row["summary"] ?? "",
+                intensity: Int(row["intensity"] ?? "0") ?? 0,
+                trend: row["trend"] ?? "",
+                confidence: Double(row["confidence"] ?? "0") ?? 0,
+                evidence: Self.stringArray(from: row["evidence"] ?? "[]"),
+                supportStrategy: row["support_strategy"] ?? "",
+                sourceSessionID: row["source_session_id"] ?? "",
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+        }
+
+        return SyncUploadBundle(
+            sessions: sessionRecords,
+            messages: messageRecords,
+            memories: memoryRecords,
+            journals: journalRecords,
+            stateProfiles: profileRecords
+        )
+    }
+
     func latestStarMapInsight() -> StarMapInsight? {
         ensureStarMapInsightTable()
         return latestPersistedStarMapInsight()
@@ -349,6 +715,18 @@ final class SQLiteDatabase {
                 generated_at TEXT NOT NULL,
                 period_start TEXT NOT NULL,
                 period_end TEXT NOT NULL,
+                primary_goal_title TEXT NOT NULL DEFAULT '',
+                primary_goal_reason TEXT NOT NULL DEFAULT '',
+                primary_goal_next_step TEXT NOT NULL DEFAULT '',
+                primary_goal_challenge TEXT NOT NULL DEFAULT '',
+                secondary_goal_title TEXT NOT NULL DEFAULT '',
+                secondary_goal_reason TEXT NOT NULL DEFAULT '',
+                secondary_goal_next_step TEXT NOT NULL DEFAULT '',
+                secondary_goal_challenge TEXT NOT NULL DEFAULT '',
+                recent_emotion_summary TEXT NOT NULL DEFAULT '',
+                recent_emotion_tags TEXT NOT NULL DEFAULT '[]',
+                flow_support TEXT NOT NULL DEFAULT '',
+                memory_cues TEXT NOT NULL DEFAULT '[]',
                 core_insight TEXT NOT NULL,
                 core_insight_detail TEXT NOT NULL DEFAULT '',
                 recent_pattern_title TEXT NOT NULL,
@@ -364,6 +742,18 @@ final class SQLiteDatabase {
             )
             """
         )
+        ensureColumn(table: "star_map_insights", column: "primary_goal_title", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "primary_goal_reason", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "primary_goal_next_step", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "primary_goal_challenge", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "secondary_goal_title", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "secondary_goal_reason", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "secondary_goal_next_step", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "secondary_goal_challenge", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "recent_emotion_summary", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "recent_emotion_tags", definition: "TEXT NOT NULL DEFAULT '[]'")
+        ensureColumn(table: "star_map_insights", column: "flow_support", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumn(table: "star_map_insights", column: "memory_cues", definition: "TEXT NOT NULL DEFAULT '[]'")
         ensureColumn(
             table: "star_map_insights",
             column: "core_insight_detail",
@@ -394,7 +784,12 @@ final class SQLiteDatabase {
     private func latestPersistedStarMapInsight() -> StarMapInsight? {
         rows(
             sql: """
-            SELECT id, generated_at, period_start, period_end, core_insight,
+            SELECT id, generated_at, period_start, period_end,
+                   primary_goal_title, primary_goal_reason, primary_goal_next_step,
+                   primary_goal_challenge, secondary_goal_title, secondary_goal_reason,
+                   secondary_goal_next_step, secondary_goal_challenge,
+                   recent_emotion_summary, recent_emotion_tags, flow_support, memory_cues,
+                   core_insight,
                    core_insight_detail, recent_pattern_title, recent_pattern_items,
                    recent_pattern_detail, flow_condition_title, flow_condition_items,
                    flow_condition_detail, gentle_reminder_title, gentle_reminder,
@@ -412,19 +807,36 @@ final class SQLiteDatabase {
         execute(
             sql: """
             INSERT OR REPLACE INTO star_map_insights (
-                id, generated_at, period_start, period_end, core_insight,
+                id, generated_at, period_start, period_end,
+                primary_goal_title, primary_goal_reason, primary_goal_next_step,
+                primary_goal_challenge, secondary_goal_title, secondary_goal_reason,
+                secondary_goal_next_step, secondary_goal_challenge,
+                recent_emotion_summary, recent_emotion_tags, flow_support, memory_cues,
+                core_insight,
                 core_insight_detail, recent_pattern_title, recent_pattern_items,
                 recent_pattern_detail, flow_condition_title, flow_condition_items,
                 flow_condition_detail, gentle_reminder_title, gentle_reminder,
                 gentle_reminder_detail, source_summary
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             bindings: [
                 insight.id,
                 Self.string(from: insight.generatedAt),
                 Self.string(from: insight.periodStart),
                 Self.string(from: insight.periodEnd),
+                insight.primaryGoalTitle,
+                insight.primaryGoalReason,
+                insight.primaryGoalNextStep,
+                insight.primaryGoalChallenge,
+                insight.secondaryGoalTitle,
+                insight.secondaryGoalReason,
+                insight.secondaryGoalNextStep,
+                insight.secondaryGoalChallenge,
+                insight.recentEmotionSummary,
+                Self.jsonString(from: insight.recentEmotionTags),
+                insight.flowSupport,
+                Self.jsonString(from: insight.memoryCues),
                 insight.coreInsight,
                 insight.coreInsightDetail,
                 insight.recentPatternTitle,
@@ -498,75 +910,17 @@ final class SQLiteDatabase {
             create: true
         )
         let writableURL = documentsURL.appendingPathComponent("app.db")
-        guard let bundledURL = Bundle.main.url(forResource: "app", withExtension: "db") else {
-            throw DatabaseError.missingBundledDatabase
-        }
 
         if fileManager.fileExists(atPath: writableURL.path) {
-            if shouldRefreshWritableDatabase(writableURL: writableURL, bundledURL: bundledURL) {
-                try replaceWritableDatabase(at: writableURL, with: bundledURL, fileManager: fileManager)
-            }
             return writableURL
         }
 
-        try fileManager.copyItem(at: bundledURL, to: writableURL)
+        if let bundledURL = Bundle.main.url(forResource: "app", withExtension: "db") {
+            try fileManager.copyItem(at: bundledURL, to: writableURL)
+        } else {
+            fileManager.createFile(atPath: writableURL.path, contents: nil)
+        }
         return writableURL
-    }
-
-    private static func shouldRefreshWritableDatabase(writableURL: URL, bundledURL: URL) -> Bool {
-        guard let bundledTimestamp = latestStoredTimestamp(at: bundledURL) else {
-            return false
-        }
-        guard let writableTimestamp = latestStoredTimestamp(at: writableURL) else {
-            return true
-        }
-        return bundledTimestamp > writableTimestamp
-    }
-
-    private static func replaceWritableDatabase(at writableURL: URL, with bundledURL: URL, fileManager: FileManager) throws {
-        let temporaryURL = writableURL.deletingLastPathComponent().appendingPathComponent("app.db.next")
-        if fileManager.fileExists(atPath: temporaryURL.path) {
-            try fileManager.removeItem(at: temporaryURL)
-        }
-        try fileManager.copyItem(at: bundledURL, to: temporaryURL)
-        try fileManager.removeItem(at: writableURL)
-        try fileManager.moveItem(at: temporaryURL, to: writableURL)
-    }
-
-    private static func latestStoredTimestamp(at databaseURL: URL) -> String? {
-        var database: OpaquePointer?
-        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            sqlite3_close(database)
-            return nil
-        }
-        defer { sqlite3_close(database) }
-
-        return scalarString(
-            database: database,
-            sql: """
-            SELECT MAX(value) AS latest
-            FROM (
-                SELECT MAX(created_at) AS value FROM sessions
-                UNION ALL SELECT MAX(created_at) FROM messages
-                UNION ALL SELECT MAX(updated_at) FROM memories
-                UNION ALL SELECT MAX(created_at) FROM journals
-            )
-            """
-        )
-    }
-
-    private static func scalarString(database: OpaquePointer?, sql: String) -> String? {
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
-            return nil
-        }
-        defer { sqlite3_finalize(statement) }
-
-        guard sqlite3_step(statement) == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else {
-            return nil
-        }
-        let value = String(cString: text)
-        return value.isEmpty ? nil : value
     }
 
     private static func metadataObject(from jsonString: String) -> [String: Any] {
@@ -600,6 +954,16 @@ final class SQLiteDatabase {
             let text = String(data: data, encoding: .utf8)
         else {
             return "[]"
+        }
+        return text
+    }
+
+    private static func jsonString(from object: [String: Any]) -> String {
+        guard
+            let data = try? JSONSerialization.data(withJSONObject: object),
+            let text = String(data: data, encoding: .utf8)
+        else {
+            return "{}"
         }
         return text
     }
@@ -643,6 +1007,18 @@ final class SQLiteDatabase {
             generatedAt: generatedAt,
             periodStart: periodStart,
             periodEnd: periodEnd,
+            primaryGoalTitle: row["primary_goal_title"].flatMap { $0.isEmpty ? nil : $0 } ?? StarMapInsight.mock.primaryGoalTitle,
+            primaryGoalReason: row["primary_goal_reason"].flatMap { $0.isEmpty ? nil : $0 } ?? StarMapInsight.mock.primaryGoalReason,
+            primaryGoalNextStep: row["primary_goal_next_step"].flatMap { $0.isEmpty ? nil : $0 } ?? StarMapInsight.mock.primaryGoalNextStep,
+            primaryGoalChallenge: row["primary_goal_challenge"].flatMap { $0.isEmpty ? nil : $0 } ?? StarMapInsight.mock.primaryGoalChallenge,
+            secondaryGoalTitle: row["secondary_goal_title"] ?? "",
+            secondaryGoalReason: row["secondary_goal_reason"] ?? "",
+            secondaryGoalNextStep: row["secondary_goal_next_step"] ?? "",
+            secondaryGoalChallenge: row["secondary_goal_challenge"] ?? "",
+            recentEmotionSummary: row["recent_emotion_summary"].flatMap { $0.isEmpty ? nil : $0 } ?? StarMapInsight.mock.recentEmotionSummary,
+            recentEmotionTags: stringArray(from: row["recent_emotion_tags"] ?? "[]"),
+            flowSupport: row["flow_support"].flatMap { $0.isEmpty ? nil : $0 } ?? StarMapInsight.mock.flowSupport,
+            memoryCues: stringArray(from: row["memory_cues"] ?? "[]"),
             coreInsight: row["core_insight"] ?? StarMapInsight.mock.coreInsight,
             coreInsightDetail: row["core_insight_detail"] ?? StarMapInsight.mock.coreInsightDetail,
             recentPatternTitle: row["recent_pattern_title"] ?? StarMapInsight.mock.recentPatternTitle,

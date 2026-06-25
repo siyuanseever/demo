@@ -8,6 +8,7 @@ struct ChatView: View {
     @State private var isNotebookVisible = false
     @State private var isCompanionChatVisible = false
     @State private var isSideSettingsVisible = false
+    @State private var reviewedSession: SessionSummary?
     @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
@@ -50,6 +51,16 @@ struct ChatView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
+        }
+        .sheet(item: $reviewedSession) { session in
+            NavigationStack {
+                SessionDetailView(
+                    session: session,
+                    openSession: continueReviewedSession
+                )
+                .environmentObject(store)
+            }
+            .preferredColorScheme(.light)
         }
         .fullScreenCover(isPresented: $isCompanionChatVisible) {
             CompanionChatPage()
@@ -105,11 +116,12 @@ struct ChatView: View {
                 NavigationStack {
                     StateOverviewView(
                         openChat: { isCompanionChatVisible = true },
+                        openInbox: { openNotebook(.chat) },
                         openMessages: { openNotebook(.messages) },
                         openSessions: { openNotebook(.sessions) },
                         openMemory: { openNotebook(.memory) },
                         openJournals: { openNotebook(.journals) },
-                        openSourceSession: continueHistoricalSession
+                        openSourceSession: reviewHistoricalSession
                     )
                 }
             }
@@ -136,6 +148,17 @@ struct ChatView: View {
         isNotebookVisible = false
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             isCompanionChatVisible = true
+        }
+    }
+
+    private func reviewHistoricalSession(_ sessionID: String) {
+        reviewedSession = store.sessions.first { $0.id == sessionID }
+    }
+
+    private func continueReviewedSession(_ sessionID: String) {
+        reviewedSession = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            continueHistoricalSession(sessionID)
         }
     }
 }
@@ -377,7 +400,7 @@ private struct ImmersiveRabbitTabButton: View {
                 )
                 .frame(width: 31, height: 31)
                 .clipShape(Circle())
-                Text("我的")
+                Text("自我")
                     .font(SensenFonts.handwritten(size: 10))
             }
             .foregroundStyle(isSelected ? Color(hex: 0x8a6ea8) : Color.warmBrown.opacity(0.72))
@@ -889,7 +912,7 @@ private struct SensenBottomBar: View {
             .accessibilityLabel("忧忧兔")
 
             BottomBarButton(title: "心流", systemImage: "sparkles", isSelected: false, action: openNotebook)
-            BottomBarButton(title: "我的", systemImage: "person", isSelected: false, action: openMe)
+            BottomBarButton(title: "自我", systemImage: "person", isSelected: false, action: openMe)
         }
         .padding(.horizontal, 8)
         .padding(.top, 6)
@@ -2695,6 +2718,7 @@ private struct ForestNotebookContent: View {
     @EnvironmentObject private var store: CompanionStore
     @Binding var selectedSpace: NotebookSpace
     let continueSession: (String) -> Void
+    @State private var reviewedSession: SessionSummary?
 
     var body: some View {
         NavigationStack {
@@ -2716,6 +2740,16 @@ private struct ForestNotebookContent: View {
             .navigationTitle("森林笔记本")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .sheet(item: $reviewedSession) { session in
+            NavigationStack {
+                SessionDetailView(
+                    session: session,
+                    openSession: continueReviewedSession
+                )
+                .environmentObject(store)
+            }
+            .preferredColorScheme(.light)
+        }
     }
 
     @ViewBuilder
@@ -2730,20 +2764,32 @@ private struct ForestNotebookContent: View {
         case .state:
             StateOverviewView(
                 openChat: { selectedSpace = .chat },
+                openInbox: { selectedSpace = .chat },
                 openMessages: { selectedSpace = .messages },
                 openSessions: { selectedSpace = .sessions },
                 openMemory: { selectedSpace = .memory },
                 openJournals: { selectedSpace = .journals },
-                openSourceSession: continueSession
+                openSourceSession: reviewSession
             )
         case .memory:
             MemoryListView { sessionID in
-                continueSession(sessionID)
+                reviewSession(sessionID)
             }
         case .journals:
-            JournalHistoryView(openSession: continueSession)
+            JournalHistoryView(openSession: reviewSession)
         case .settings:
             SettingsView()
+        }
+    }
+
+    private func reviewSession(_ sessionID: String) {
+        reviewedSession = store.sessions.first { $0.id == sessionID }
+    }
+
+    private func continueReviewedSession(_ sessionID: String) {
+        reviewedSession = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            continueSession(sessionID)
         }
     }
 }

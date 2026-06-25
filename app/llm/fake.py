@@ -114,9 +114,25 @@ class FakeClient:
                     },
                     ensure_ascii=False,
                 )
-            elif "月度星流观察" in system and "core_insight" in system:
+            elif "心流导航" in system and "primary_goal_title" in system:
                 content = json.dumps(
                     {
+                        "primary_goal_title": "把当前最模糊的问题整理成一页笔记",
+                        "primary_goal_reason": "最近的记录反复出现探索、命名和整理的需要。把问题写清楚，比马上找到答案更符合当前状态。",
+                        "primary_goal_next_step": "先写下问题、三个已知线索和一个还不确定的地方。",
+                        "primary_goal_challenge": "适中",
+                        "secondary_goal_title": "给身体留一次不带任务的休息",
+                        "secondary_goal_reason": "近期的疲惫会影响注意力，保留恢复空间能让主要目标更容易持续。",
+                        "secondary_goal_next_step": "找十分钟离开屏幕，只感受身体需要什么。",
+                        "secondary_goal_challenge": "轻量",
+                        "recent_emotion_summary": "近期同时有好奇、疲惫和一点焦虑。好奇心仍然在，但压力会把注意力拉向结果，因此更适合清楚而有限的小目标。",
+                        "recent_emotion_tags": ["好奇", "疲惫", "焦虑"],
+                        "flow_support": "先明确这一轮只整理问题，不要求解决；关掉一个干扰源，把结束标准设为“留下可继续的线索”。",
+                        "memory_cues": [
+                            "记录里反复出现：面对开放问题时，你更容易持续投入。",
+                            "你曾经在独处、夜晚和没有明确答案的探索中感到更有生命力。",
+                            "当任务被缩小到可以开始的一步时，冻结感会减轻。",
+                        ],
                         "core_insight": "过去这一个月里，\n你最有生命力的时刻，\n常出现在把模糊感受慢慢说清的时候。",
                         "core_insight_detail": "fake 模式下，系统观察到用户在探索内在结构、允许复杂感受并尝试表达时，会比单纯压住自己更有流动感。这份观察用于验证星图接口和 iOS 展示链路。",
                         "recent_pattern_title": "最近的模式",

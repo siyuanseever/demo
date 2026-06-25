@@ -5,6 +5,7 @@ struct StateOverviewView: View {
     @State private var selectedProfile: StateProfile?
     @State private var showsMoreRecords = false
     let openChat: () -> Void
+    let openInbox: () -> Void
     let openMessages: () -> Void
     let openSessions: () -> Void
     let openMemory: () -> Void
@@ -13,6 +14,7 @@ struct StateOverviewView: View {
 
     init(
         openChat: @escaping () -> Void = {},
+        openInbox: @escaping () -> Void = {},
         openMessages: @escaping () -> Void = {},
         openSessions: @escaping () -> Void = {},
         openMemory: @escaping () -> Void = {},
@@ -20,6 +22,7 @@ struct StateOverviewView: View {
         openSourceSession: @escaping (String) -> Void = { _ in }
     ) {
         self.openChat = openChat
+        self.openInbox = openInbox
         self.openMessages = openMessages
         self.openSessions = openSessions
         self.openMemory = openMemory
@@ -38,6 +41,15 @@ struct StateOverviewView: View {
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
+                        openSessions: openSessions,
+                        openMemory: openMemory,
+                        openJournals: openJournals
+                    )
+                    PersonalArchivePanel(
+                        snapshot: store.snapshot,
+                        profileCount: store.stateProfiles.count,
+                        openInbox: openInbox,
+                        openMessages: openMessages,
                         openSessions: openSessions,
                         openMemory: openMemory,
                         openJournals: openJournals
@@ -147,7 +159,7 @@ struct StateOverviewView: View {
                 .padding(.bottom, 112)
             }
         }
-        .navigationTitle("我的")
+        .navigationTitle("自我")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedProfile) { profile in
             StateProfileDetailSheet(
@@ -455,15 +467,6 @@ private struct PersonalOverviewHeader: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.warmBrown)
                 .disabled(store.isBackendSyncing)
-
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    Label("设置", systemImage: "gearshape.fill")
-                        .font(.caption.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.warmBrown)
             }
 
             if let notice = store.sessionNotice, !notice.isEmpty {
@@ -860,6 +863,160 @@ private struct GuideStepRow: View {
         }
         .padding(10)
         .background(Color.white.opacity(0.38), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+}
+
+private struct PersonalArchivePanel: View {
+    let snapshot: DashboardSnapshot
+    let profileCount: Int
+    let openInbox: () -> Void
+    let openMessages: () -> Void
+    let openSessions: () -> Void
+    let openMemory: () -> Void
+    let openJournals: () -> Void
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+    ]
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("资料与设置", systemImage: "books.vertical.fill")
+                        .font(.headline)
+                    Text("信箱、消息、历史会话、总结、记忆和设置都从这里进入。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ArchiveActionTile(
+                        title: "夜谈信箱",
+                        detail: "本次对话与互动",
+                        value: nil,
+                        systemImage: "envelope.fill",
+                        action: openInbox
+                    )
+                    ArchiveActionTile(
+                        title: "全部消息",
+                        detail: "数据库消息流",
+                        value: snapshot.messageCount,
+                        systemImage: "text.bubble.fill",
+                        action: openMessages
+                    )
+                    ArchiveActionTile(
+                        title: "历史会话",
+                        detail: "查看或继续夜谈",
+                        value: snapshot.sessionCount,
+                        systemImage: "clock.arrow.circlepath",
+                        action: openSessions
+                    )
+                    ArchiveActionTile(
+                        title: "会话总结",
+                        detail: "日记与理解线索",
+                        value: snapshot.journalCount,
+                        systemImage: "book.pages.fill",
+                        action: openJournals
+                    )
+                    ArchiveActionTile(
+                        title: "记忆叶片",
+                        detail: "分类与来源",
+                        value: snapshot.memoryCount,
+                        systemImage: "leaf.fill",
+                        action: openMemory
+                    )
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        ArchiveTileLabel(
+                            title: "设置",
+                            detail: "连接、隐私与缓存",
+                            value: nil,
+                            systemImage: "gearshape.fill"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: "person.text.rectangle.fill")
+                        .foregroundStyle(Color.warmBrown)
+                    Text("长期画像")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(profileCount) 个主题已在本页展开")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.nightInk)
+                }
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
+                .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
+        }
+    }
+}
+
+private struct ArchiveActionTile: View {
+    let title: String
+    let detail: String
+    let value: Int?
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ArchiveTileLabel(
+                title: title,
+                detail: detail,
+                value: value,
+                systemImage: systemImage
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ArchiveTileLabel: View {
+    let title: String
+    let detail: String
+    let value: Int?
+    let systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.warmBrown)
+                    .frame(width: 30, height: 30)
+                    .background(Color(hex: 0xf7e5d8), in: Circle())
+                Spacer()
+                if let value {
+                    Text("\(value)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.nightInk)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.warmBrown.opacity(0.62))
+                }
+            }
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.nightInk)
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
+        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
 
