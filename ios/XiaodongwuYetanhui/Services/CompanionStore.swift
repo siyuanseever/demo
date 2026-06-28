@@ -867,7 +867,7 @@ final class CompanionStore: ObservableObject {
                 apiKey: apiKey,
                 database: database
             )
-            messages.append(result.assistantMessage)
+            messages.append(contentsOf: result.assistantMessages)
             chatNotice = "本地模式：无需连接 Mac。"
             load()
         } catch {

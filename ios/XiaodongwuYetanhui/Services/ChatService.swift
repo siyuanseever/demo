@@ -60,6 +60,7 @@ struct RemoteChatMessage {
     let action: String
     let expressionID: String
     let knowledgeCardIDs: [String]
+    let routePlan: SyncRoutePlanRecord?
 }
 
 struct RemoteMemory {
@@ -161,6 +162,7 @@ struct SyncMessageMetadata: Encodable {
     let action: String?
     let expressionID: String?
     let knowledgeCardIDs: [String]
+    let routePlan: SyncRoutePlanRecord?
 
     enum CodingKeys: String, CodingKey {
         case characterID = "character_id"
@@ -168,6 +170,72 @@ struct SyncMessageMetadata: Encodable {
         case action
         case expressionID = "expression_id"
         case knowledgeCardIDs = "knowledge_card_ids"
+        case routePlan = "route_plan"
+    }
+}
+
+struct SyncRoutePlanRecord: Codable {
+    let userState: String
+    let coreNeed: String
+    let riskLevel: String
+    let responseMode: String
+    let characterID: String
+    let expressionID: String
+    let knowledgeNeeds: [String]
+    let memoryQueries: [String]
+    let knowledgeQueries: [String]
+    let responseGuidance: String
+    let reason: String
+
+    enum CodingKeys: String, CodingKey {
+        case userState = "user_state"
+        case coreNeed = "core_need"
+        case riskLevel = "risk_level"
+        case responseMode = "response_mode"
+        case characterID = "character_id"
+        case expressionID = "expression_id"
+        case knowledgeNeeds = "knowledge_needs"
+        case memoryQueries = "memory_queries"
+        case knowledgeQueries = "knowledge_queries"
+        case responseGuidance = "response_guidance"
+        case reason
+    }
+
+    init?(dictionary: [String: Any]?) {
+        guard
+            let dictionary,
+            let characterID = dictionary["character_id"] as? String,
+            !characterID.isEmpty
+        else {
+            return nil
+        }
+        userState = dictionary["user_state"] as? String ?? ""
+        coreNeed = dictionary["core_need"] as? String ?? ""
+        riskLevel = dictionary["risk_level"] as? String ?? "low"
+        responseMode = dictionary["response_mode"] as? String ?? "mixed"
+        self.characterID = characterID
+        expressionID = dictionary["expression_id"] as? String ?? ""
+        knowledgeNeeds = dictionary["knowledge_needs"] as? [String] ?? []
+        memoryQueries = dictionary["memory_queries"] as? [String] ?? []
+        knowledgeQueries = dictionary["knowledge_queries"] as? [String] ?? []
+        responseGuidance = dictionary["response_guidance"] as? String ?? ""
+        reason = dictionary["reason"] as? String ?? ""
+    }
+
+    var dictionary: [String: Any] {
+        [
+            "user_state": userState,
+            "core_need": coreNeed,
+            "risk_level": riskLevel,
+            "response_mode": responseMode,
+            "character_id": characterID,
+            "expression_id": expressionID,
+            "knowledge_needs": knowledgeNeeds,
+            "memory_queries": memoryQueries,
+            "knowledge_queries": knowledgeQueries,
+            "response_guidance": responseGuidance,
+            "reason": reason,
+        ]
     }
 }
 
@@ -673,6 +741,7 @@ private struct RemoteMessageResponseBody: Decodable {
     let action: String?
     let expressionID: String?
     let knowledgeCardIDs: [String]?
+    let routePlan: SyncRoutePlanRecord?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -686,6 +755,7 @@ private struct RemoteMessageResponseBody: Decodable {
         case action
         case expressionID = "expression_id"
         case knowledgeCardIDs = "knowledge_card_ids"
+        case routePlan = "route_plan"
     }
 
     var remoteMessage: RemoteChatMessage {
@@ -700,7 +770,8 @@ private struct RemoteMessageResponseBody: Decodable {
             groupRole: groupRole ?? "",
             action: action ?? "",
             expressionID: expressionID ?? "",
-            knowledgeCardIDs: knowledgeCardIDs ?? []
+            knowledgeCardIDs: knowledgeCardIDs ?? [],
+            routePlan: routePlan
         )
     }
 }

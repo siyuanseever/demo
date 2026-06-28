@@ -239,10 +239,21 @@ final class SQLiteDatabase {
     func upsertLocalStateProfiles(sessionID: String, profiles: [LocalStateProfileDraft]) {
         let now = Self.string(from: Date())
         for profile in profiles {
-            execute(
-                sql: "DELETE FROM user_state_profiles WHERE user_id = 'default' AND domain = ?",
+            guard profile.action != "no_change" else { continue }
+            let existing = rows(
+                sql: """
+                SELECT evidence
+                FROM user_state_profiles
+                WHERE user_id = 'default' AND domain = ?
+                LIMIT 1
+                """,
                 bindings: [profile.domain]
-            )
+            ).first
+            var evidence = Self.stringArray(from: existing?["evidence"] ?? "[]")
+            for item in profile.evidence where !item.isEmpty && !evidence.contains(item) {
+                evidence.append(item)
+            }
+            evidence = Array(evidence.suffix(8))
             execute(
                 sql: """
                 INSERT INTO user_state_profiles (
@@ -250,6 +261,16 @@ final class SQLiteDatabase {
                     evidence, support_strategy, source_session_id, created_at, updated_at
                 )
                 VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, domain) DO UPDATE SET
+                    stage = excluded.stage,
+                    summary = excluded.summary,
+                    intensity = excluded.intensity,
+                    trend = excluded.trend,
+                    confidence = excluded.confidence,
+                    evidence = excluded.evidence,
+                    support_strategy = excluded.support_strategy,
+                    source_session_id = excluded.source_session_id,
+                    updated_at = excluded.updated_at
                 """,
                 bindings: [
                     UUID().uuidString,
@@ -259,7 +280,7 @@ final class SQLiteDatabase {
                     String(profile.intensity),
                     profile.trend,
                     String(profile.confidence),
-                    Self.jsonString(from: profile.evidence),
+                    Self.jsonString(from: evidence),
                     profile.supportStrategy,
                     sessionID,
                     now,
@@ -276,7 +297,9 @@ final class SQLiteDatabase {
         content: String,
         characterID: String? = nil,
         expressionID: String = "",
-        model: String = ""
+        model: String = "",
+        routePlan: [String: Any]? = nil,
+        knowledgeCards: [KnowledgeCard] = []
     ) -> ChatMessage {
         let messageID = UUID().uuidString
         let createdAt = Self.string(from: Date())
@@ -286,6 +309,12 @@ final class SQLiteDatabase {
         }
         if !expressionID.isEmpty {
             metadata["expression_id"] = expressionID
+        }
+        if let routePlan {
+            metadata["route_plan"] = routePlan
+        }
+        if !knowledgeCards.isEmpty {
+            metadata["knowledge_card_ids"] = knowledgeCards.map(\.id)
         }
         execute(
             sql: """
@@ -308,8 +337,51 @@ final class SQLiteDatabase {
             content: content,
             characterID: characterID,
             createdAt: createdAt,
-            expressionID: expressionID
+            expressionID: expressionID,
+            routeSummary: Self.routeSummary(from: routePlan),
+            knowledgeCards: knowledgeCards
         )
+    }
+
+    func contextMemories(queryTerms: [String], limit: Int = 8) -> [MemoryEntry] {
+        let all = memories(limit: 120)
+        let terms = queryTerms
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        var scoredMemories: [(memory: MemoryEntry, score: Int)] = []
+        for memory in all {
+            let textParts = [memory.content, memory.evidence] + memory.keywords
+            let searchableText = textParts.joined(separator: " ").lowercased()
+            var score = 0
+            for term in terms {
+                if searchableText.contains(term) {
+                    score += 4
+                } else if memory.keywords.contains(where: { term.contains($0.lowercased()) }) {
+                    score += 1
+                }
+            }
+            scoredMemories.append((memory: memory, score: score))
+        }
+        let related = scoredMemories
+            .filter { $0.1 > 0 }
+            .sorted {
+                $0.1 == $1.1 ? $0.0.importance > $1.0.importance : $0.1 > $1.1
+            }
+            .map(\.0)
+        let recent = all.sorted { $0.updatedAt > $1.updatedAt }
+        let important = all.sorted {
+            $0.importance == $1.importance ? $0.updatedAt > $1.updatedAt : $0.importance > $1.importance
+        }
+        var selected: [MemoryEntry] = []
+        for memory in Array(related.prefix(5)) + Array(recent.prefix(2)) + Array(important.prefix(2)) {
+            if !selected.contains(where: { $0.id == memory.id }) {
+                selected.append(memory)
+            }
+            if selected.count == limit {
+                break
+            }
+        }
+        return selected
     }
 
     func upsertRemoteSession(_ session: RemoteSessionSummary) {
@@ -591,7 +663,10 @@ final class SQLiteDatabase {
                     groupRole: metadata["group_role"] as? String,
                     action: metadata["action"] as? String,
                     expressionID: metadata["expression_id"] as? String,
-                    knowledgeCardIDs: metadata["knowledge_card_ids"] as? [String] ?? []
+                    knowledgeCardIDs: metadata["knowledge_card_ids"] as? [String] ?? [],
+                    routePlan: SyncRoutePlanRecord(
+                        dictionary: metadata["route_plan"] as? [String: Any]
+                    )
                 ),
                 createdAt: createdAt
             )
@@ -984,6 +1059,9 @@ final class SQLiteDatabase {
         }
         if !message.knowledgeCardIDs.isEmpty {
             metadata["knowledge_card_ids"] = message.knowledgeCardIDs
+        }
+        if let routePlan = message.routePlan {
+            metadata["route_plan"] = routePlan.dictionary
         }
         guard
             let data = try? JSONSerialization.data(withJSONObject: metadata),

@@ -64,6 +64,7 @@ def message_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     item["action"] = metadata.get("action", "")
     item["expression_id"] = metadata.get("expression_id", "")
     item["knowledge_card_ids"] = metadata.get("knowledge_card_ids", [])
+    item["route_plan"] = metadata.get("route_plan")
     if not isinstance(item["knowledge_card_ids"], list):
         item["knowledge_card_ids"] = []
     return item

@@ -21,108 +21,34 @@ struct StateOverviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     PersonalOverviewHeader()
-                    SelfMapGuidePanel(
-                        sessions: store.sessions,
-                        memories: store.memories,
+                    CurrentStateSnapshotPanel(
                         journals: store.journals,
-                        profiles: store.stateProfiles,
-                        openSessions: { selectedRoute = .sessions },
-                        openMemory: { selectedRoute = .memory },
-                        openJournals: { selectedRoute = .journals }
-                    )
-                    PersonalArchivePanel(
-                        snapshot: store.snapshot,
-                        profileCount: store.stateProfiles.count,
-                        openInbox: { selectedRoute = .inbox },
-                        openMessages: { selectedRoute = .messages },
-                        openSessions: { selectedRoute = .sessions },
-                        openMemory: { selectedRoute = .memory },
-                        openJournals: { selectedRoute = .journals },
-                        openSettings: { selectedRoute = .settings }
-                    )
-                    ControlCenterPanel(
-                        snapshot: store.snapshot,
-                        profiles: store.stateProfiles,
-                        openMessages: { selectedRoute = .messages },
-                        openSessions: { selectedRoute = .sessions },
-                        openMemory: { selectedRoute = .memory },
-                        openJournals: { selectedRoute = .journals }
-                    )
-                    DatabaseIndexPanel(
-                        sessions: store.sessions,
-                        messages: store.messages,
                         memories: store.memories,
-                        journals: store.journals,
                         profiles: store.stateProfiles,
-                        bailanEntries: store.bailanDiaryEntries,
-                        flowMoments: store.flowMoments,
-                        careMoments: store.careMoments,
-                        recommendations: store.recommendationHistory
+                        selectProfile: { selectedRoute = .profile($0.id) }
                     )
-                    DataCompletenessPanel(
-                        sessions: store.sessions,
+                    MoodPanel(journals: store.journals)
+                    StateProfilePanel(
+                        profiles: store.stateProfiles,
+                        selectProfile: { selectedRoute = .profile($0.id) }
+                    )
+                    PatternAnalysisPanel(
+                        journals: store.journals,
                         memories: store.memories,
-                        journals: store.journals,
-                        profiles: store.stateProfiles,
-                        backendStatus: store.backendStatus,
-                        loadError: store.loadError,
-                        lastSyncAt: store.lastBackendSyncAt
+                        profiles: store.stateProfiles
                     )
-                    DataGapPanel(
-                        sessions: store.sessions,
-                        memories: store.memories,
-                        journals: store.journals,
-                        profiles: store.stateProfiles,
-                        openSessions: { selectedRoute = .sessions },
-                        openMemory: { selectedRoute = .memory },
-                        openJournals: { selectedRoute = .journals }
-                    )
-                    SessionProcessingPanel(
-                        sessions: store.sessions,
-                        memories: store.memories,
-                        journals: store.journals,
-                        profiles: store.stateProfiles,
-                        openSourceSession: { selectedRoute = .session($0) },
-                        openSessions: { selectedRoute = .sessions }
-                    )
-                    RecentActivityTimelinePanel(
-                        sessions: store.sessions,
-                        memories: store.memories,
-                        journals: store.journals,
-                        profiles: store.stateProfiles,
-                        openSourceSession: { selectedRoute = .session($0) }
-                    )
+                    WeeklyReportPanel(journals: store.journals)
                     ThemeClusterPanel(
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
                         openTheme: { selectedRoute = .theme($0) }
                     )
-                    RecentSignalsPanel(
-                        journals: store.journals,
-                        memories: store.memories,
-                        profiles: store.stateProfiles,
-                        openMemory: { selectedRoute = .memory },
-                        openJournals: { selectedRoute = .journals },
-                        openSourceSession: { selectedRoute = .session($0) }
-                    )
-                    SourceTracePanel(
-                        memories: store.memories,
-                        journals: store.journals,
-                        profiles: store.stateProfiles,
-                        openSourceSession: { selectedRoute = .session($0) }
-                    )
-                    StateProfilePanel(
-                        profiles: store.stateProfiles,
-                        selectProfile: { selectedRoute = .profile($0.id) }
-                    )
                     MemoryMapPanel(
                         memories: store.memories,
                         openMemory: { selectedRoute = .memory },
                         openCategory: { selectedRoute = .memoryCategory($0) }
                     )
-                    MoodPanel(journals: store.journals)
-                    WeeklyReportPanel(journals: store.journals)
                     MoreRecordsToggle(isExpanded: $showsMoreRecords)
                     if showsMoreRecords {
                         BailanDiaryPanel(entries: store.bailanDiaryEntries)
@@ -150,6 +76,28 @@ struct StateOverviewView: View {
         }
         .navigationTitle("自我")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Section("资料") {
+                        Button("夜谈信箱", systemImage: "envelope.fill") { selectedRoute = .inbox }
+                        Button("全部消息", systemImage: "text.bubble.fill") { selectedRoute = .messages }
+                        Button("历史会话", systemImage: "clock.arrow.circlepath") { selectedRoute = .sessions }
+                        Button("会话总结", systemImage: "book.pages.fill") { selectedRoute = .journals }
+                        Button("记忆叶片", systemImage: "leaf.fill") { selectedRoute = .memory }
+                    }
+                    Section("管理") {
+                        Button("数据管理", systemImage: "externaldrive.fill") { selectedRoute = .dataManagement }
+                        Button("设置", systemImage: "gearshape.fill") { selectedRoute = .settings }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.warmBrown)
+                }
+                .accessibilityLabel("资料与设置")
+            }
+        }
         .navigationDestination(item: $selectedRoute) { route in
             personalDestination(route)
         }
@@ -173,6 +121,14 @@ struct StateOverviewView: View {
             JournalHistoryView(openSession: continueSession)
         case .settings:
             SettingsView()
+        case .dataManagement:
+            PersonalDataManagementPage(
+                openMessages: { selectedRoute = .messages },
+                openSessions: { selectedRoute = .sessions },
+                openMemory: { selectedRoute = .memory },
+                openJournals: { selectedRoute = .journals },
+                openSourceSession: { selectedRoute = .session($0) }
+            )
         case let .session(sessionID):
             HistoricalSessionDestination(
                 sessionID: sessionID,
@@ -208,6 +164,7 @@ private enum PersonalRoute: Hashable, Identifiable {
     case memory
     case journals
     case settings
+    case dataManagement
     case session(String)
     case profile(String)
     case theme(String)
@@ -221,6 +178,7 @@ private enum PersonalRoute: Hashable, Identifiable {
         case .memory: return "memory"
         case .journals: return "journals"
         case .settings: return "settings"
+        case .dataManagement: return "data-management"
         case let .session(id): return "session-\(id)"
         case let .profile(id): return "profile-\(id)"
         case let .theme(name): return "theme-\(name)"
