@@ -10,7 +10,7 @@ struct CompanionGardenView: View {
     @State private var dontCareText = ""
     @State private var bailanMessage = "今天不想管了"
     @State private var rabbitState = BailanRabbitState.layingDown
-    @State private var heroImageName = "bailan-background"
+    @State private var heroImageName = "bailan-rabbit-couch"
     @State private var pressureWordsVisible = true
     @State private var shakeCount = 0
     @State private var showOtherAlert = false
@@ -39,7 +39,6 @@ struct CompanionGardenView: View {
         ("bailan-rabbit-couch", .layingDown),
         ("bailan-world-pause", .watchingCeiling),
         ("bailan-destroy-button", .turningOver),
-        ("bailan-sticker-sheet", .pretendingNotToHear),
         ("bailan-sticker-suanle", .faceDown),
         ("bailan-sticker-dont-care", .pretendingNotToHear),
         ("bailan-sticker-lie-down", .layingDown),
@@ -67,19 +66,25 @@ struct CompanionGardenView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let horizontalInset: CGFloat = 22
+
             ZStack {
                 Color(hex: 0xf1eadf)
                     .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 34) {
-                        hero(height: max(geometry.size.height - 56, 650))
+                    VStack(spacing: 30) {
+                        pageHeader
+                            .padding(.horizontal, horizontalInset)
+
+                        hero(imageWidth: geometry.size.width)
+
                         diary
-                            .padding(.horizontal, 22)
+                            .padding(.horizontal, horizontalInset)
                         todayPlan
-                            .padding(.horizontal, 22)
+                            .padding(.horizontal, horizontalInset)
                         dontCareList
-                            .padding(.horizontal, 22)
+                            .padding(.horizontal, horizontalInset)
 
                         Text("一个不帮助你变好的 App。")
                             .font(.custom("HannotateSC-W5", size: 14))
@@ -87,6 +92,8 @@ struct CompanionGardenView: View {
                             .padding(.top, 4)
                             .padding(.bottom, 126)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, max(geometry.safeAreaInsets.top + 14, 58))
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
@@ -98,48 +105,47 @@ struct CompanionGardenView: View {
         }
     }
 
-    private func hero(height: CGFloat) -> some View {
-        ZStack {
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("今天不管了")
+                .font(.custom("HannotateSC-W5", size: 30))
+                .foregroundStyle(Color(hex: 0x302c28))
+
+            Text("先躺一会儿，剩下的以后再说。")
+                .font(.custom("HannotateSC-W5", size: 14))
+                .foregroundStyle(Color(hex: 0x625d57).opacity(0.78))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func hero(imageWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             BailanBundleImage(name: heroImageName)
-                .aspectRatio(contentMode: heroImageName == "bailan-background" ? .fill : .fit)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: imageWidth)
                 .id(heroImageName)
                 .transition(.opacity)
-
-            VStack {
-                if pressureWordsVisible {
-                    HStack(spacing: 12) {
-                        ForEach(["面试", "相亲", "简历", "KPI", "未来"], id: \.self) { word in
-                            Text(word)
-                                .font(.custom("HannotateSC-W5", size: 12))
-                                .foregroundStyle(Color(hex: 0x5c5751))
-                        }
+                .overlay {
+                    Button(action: bailan) {
+                        Color.black.opacity(0.001)
                     }
-                    .transition(.opacity)
-                } else {
-                    Text(bailanMessage)
-                        .font(.custom("HannotateSC-W5", size: 18))
-                        .foregroundStyle(Color(hex: 0x38342f))
-                        .transition(.opacity)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("算了")
                 }
 
-                Spacer()
-
-                Text(rabbitState.title)
-                    .font(.custom("HannotateSC-W5", size: 13))
-                    .foregroundStyle(Color(hex: 0x55504a).opacity(0.72))
-                    .padding(.bottom, 28)
-            }
-
-            Button(action: bailan) {
-                Color.black.opacity(0.001)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("算了")
+            Text(heroCaption)
+                .font(.custom("HannotateSC-W5", size: 15))
+                .foregroundStyle(Color(hex: 0x55504a).opacity(0.78))
+                .padding(.horizontal, 22)
+                .transition(.opacity)
         }
-        .frame(height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var heroCaption: String {
+        if pressureWordsVisible {
+            return "面试、相亲、简历、KPI、未来……先放一放。"
+        }
+        return "\(bailanMessage)，\(rabbitState.title)。"
     }
 
     private var diary: some View {
