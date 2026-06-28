@@ -181,8 +181,11 @@ private struct MemoryDetailView: View {
                             .foregroundStyle(Color.nightInk)
 
                             if !memory.sourceSessionID.isEmpty {
-                                Button {
-                                    openSession(memory.sourceSessionID)
+                                NavigationLink {
+                                    HistoricalSessionDestination(
+                                        sessionID: memory.sourceSessionID,
+                                        continueSession: openSession
+                                    )
                                 } label: {
                                     Label("查看来源会话", systemImage: "arrow.up.right.circle.fill")
                                         .frame(maxWidth: .infinity)

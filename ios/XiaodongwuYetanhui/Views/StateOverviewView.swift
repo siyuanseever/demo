@@ -2,32 +2,17 @@ import SwiftUI
 
 struct StateOverviewView: View {
     @EnvironmentObject private var store: CompanionStore
-    @State private var selectedProfile: StateProfile?
+    @State private var selectedRoute: PersonalRoute?
     @State private var showsMoreRecords = false
     let openChat: () -> Void
-    let openInbox: () -> Void
-    let openMessages: () -> Void
-    let openSessions: () -> Void
-    let openMemory: () -> Void
-    let openJournals: () -> Void
-    let openSourceSession: (String) -> Void
+    let continueSession: (String) -> Void
 
     init(
         openChat: @escaping () -> Void = {},
-        openInbox: @escaping () -> Void = {},
-        openMessages: @escaping () -> Void = {},
-        openSessions: @escaping () -> Void = {},
-        openMemory: @escaping () -> Void = {},
-        openJournals: @escaping () -> Void = {},
-        openSourceSession: @escaping (String) -> Void = { _ in }
+        continueSession: @escaping (String) -> Void = { _ in }
     ) {
         self.openChat = openChat
-        self.openInbox = openInbox
-        self.openMessages = openMessages
-        self.openSessions = openSessions
-        self.openMemory = openMemory
-        self.openJournals = openJournals
-        self.openSourceSession = openSourceSession
+        self.continueSession = continueSession
     }
 
     var body: some View {
@@ -41,26 +26,27 @@ struct StateOverviewView: View {
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
-                        openSessions: openSessions,
-                        openMemory: openMemory,
-                        openJournals: openJournals
+                        openSessions: { selectedRoute = .sessions },
+                        openMemory: { selectedRoute = .memory },
+                        openJournals: { selectedRoute = .journals }
                     )
                     PersonalArchivePanel(
                         snapshot: store.snapshot,
                         profileCount: store.stateProfiles.count,
-                        openInbox: openInbox,
-                        openMessages: openMessages,
-                        openSessions: openSessions,
-                        openMemory: openMemory,
-                        openJournals: openJournals
+                        openInbox: { selectedRoute = .inbox },
+                        openMessages: { selectedRoute = .messages },
+                        openSessions: { selectedRoute = .sessions },
+                        openMemory: { selectedRoute = .memory },
+                        openJournals: { selectedRoute = .journals },
+                        openSettings: { selectedRoute = .settings }
                     )
                     ControlCenterPanel(
                         snapshot: store.snapshot,
                         profiles: store.stateProfiles,
-                        openMessages: openMessages,
-                        openSessions: openSessions,
-                        openMemory: openMemory,
-                        openJournals: openJournals
+                        openMessages: { selectedRoute = .messages },
+                        openSessions: { selectedRoute = .sessions },
+                        openMemory: { selectedRoute = .memory },
+                        openJournals: { selectedRoute = .journals }
                     )
                     DatabaseIndexPanel(
                         sessions: store.sessions,
@@ -87,51 +73,54 @@ struct StateOverviewView: View {
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
-                        openSessions: openSessions,
-                        openMemory: openMemory,
-                        openJournals: openJournals
+                        openSessions: { selectedRoute = .sessions },
+                        openMemory: { selectedRoute = .memory },
+                        openJournals: { selectedRoute = .journals }
                     )
                     SessionProcessingPanel(
                         sessions: store.sessions,
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
-                        openSourceSession: openSourceSession,
-                        openSessions: openSessions
+                        openSourceSession: { selectedRoute = .session($0) },
+                        openSessions: { selectedRoute = .sessions }
                     )
                     RecentActivityTimelinePanel(
                         sessions: store.sessions,
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
-                        openSourceSession: openSourceSession
+                        openSourceSession: { selectedRoute = .session($0) }
                     )
                     ThemeClusterPanel(
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
-                        openMemory: openMemory,
-                        openJournals: openJournals
+                        openTheme: { selectedRoute = .theme($0) }
                     )
                     RecentSignalsPanel(
                         journals: store.journals,
                         memories: store.memories,
                         profiles: store.stateProfiles,
-                        openMemory: openMemory,
-                        openJournals: openJournals,
-                        openSourceSession: openSourceSession
+                        openMemory: { selectedRoute = .memory },
+                        openJournals: { selectedRoute = .journals },
+                        openSourceSession: { selectedRoute = .session($0) }
                     )
                     SourceTracePanel(
                         memories: store.memories,
                         journals: store.journals,
                         profiles: store.stateProfiles,
-                        openSourceSession: openSourceSession
+                        openSourceSession: { selectedRoute = .session($0) }
                     )
                     StateProfilePanel(
                         profiles: store.stateProfiles,
-                        selectProfile: { selectedProfile = $0 }
+                        selectProfile: { selectedRoute = .profile($0.id) }
                     )
-                    MemoryMapPanel(memories: store.memories, openMemory: openMemory)
+                    MemoryMapPanel(
+                        memories: store.memories,
+                        openMemory: { selectedRoute = .memory },
+                        openCategory: { selectedRoute = .memoryCategory($0) }
+                    )
                     MoodPanel(journals: store.journals)
                     WeeklyReportPanel(journals: store.journals)
                     MoreRecordsToggle(isExpanded: $showsMoreRecords)
@@ -161,16 +150,413 @@ struct StateOverviewView: View {
         }
         .navigationTitle("自我")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $selectedProfile) { profile in
-            StateProfileDetailSheet(
-                profile: profile,
-                openSourceSession: openSourceSession
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
+        .navigationDestination(item: $selectedRoute) { route in
+            personalDestination(route)
         }
         .task {
             await store.syncIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private func personalDestination(_ route: PersonalRoute) -> some View {
+        switch route {
+        case .inbox:
+            MessageDrawerContent()
+        case .messages:
+            RecentMessagesView()
+        case .sessions:
+            SessionHistoryView(openSession: continueSession)
+        case .memory:
+            MemoryListView(openSession: continueSession)
+        case .journals:
+            JournalHistoryView(openSession: continueSession)
+        case .settings:
+            SettingsView()
+        case let .session(sessionID):
+            HistoricalSessionDestination(
+                sessionID: sessionID,
+                continueSession: continueSession
+            )
+        case let .profile(profileID):
+            StateProfileDetailPage(
+                profile: store.stateProfiles.first { $0.id == profileID },
+                continueSession: continueSession
+            )
+        case let .theme(theme):
+            ThemeDetailPage(
+                theme: theme,
+                memories: store.memories,
+                journals: store.journals,
+                profiles: store.stateProfiles,
+                continueSession: continueSession
+            )
+        case let .memoryCategory(category):
+            MemoryCategoryDetailPage(
+                category: category,
+                memories: store.memories,
+                continueSession: continueSession
+            )
+        }
+    }
+}
+
+private enum PersonalRoute: Hashable, Identifiable {
+    case inbox
+    case messages
+    case sessions
+    case memory
+    case journals
+    case settings
+    case session(String)
+    case profile(String)
+    case theme(String)
+    case memoryCategory(String)
+
+    var id: String {
+        switch self {
+        case .inbox: return "inbox"
+        case .messages: return "messages"
+        case .sessions: return "sessions"
+        case .memory: return "memory"
+        case .journals: return "journals"
+        case .settings: return "settings"
+        case let .session(id): return "session-\(id)"
+        case let .profile(id): return "profile-\(id)"
+        case let .theme(name): return "theme-\(name)"
+        case let .memoryCategory(name): return "memory-\(name)"
+        }
+    }
+}
+
+struct HistoricalSessionDestination: View {
+    @EnvironmentObject private var store: CompanionStore
+    let sessionID: String
+    let continueSession: (String) -> Void
+
+    var body: some View {
+        if let session = store.sessions.first(where: { $0.id == sessionID }) {
+            SessionDetailView(session: session, openSession: continueSession)
+        } else {
+            ZStack {
+                WarmBackground()
+                EmptyHintView(
+                    systemImage: "link.badge.plus",
+                    title: "暂时没有找到来源会话",
+                    detail: "这条记录保存了来源编号，但对应会话还没有同步到手机。"
+                )
+                .padding(18)
+            }
+            .navigationTitle("来源会话")
+            .navigationBarTitleDisplayMode(.inline)
+            .task {
+                await store.syncSessionFromBackend(sessionID)
+            }
+        }
+    }
+}
+
+private struct StateProfileDetailPage: View {
+    let profile: StateProfile?
+    let continueSession: (String) -> Void
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                if let profile {
+                    VStack(alignment: .leading, spacing: 16) {
+                        SectionHeader(
+                            title: profile.domain.isEmpty ? "长期画像" : profile.domain,
+                            subtitle: "这是长期对话中逐渐形成的一条理解，不是对你的固定定义。"
+                        )
+                        ProfileDetailPageBlock(title: "当前理解", text: profile.summary, icon: "person.text.rectangle.fill")
+                        ProfileDetailPageBlock(title: "形成依据", text: profile.evidence, icon: "quote.bubble.fill")
+                        ProfileDetailPageBlock(title: "陪伴策略", text: profile.supportStrategy, icon: "hands.and.sparkles.fill")
+
+                        SoftPanel {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    ProfileMetaPill(title: "阶段", value: profile.stage)
+                                    ProfileMetaPill(title: "趋势", value: profile.trend)
+                                }
+                                HStack {
+                                    ProfileMetaPill(title: "强度", value: "\(profile.intensity)")
+                                    ProfileMetaPill(title: "可信度", value: "\(Int(profile.confidence * 100))%")
+                                }
+                            }
+                        }
+
+                        if !profile.sourceSessionID.isEmpty {
+                            NavigationLink {
+                                HistoricalSessionDestination(
+                                    sessionID: profile.sourceSessionID,
+                                    continueSession: continueSession
+                                )
+                            } label: {
+                                Label("查看形成这条画像的会话", systemImage: "arrow.up.right.circle.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.warmBrown)
+                        }
+                    }
+                    .padding(18)
+                } else {
+                    EmptyHintView(systemImage: "person.crop.circle.badge.questionmark", title: "没有找到这条画像", detail: "它可能已在最近一次同步中被更新。")
+                        .padding(18)
+                }
+            }
+        }
+        .navigationTitle("画像详情")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct ProfileDetailPageBlock: View {
+    let title: String
+    let text: String
+    let icon: String
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 9) {
+                Label(title, systemImage: icon)
+                    .font(.headline)
+                    .foregroundStyle(Color.warmBrown)
+                Text(text.isEmpty ? "这部分信息还没有形成。" : text)
+                    .font(.body)
+                    .foregroundStyle(Color.nightInk.opacity(0.84))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+private struct ProfileMetaPill: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value.isEmpty ? "未标记" : value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.nightInk)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private struct ThemeDetailPage: View {
+    let theme: String
+    let memories: [MemoryEntry]
+    let journals: [JournalEntry]
+    let profiles: [StateProfile]
+    let continueSession: (String) -> Void
+
+    private var matchingMemories: [MemoryEntry] {
+        memories.filter {
+            normalized($0.category) == normalized(theme)
+                || $0.keywords.contains { normalized($0) == normalized(theme) }
+        }
+    }
+
+    private var matchingJournals: [JournalEntry] {
+        journals.filter {
+            normalized($0.dominantEmotion) == normalized(theme)
+                || $0.keywords.contains { normalized($0) == normalized(theme) }
+        }
+    }
+
+    private var matchingProfiles: [StateProfile] {
+        profiles.filter { normalized($0.domain) == normalized(theme) }
+    }
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader(
+                        title: theme,
+                        subtitle: "这里只展示与这个主题直接相关的画像、记忆和总结。"
+                    )
+                    HStack(spacing: 8) {
+                        ThemeCountPill(title: "画像", value: matchingProfiles.count, icon: "person.text.rectangle")
+                        ThemeCountPill(title: "记忆", value: matchingMemories.count, icon: "leaf")
+                        ThemeCountPill(title: "总结", value: matchingJournals.count, icon: "book.pages")
+                    }
+
+                    ThemeDetailSection(title: "长期画像", icon: "person.text.rectangle.fill") {
+                        ForEach(matchingProfiles) { profile in
+                            NavigationLink {
+                                StateProfileDetailPage(profile: profile, continueSession: continueSession)
+                            } label: {
+                                ThemeRecordCard(
+                                    title: profile.domain,
+                                    detail: profile.summary.isEmpty ? profile.evidence : profile.summary,
+                                    meta: profile.updatedAt
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    ThemeDetailSection(title: "记忆叶片", icon: "leaf.fill") {
+                        ForEach(matchingMemories) { memory in
+                            ThemeRecordWithSource(
+                                title: memory.subcategory.isEmpty ? memory.category : memory.subcategory,
+                                detail: memory.content,
+                                meta: memory.updatedAt,
+                                sessionID: memory.sourceSessionID,
+                                continueSession: continueSession
+                            )
+                        }
+                    }
+
+                    ThemeDetailSection(title: "会话总结", icon: "book.pages.fill") {
+                        ForEach(matchingJournals) { journal in
+                            ThemeRecordWithSource(
+                                title: journal.dominantEmotion.isEmpty ? "会话总结" : journal.dominantEmotion,
+                                detail: journal.summary,
+                                meta: journal.createdAt,
+                                sessionID: journal.sessionID,
+                                continueSession: continueSession
+                            )
+                        }
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("主题详情")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
+private struct MemoryCategoryDetailPage: View {
+    let category: String
+    let memories: [MemoryEntry]
+    let continueSession: (String) -> Void
+
+    private var matchingMemories: [MemoryEntry] {
+        memories.filter {
+            let value = $0.category.isEmpty ? "未分类" : $0.category
+            return value == category
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader(
+                        title: category,
+                        subtitle: "这个分类下共有 \(matchingMemories.count) 片记忆。"
+                    )
+                    ForEach(matchingMemories) { memory in
+                        ThemeRecordWithSource(
+                            title: memory.subcategory.isEmpty ? "一般记录" : memory.subcategory,
+                            detail: memory.content.isEmpty ? memory.evidence : memory.content,
+                            meta: memory.updatedAt,
+                            sessionID: memory.sourceSessionID,
+                            continueSession: continueSession
+                        )
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("记忆分类")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct ThemeDetailSection<Content: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                Label(title, systemImage: icon)
+                    .font(.headline)
+                    .foregroundStyle(Color.warmBrown)
+                content
+            }
+        }
+    }
+}
+
+private struct ThemeRecordCard: View {
+    let title: String
+    let detail: String
+    let meta: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title.isEmpty ? "未命名记录" : title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.nightInk)
+                Text(detail.isEmpty ? "这条记录暂时没有正文。" : detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !meta.isEmpty {
+                    Text(meta)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.warmBrown.opacity(0.65))
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+}
+
+private struct ThemeRecordWithSource: View {
+    let title: String
+    let detail: String
+    let meta: String
+    let sessionID: String
+    let continueSession: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ThemeRecordCard(title: title, detail: detail, meta: meta)
+            if !sessionID.isEmpty {
+                NavigationLink {
+                    HistoricalSessionDestination(
+                        sessionID: sessionID,
+                        continueSession: continueSession
+                    )
+                } label: {
+                    Label("查看来源会话", systemImage: "arrow.up.right.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.warmBrown)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 6)
+            }
         }
     }
 }
@@ -874,6 +1260,7 @@ private struct PersonalArchivePanel: View {
     let openSessions: () -> Void
     let openMemory: () -> Void
     let openJournals: () -> Void
+    let openSettings: () -> Void
 
     private let columns = [
         GridItem(.flexible(), spacing: 10),
@@ -928,9 +1315,7 @@ private struct PersonalArchivePanel: View {
                         systemImage: "leaf.fill",
                         action: openMemory
                     )
-                    NavigationLink {
-                        SettingsView()
-                    } label: {
+                    Button(action: openSettings) {
                         ArchiveTileLabel(
                             title: "设置",
                             detail: "连接、隐私与缓存",
@@ -1990,8 +2375,7 @@ private struct ThemeClusterPanel: View {
     let memories: [MemoryEntry]
     let journals: [JournalEntry]
     let profiles: [StateProfile]
-    let openMemory: () -> Void
-    let openJournals: () -> Void
+    let openTheme: (String) -> Void
 
     private var clusters: [ThemeCluster] {
         var buckets: [String: ThemeClusterAccumulator] = [:]
@@ -2050,8 +2434,7 @@ private struct ThemeClusterPanel: View {
                         ForEach(clusters.prefix(6)) { cluster in
                             ThemeClusterRow(
                                 cluster: cluster,
-                                openMemory: openMemory,
-                                openJournals: openJournals
+                                openTheme: { openTheme(cluster.title) }
                             )
                         }
                     }
@@ -2103,67 +2486,60 @@ private struct ThemeCluster: Identifiable {
 
 private struct ThemeClusterRow: View {
     let cluster: ThemeCluster
-    let openMemory: () -> Void
-    let openJournals: () -> Void
+    let openTheme: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(cluster.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.nightInk)
-                    .lineLimit(1)
+        Button(action: openTheme) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(cluster.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.nightInk)
+                        .lineLimit(1)
 
-                Spacer(minLength: 8)
+                    Spacer(minLength: 8)
 
-                Text("\(cluster.totalCount)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.warmBrown)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.62), in: Capsule())
-            }
-
-            HStack(spacing: 8) {
-                ThemeCountPill(title: "画像", value: cluster.profileCount, icon: "person.text.rectangle")
-                ThemeCountPill(title: "记忆", value: cluster.memoryCount, icon: "leaf")
-                ThemeCountPill(title: "总结", value: cluster.journalCount, icon: "book.pages")
-            }
-
-            if !cluster.sample.isEmpty {
-                Text(cluster.sample)
-                    .font(.caption)
-                    .foregroundStyle(Color.nightInk.opacity(0.76))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !cluster.keywords.isEmpty {
-                Text(cluster.keywords.prefix(4).joined(separator: " · "))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            HStack(spacing: 10) {
-                if cluster.memoryCount > 0 {
-                    Button(action: openMemory) {
-                        Label("看记忆", systemImage: "arrow.up.right.circle.fill")
-                    }
-                    .buttonStyle(.plain)
+                    Text("\(cluster.totalCount)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.warmBrown)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.62), in: Capsule())
                 }
-                if cluster.journalCount > 0 {
-                    Button(action: openJournals) {
-                        Label("看总结", systemImage: "arrow.up.right.circle.fill")
-                    }
-                    .buttonStyle(.plain)
+
+                HStack(spacing: 8) {
+                    ThemeCountPill(title: "画像", value: cluster.profileCount, icon: "person.text.rectangle")
+                    ThemeCountPill(title: "记忆", value: cluster.memoryCount, icon: "leaf")
+                    ThemeCountPill(title: "总结", value: cluster.journalCount, icon: "book.pages")
                 }
+
+                if !cluster.sample.isEmpty {
+                    Text(cluster.sample)
+                        .font(.caption)
+                        .foregroundStyle(Color.nightInk.opacity(0.76))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !cluster.keywords.isEmpty {
+                    Text(cluster.keywords.prefix(4).joined(separator: " · "))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                HStack {
+                    Text("查看这个主题")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.warmBrown)
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(Color.warmBrown)
+            .padding(12)
+            .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         }
-        .padding(12)
-        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .buttonStyle(.plain)
     }
 }
 
@@ -2445,6 +2821,7 @@ private struct SourceTraceRow: View {
 private struct MemoryMapPanel: View {
     let memories: [MemoryEntry]
     let openMemory: () -> Void
+    let openCategory: (String) -> Void
 
     private var groups: [(category: String, count: Int, keywords: [String])] {
         Dictionary(grouping: memories, by: { $0.category.isEmpty ? "未分类" : $0.category })
@@ -2485,7 +2862,9 @@ private struct MemoryMapPanel: View {
                 } else {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                         ForEach(groups.prefix(6), id: \.category) { group in
-                            Button(action: openMemory) {
+                            Button {
+                                openCategory(group.category)
+                            } label: {
                                 MemoryCategoryTile(group: group)
                             }
                             .buttonStyle(.plain)

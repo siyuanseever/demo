@@ -8,7 +8,6 @@ struct ChatView: View {
     @State private var isNotebookVisible = false
     @State private var isCompanionChatVisible = false
     @State private var isSideSettingsVisible = false
-    @State private var reviewedSession: SessionSummary?
     @State private var notebookSpace: NotebookSpace = .chat
     @State private var isComposerVisible = false
     @State private var sceneNotice: String?
@@ -51,16 +50,6 @@ struct ChatView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .preferredColorScheme(.light)
-        }
-        .sheet(item: $reviewedSession) { session in
-            NavigationStack {
-                SessionDetailView(
-                    session: session,
-                    openSession: continueReviewedSession
-                )
-                .environmentObject(store)
-            }
-            .preferredColorScheme(.light)
         }
         .fullScreenCover(isPresented: $isCompanionChatVisible) {
             CompanionChatPage()
@@ -116,12 +105,7 @@ struct ChatView: View {
                 NavigationStack {
                     StateOverviewView(
                         openChat: { isCompanionChatVisible = true },
-                        openInbox: { openNotebook(.chat) },
-                        openMessages: { openNotebook(.messages) },
-                        openSessions: { openNotebook(.sessions) },
-                        openMemory: { openNotebook(.memory) },
-                        openJournals: { openNotebook(.journals) },
-                        openSourceSession: reviewHistoricalSession
+                        continueSession: continueHistoricalSession
                     )
                 }
             }
@@ -151,16 +135,6 @@ struct ChatView: View {
         }
     }
 
-    private func reviewHistoricalSession(_ sessionID: String) {
-        reviewedSession = store.sessions.first { $0.id == sessionID }
-    }
-
-    private func continueReviewedSession(_ sessionID: String) {
-        reviewedSession = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            continueHistoricalSession(sessionID)
-        }
-    }
 }
 
 enum MainTab {
@@ -2350,78 +2324,76 @@ private struct NightCampBackground: View {
     }
 }
 
-private struct MessageDrawerContent: View {
+struct MessageDrawerContent: View {
     @EnvironmentObject private var store: CompanionStore
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                WarmBackground()
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            SessionControlPanel()
-                            if let loadError = store.loadError {
-                                SoftPanel {
-                                    Label(loadError, systemImage: "externaldrive.badge.questionmark")
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
-                                }
+        ZStack {
+            WarmBackground()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        SessionControlPanel()
+                        if let loadError = store.loadError {
+                            SoftPanel {
+                                Label(loadError, systemImage: "externaldrive.badge.questionmark")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
                             }
-                            if let chatNotice = store.chatNotice {
-                                SoftPanel {
-                                    Label(chatNotice, systemImage: "wifi.exclamationmark")
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            ForEach(store.messages.reversed()) { message in
-                                MessageBubble(message: message)
-                                    .id(message.id)
-                            }
-                            if store.isChatCheckInVisible {
-                                ChatEmotionCheckInCard()
-                                    .id("chat-emotion-check-in")
-                            }
-                            if store.isMonsterCareGameVisible {
-                                MonsterCareGameCard()
-                                    .id("monster-care-game")
-                            }
-                            if store.isRecommendationVisible {
-                                RecommendationCard()
-                                    .id("recommendation-card")
-                            }
-                            if store.isSending {
-                                TypingIndicator(character: store.selectedCharacter)
-                            }
-                            InteractionOfferShelf()
-                            ChatQuickActions()
                         }
-                        .padding(18)
+                        if let chatNotice = store.chatNotice {
+                            SoftPanel {
+                                Label(chatNotice, systemImage: "wifi.exclamationmark")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        ForEach(store.messages.reversed()) { message in
+                            MessageBubble(message: message)
+                                .id(message.id)
+                        }
+                        if store.isChatCheckInVisible {
+                            ChatEmotionCheckInCard()
+                                .id("chat-emotion-check-in")
+                        }
+                        if store.isMonsterCareGameVisible {
+                            MonsterCareGameCard()
+                                .id("monster-care-game")
+                        }
+                        if store.isRecommendationVisible {
+                            RecommendationCard()
+                                .id("recommendation-card")
+                        }
+                        if store.isSending {
+                            TypingIndicator(character: store.selectedCharacter)
+                        }
+                        InteractionOfferShelf()
+                        ChatQuickActions()
                     }
-                    .scrollDismissesKeyboard(.interactively)
-                    .onAppear {
-                        if let firstID = store.messages.last?.id {
+                    .padding(18)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .onAppear {
+                    if let firstID = store.messages.last?.id {
+                        proxy.scrollTo(firstID, anchor: .top)
+                    }
+                }
+                .onChange(of: store.messages.count) {
+                    if let firstID = store.messages.last?.id {
+                        withAnimation(.snappy) {
                             proxy.scrollTo(firstID, anchor: .top)
-                        }
-                    }
-                    .onChange(of: store.messages.count) {
-                        if let firstID = store.messages.last?.id {
-                            withAnimation(.snappy) {
-                                proxy.scrollTo(firstID, anchor: .top)
-                            }
                         }
                     }
                 }
             }
-            .navigationTitle("夜谈信箱")
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .navigationTitle("夜谈信箱")
+        .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.light)
     }
 }
 
-private struct SessionHistoryView: View {
+struct SessionHistoryView: View {
     @EnvironmentObject private var store: CompanionStore
     let openSession: (String) -> Void
 
@@ -2459,7 +2431,7 @@ private struct SessionHistoryView: View {
     }
 }
 
-private struct RecentMessagesView: View {
+struct RecentMessagesView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var messages: [ChatMessage] = []
 
@@ -2530,7 +2502,7 @@ private struct SessionHistoryCard: View {
     }
 }
 
-private struct JournalHistoryView: View {
+struct JournalHistoryView: View {
     @EnvironmentObject private var store: CompanionStore
     let openSession: (String) -> Void
 
@@ -2605,8 +2577,11 @@ private struct JournalHistoryCard: View {
                     Label("心情 \(journal.moodScore)", systemImage: "waveform.path.ecg")
                     Spacer()
                     if !journal.sessionID.isEmpty {
-                        Button {
-                            openSession(journal.sessionID)
+                        NavigationLink {
+                            HistoricalSessionDestination(
+                                sessionID: journal.sessionID,
+                                continueSession: openSession
+                            )
                         } label: {
                             Label("来源会话", systemImage: "arrow.up.right.circle.fill")
                                 .labelStyle(.titleAndIcon)
@@ -2657,12 +2632,23 @@ private struct JournalDetailBlock: View {
     }
 }
 
-private struct SessionDetailView: View {
+struct SessionDetailView: View {
     @EnvironmentObject private var store: CompanionStore
     let session: SessionSummary
     let openSession: (String) -> Void
 
     @State private var messages: [ChatMessage] = []
+    @State private var generatedSummary: SessionCloseSummary?
+
+    private var journal: JournalEntry? {
+        store.journals.first {
+            $0.sessionID.trimmingCharacters(in: .whitespacesAndNewlines) == session.id
+        }
+    }
+
+    private var isSummarizing: Bool {
+        store.summarizingSessionID == session.id
+    }
 
     var body: some View {
         ZStack {
@@ -2685,6 +2671,35 @@ private struct SessionDetailView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(Color.warmBrown)
+                        }
+                    }
+
+                    if let journal {
+                        SessionJournalCard(journal: journal)
+                    } else if let generatedSummary {
+                        GeneratedSessionSummaryCard(summary: generatedSummary)
+                    } else {
+                        SoftPanel {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("这次会话还没有总结", systemImage: "book.closed")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.nightInk)
+                                Text("生成总结会整理这次历史消息，形成日记、记忆和长期画像，但不会把它切换成当前聊天。")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button {
+                                    Task {
+                                        generatedSummary = await store.summarizeHistoricalSession(session.id)
+                                    }
+                                } label: {
+                                    Label(isSummarizing ? "正在整理..." : "生成这次总结", systemImage: "sparkles.rectangle.stack.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.warmBrown)
+                                .disabled(isSummarizing)
+                            }
                         }
                     }
 
@@ -2714,11 +2729,114 @@ private struct SessionDetailView: View {
     }
 }
 
+private struct SessionJournalCard: View {
+    let journal: JournalEntry
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    Label("会话总结", systemImage: "book.pages.fill")
+                        .font(.headline)
+                        .foregroundStyle(Color.warmBrown)
+                    Spacer()
+                    if !journal.createdAt.isEmpty {
+                        Text(journal.createdAt)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                Text(journal.summary.isEmpty ? "这条总结暂时没有正文。" : journal.summary)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.nightInk)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !journal.keywords.isEmpty {
+                    SummaryTagRow(items: journal.keywords)
+                }
+                if !journal.insights.isEmpty {
+                    JournalDetailBlock(title: "理解线索", items: journal.insights)
+                }
+                if !journal.suggestedNextStep.isEmpty {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("温柔建议")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.warmBrown)
+                        Text(journal.suggestedNextStep)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct GeneratedSessionSummaryCard: View {
+    let summary: SessionCloseSummary
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("刚刚生成的总结", systemImage: "checkmark.seal.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color.warmBrown)
+                Text(summary.journalSummary.isEmpty ? "总结已生成，正文正在同步到手机。" : summary.journalSummary)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.nightInk)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    SummaryCountBadge(title: "记忆", value: summary.memoryCount, icon: "leaf.fill")
+                    SummaryCountBadge(title: "画像", value: summary.stateProfileCount, icon: "person.text.rectangle.fill")
+                }
+            }
+        }
+    }
+}
+
+private struct SummaryTagRow: View {
+    let items: [String]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(items, id: \.self) { item in
+                    Text(item)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.warmBrown)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.66), in: Capsule())
+                }
+            }
+        }
+    }
+}
+
+private struct SummaryCountBadge: View {
+    let title: String
+    let value: Int
+    let icon: String
+
+    var body: some View {
+        Label("\(title) \(value)", systemImage: icon)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.warmBrown)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(Color(hex: 0xf6eadf).opacity(0.72), in: Capsule())
+    }
+}
+
 private struct ForestNotebookContent: View {
     @EnvironmentObject private var store: CompanionStore
     @Binding var selectedSpace: NotebookSpace
     let continueSession: (String) -> Void
-    @State private var reviewedSession: SessionSummary?
 
     var body: some View {
         NavigationStack {
@@ -2740,16 +2858,6 @@ private struct ForestNotebookContent: View {
             .navigationTitle("森林笔记本")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .sheet(item: $reviewedSession) { session in
-            NavigationStack {
-                SessionDetailView(
-                    session: session,
-                    openSession: continueReviewedSession
-                )
-                .environmentObject(store)
-            }
-            .preferredColorScheme(.light)
-        }
     }
 
     @ViewBuilder
@@ -2764,34 +2872,19 @@ private struct ForestNotebookContent: View {
         case .state:
             StateOverviewView(
                 openChat: { selectedSpace = .chat },
-                openInbox: { selectedSpace = .chat },
-                openMessages: { selectedSpace = .messages },
-                openSessions: { selectedSpace = .sessions },
-                openMemory: { selectedSpace = .memory },
-                openJournals: { selectedSpace = .journals },
-                openSourceSession: reviewSession
+                continueSession: continueSession
             )
         case .memory:
             MemoryListView { sessionID in
-                reviewSession(sessionID)
+                continueSession(sessionID)
             }
         case .journals:
-            JournalHistoryView(openSession: reviewSession)
+            JournalHistoryView(openSession: continueSession)
         case .settings:
             SettingsView()
         }
     }
 
-    private func reviewSession(_ sessionID: String) {
-        reviewedSession = store.sessions.first { $0.id == sessionID }
-    }
-
-    private func continueReviewedSession(_ sessionID: String) {
-        reviewedSession = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            continueSession(sessionID)
-        }
-    }
 }
 
 private enum NotebookSpace: String, CaseIterable, Identifiable {

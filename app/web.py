@@ -825,6 +825,181 @@ HTML = """<!doctype html>
       text-align: center;
       padding: 42px 8px;
     }
+    .state-overview {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+      padding: 16px 0 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .state-overview h2 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      color: #5f3d26;
+    }
+    .state-coverage {
+      min-width: 128px;
+      text-align: right;
+    }
+    .state-coverage strong {
+      display: block;
+      font-size: 25px;
+      color: var(--accent);
+    }
+    .state-map {
+      background: rgba(255, 253, 248, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 8px 20px rgba(105, 66, 42, 0.055);
+      overflow: hidden;
+    }
+    .state-domain {
+      border-bottom: 1px solid var(--border);
+    }
+    .state-domain:last-child {
+      border-bottom: 0;
+    }
+    .state-domain.empty-state {
+      background: rgba(255, 253, 248, 0.48);
+    }
+    .state-domain > summary {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr) auto 14px;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 14px;
+      cursor: pointer;
+      list-style: none;
+    }
+    .state-domain > summary::-webkit-details-marker {
+      display: none;
+    }
+    .state-domain > summary::after {
+      content: "›";
+      color: var(--muted);
+      font-size: 18px;
+      transform: rotate(0deg);
+      transition: transform 0.15s ease;
+    }
+    .state-domain[open] > summary::after {
+      transform: rotate(90deg);
+    }
+    .state-domain-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .state-domain-title strong {
+      font-size: 16px;
+    }
+    .state-status {
+      flex: 0 0 auto;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #e8f1e8;
+      color: #55715d;
+      font-size: 11px;
+    }
+    .empty-state .state-status {
+      background: #eee7df;
+      color: var(--muted);
+    }
+    .state-glance {
+      min-width: 0;
+    }
+    .state-stage {
+      display: block;
+      margin-bottom: 2px;
+      color: #4b3829;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .state-preview {
+      display: -webkit-box;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .state-metrics {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .state-domain-detail {
+      padding: 0 40px 14px 138px;
+    }
+    .state-summary {
+      margin: 0 0 10px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+    }
+    .state-strategy {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border-left: 3px solid rgba(118, 148, 128, 0.38);
+      background: rgba(241, 246, 239, 0.68);
+      line-height: 1.55;
+    }
+    .state-evidence {
+      margin-top: 8px;
+    }
+    .state-history {
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .state-history summary {
+      color: #6f4a3e;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .state-version {
+      padding: 11px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .state-version:last-child {
+      border-bottom: 0;
+    }
+    .state-version-title {
+      margin: 4px 0;
+      font-weight: 700;
+    }
+    @media (max-width: 760px) {
+      .state-overview {
+        grid-template-columns: 1fr;
+      }
+      .state-coverage {
+        text-align: left;
+      }
+      .state-domain > summary {
+        grid-template-columns: minmax(0, 1fr) auto 14px;
+        gap: 7px;
+      }
+      .state-domain-title {
+        grid-column: 1;
+      }
+      .state-glance {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+      .state-metrics {
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .state-domain > summary::after {
+        grid-column: 3;
+        grid-row: 1;
+      }
+      .state-domain-detail {
+        padding: 0 14px 14px;
+      }
+    }
     .chart {
       background: #fff;
       border: 1px solid var(--border);
@@ -1203,10 +1378,10 @@ HTML = """<!doctype html>
       </nav>
       <div class="quick-title">今日快捷</div>
       <div class="cozy-list" aria-label="今日小卡片">
-        <article class="cozy-card">
-          <div class="cozy-title">🌤️ 天气</div>
-          <div class="cozy-text">慢慢说话</div>
-        </article>
+        <button id="stateShortcut" class="cozy-card clickable" type="button">
+          <div class="cozy-title">🧭 心理地图</div>
+          <div class="cozy-text">长期状态</div>
+        </button>
         <button id="journalShortcut" class="cozy-card clickable" type="button">
           <div class="cozy-title">📔 日记</div>
           <div class="cozy-text">过往记录</div>
@@ -1253,9 +1428,9 @@ HTML = """<!doctype html>
     </aside>
     <section id="dashboard" class="view hidden">
       <div class="toolbar">
-        <button data-view="sessions" class="active" type="button">Sessions</button>
+        <button data-view="state" class="active" type="button">心理地图</button>
+        <button data-view="sessions" type="button">Sessions</button>
         <button data-view="memories" type="button">Memories</button>
-        <button data-view="state" type="button">State</button>
         <button data-view="knowledge" type="button">Knowledge</button>
         <button data-view="content" type="button">Content</button>
         <button data-view="mood" type="button">Mood</button>
@@ -1287,6 +1462,7 @@ HTML = """<!doctype html>
     const moodShortcut = document.querySelector("#moodShortcut");
     const journalShortcut = document.querySelector("#journalShortcut");
     const chatShortcut = document.querySelector("#chatShortcut");
+    const stateShortcut = document.querySelector("#stateShortcut");
     const selectedAnimalCard = document.querySelector("#selectedAnimalCard");
     const characterStrip = document.querySelector("#characterStrip");
     const controlsPanel = document.querySelector("#controlsPanel");
@@ -1303,7 +1479,7 @@ HTML = """<!doctype html>
 
     let sessionId = null;
     let busy = false;
-    let activeDataView = "sessions";
+    let activeDataView = "state";
     let memoryItems = [];
     let memoryViewMode = "taxonomy";
     let lastDebugTrace = null;
@@ -2198,36 +2374,66 @@ HTML = """<!doctype html>
         dataList.innerHTML = '<div class="empty">还没有长期状态画像。结束几次有内容的会话后，这里会形成跨时间的心理地图。</div>';
         return;
       }
+      const completed = items.filter(row => Boolean(row.current)).length;
       dataList.className = "stack";
-      dataList.innerHTML = items.map(row => {
-        const item = row.current;
-        const history = row.history || [];
-        return `
-        <article class="card">
-          <h3>${escapeHtml(stateDomainLabel(row.domain))}</h3>
-          ${item ? `
-            <div class="meta">${escapeHtml(item.stage || row.domain)} · ${escapeHtml(trendLabel(item.trend))} · intensity ${escapeHtml(item.intensity)}/10 · confidence ${escapeHtml(item.confidence)}</div>
-            <div class="meta">updated: ${escapeHtml(item.updated_at || "")}</div>
-            <div class="meta">source session: ${escapeHtml(shortId(item.source_session_id))}</div>
-            <div class="content">${escapeHtml(item.summary)}</div>
-            <div class="content">陪伴策略：${escapeHtml(item.support_strategy || "暂无")}</div>
-            <div>${(item.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
-            <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看来源 Session</button>
-          ` : '<div class="empty">这个领域还没有形成当前状态。</div>'}
-          <h3>历史状态</h3>
-          <div class="stack">
-            ${history.length ? history.map(version => `
-              <article class="card">
-                <div class="meta">${escapeHtml(version.created_at || "")} · ${escapeHtml(version.action || "update")} · ${escapeHtml(trendLabel(version.trend))} · intensity ${escapeHtml(version.intensity)}/10</div>
-                <div class="content"><b>${escapeHtml(version.stage || "未命名阶段")}</b>\n${escapeHtml(version.summary || "")}</div>
-                <div class="content">原因：${escapeHtml(version.reason || "无")}</div>
-                <div>${(version.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
-                <button type="button" onclick="window.loadSession('${escapeHtml(version.source_session_id)}')">查看来源 Session</button>
-              </article>
-            `).join("") : '<div class="meta">暂无历史版本。</div>'}
+      dataList.innerHTML = `
+        <section class="state-overview">
+          <div>
+            <h2>长期心理地图</h2>
+            <div class="meta">六个领域会在每次会话结束后共同接受审阅。资料不足的领域保持空白，不会为了完整度而猜测。</div>
           </div>
-        </article>
-      `}).join("");
+          <div class="state-coverage">
+            <strong>${completed} / ${items.length}</strong>
+            <span class="meta">已形成画像</span>
+          </div>
+        </section>
+        <section class="state-map">
+          ${items.map(row => {
+            const item = row.current;
+            const history = row.history || [];
+            return `
+              <details class="state-domain ${item ? "" : "empty-state"}">
+                <summary>
+                  <span class="state-domain-title">
+                    <strong>${escapeHtml(stateDomainLabel(row.domain))}</strong>
+                    <span class="state-status">${item ? "已形成" : "待形成"}</span>
+                  </span>
+                  <span class="state-glance">
+                    <span class="state-stage">${escapeHtml(item?.stage || "尚未形成清晰阶段")}</span>
+                    <span class="state-preview">${escapeHtml(item?.summary || "目前没有足够的跨会话证据，后续对话触及这一领域时会逐步补全。")}</span>
+                  </span>
+                  <span class="state-metrics">${item ? `${escapeHtml(trendLabel(item.trend))} · ${escapeHtml(item.intensity)}/10` : "资料不足"}</span>
+                </summary>
+                <div class="state-domain-detail">
+                  ${item ? `
+                    <div class="state-summary">${escapeHtml(item.summary || "暂无综合摘要")}</div>
+                    <div class="state-strategy"><b>陪伴方向</b><br>${escapeHtml(item.support_strategy || "暂无")}</div>
+                    ${(item.evidence || []).length ? `
+                      <div class="state-evidence">
+                        ${(item.evidence || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}
+                      </div>
+                    ` : ""}
+                    <div class="meta">置信度 ${escapeHtml(item.confidence)} · 更新于 ${escapeHtml(item.updated_at || "")}</div>
+                    <button type="button" onclick="window.loadSession('${escapeHtml(item.source_session_id)}')">查看最近来源</button>
+                  ` : '<div class="meta">这一领域暂时保持空白，不会根据有限信息推断长期结论。</div>'}
+                  <details class="state-history">
+                    <summary>变化记录（${history.length}）</summary>
+                    ${history.length ? history.map(version => `
+                      <div class="state-version">
+                        <div class="meta">${escapeHtml(version.created_at || "")} · ${escapeHtml(trendLabel(version.trend))} · 强度 ${escapeHtml(version.intensity)}/10</div>
+                        <div class="state-version-title">${escapeHtml(version.stage || "未命名阶段")}</div>
+                        <div>${escapeHtml(version.summary || "")}</div>
+                        <div class="meta">更新原因：${escapeHtml(version.reason || "无")}</div>
+                        <button type="button" onclick="window.loadSession('${escapeHtml(version.source_session_id)}')">查看来源</button>
+                      </div>
+                    `).join("") : '<div class="meta">暂无历史版本。</div>'}
+                  </details>
+                </div>
+              </details>
+            `;
+          }).join("")}
+        </section>
+      `;
     }
 
     function renderKnowledge(items) {
@@ -2493,6 +2699,10 @@ HTML = """<!doctype html>
     });
     journalShortcut.addEventListener("click", () => {
       activeDataView = "journals";
+      switchMainView("data");
+    });
+    stateShortcut.addEventListener("click", () => {
+      activeDataView = "state";
       switchMainView("data");
     });
     chatShortcut.addEventListener("click", () => switchMainView("chat"));

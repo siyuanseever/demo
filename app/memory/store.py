@@ -651,7 +651,7 @@ class Store:
             "intensity": int(profile.get("intensity", 5)),
             "trend": profile.get("trend", "unknown"),
             "confidence": float(profile.get("confidence", 0.5)),
-            "evidence": json.dumps(evidence[:5], ensure_ascii=False),
+            "evidence": json.dumps(evidence[:8], ensure_ascii=False),
             "support_strategy": profile.get("support_strategy", ""),
         }
         with self.connect() as conn:
@@ -747,7 +747,7 @@ class Store:
             "id": profile_id,
             "domain": domain,
             **values,
-            "evidence": evidence[:5],
+            "evidence": evidence[:8],
             "source_session_id": session_id,
             "created_at": created_at,
             "updated_at": now,

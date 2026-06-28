@@ -1147,29 +1147,40 @@ class ConversationOrchestrator:
                 {"role": "user", "content": transcript},
             ],
             temperature=0.2,
-            max_tokens=900,
+            max_tokens=1800,
             response_format={"type": "json_object"},
         )
         payload = json.loads(response.content)
         updates = payload.get("updates", [])
         if not isinstance(updates, list):
             return []
-        existing_domains = {profile.get("domain") for profile in current_profiles}
+        profiles_by_domain = {
+            profile.get("domain"): profile
+            for profile in current_profiles
+            if profile.get("domain") in STATE_PROFILE_DOMAINS
+        }
+        existing_domains = set(profiles_by_domain)
+        reviewed_domains = set()
         results = []
-        for update in updates[:3]:
+        for update in updates:
             if not isinstance(update, dict):
                 continue
             domain = update.get("domain")
             action = update.get("action", "no_change")
-            if domain not in STATE_PROFILE_DOMAINS:
+            if domain not in STATE_PROFILE_DOMAINS or domain in reviewed_domains:
                 continue
+            reviewed_domains.add(domain)
             if action not in {"create", "update", "no_change"}:
                 action = "no_change"
             if action == "create" and domain in existing_domains:
                 action = "update"
             if action == "update" and domain not in existing_domains:
                 action = "create"
-            normalized = self._normalize_state_profile_update(update, action)
+            normalized = self._normalize_state_profile_update(
+                update,
+                action,
+                existing_profile=profiles_by_domain.get(domain),
+            )
             if action == "no_change":
                 results.append({**normalized, "action": action})
                 continue
@@ -1182,30 +1193,54 @@ class ConversationOrchestrator:
             results.append(saved)
         return results
 
-    def _normalize_state_profile_update(self, update: dict, action: str) -> dict:
-        evidence = update.get("evidence", [])
-        if not isinstance(evidence, list):
-            evidence = []
+    def _normalize_state_profile_update(
+        self,
+        update: dict,
+        action: str,
+        *,
+        existing_profile: dict | None = None,
+    ) -> dict:
+        existing_profile = existing_profile or {}
+        new_evidence = update.get("evidence", [])
+        if not isinstance(new_evidence, list):
+            new_evidence = []
+        combined_evidence = []
+        for item in [*existing_profile.get("evidence", []), *new_evidence]:
+            text = str(item).strip()[:160]
+            if text and text not in combined_evidence:
+                combined_evidence.append(text)
         try:
-            intensity = int(update.get("intensity", 5))
+            intensity = int(update.get("intensity", existing_profile.get("intensity", 5)))
         except (TypeError, ValueError):
             intensity = 5
         try:
-            confidence = float(update.get("confidence", 0.5))
+            confidence = float(update.get("confidence", existing_profile.get("confidence", 0.5)))
         except (TypeError, ValueError):
             confidence = 0.5
-        trend = str(update.get("trend") or "unknown")
+        trend = str(update.get("trend") or existing_profile.get("trend") or "unknown")
         if trend not in STATE_PROFILE_TRENDS:
             trend = "unknown"
         return {
             "domain": update["domain"],
-            "stage": str(update.get("stage") or "尚未形成清晰阶段")[:80],
-            "summary": str(update.get("summary") or "")[:600],
+            "stage": str(
+                update.get("stage")
+                or existing_profile.get("stage")
+                or "尚未形成清晰阶段"
+            )[:80],
+            "summary": str(
+                update.get("summary")
+                or existing_profile.get("summary")
+                or ""
+            )[:1000],
             "intensity": max(1, min(10, intensity)),
             "trend": trend,
             "confidence": max(0.0, min(1.0, confidence)),
-            "evidence": [str(item)[:160] for item in evidence if str(item).strip()][:5],
-            "support_strategy": str(update.get("support_strategy") or "")[:240],
+            "evidence": combined_evidence[-8:],
+            "support_strategy": str(
+                update.get("support_strategy")
+                or existing_profile.get("support_strategy")
+                or ""
+            )[:240],
             "reason": str(update.get("reason") or ("本次证据不足以更新。" if action == "no_change" else "本次 session 提供了新的长期状态线索。"))[:160],
         }
 
