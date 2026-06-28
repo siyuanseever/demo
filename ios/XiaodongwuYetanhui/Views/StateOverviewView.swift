@@ -187,6 +187,346 @@ private enum PersonalRoute: Hashable, Identifiable {
     }
 }
 
+private struct CurrentStateSnapshotPanel: View {
+    let journals: [JournalEntry]
+    let memories: [MemoryEntry]
+    let profiles: [StateProfile]
+    let selectProfile: (StateProfile) -> Void
+
+    private var latestJournal: JournalEntry? {
+        journals.first
+    }
+
+    private var prominentProfiles: [StateProfile] {
+        Array(
+            profiles
+                .sorted {
+                    if $0.intensity == $1.intensity {
+                        return $0.updatedAt > $1.updatedAt
+                    }
+                    return $0.intensity > $1.intensity
+                }
+                .prefix(3)
+        )
+    }
+
+    private var latestMemoryLine: String? {
+        memories.first(where: { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })?.content
+    }
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("最近的你", systemImage: "heart.text.square.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.nightInk)
+                        Text("先看此刻，再慢慢看长期变化。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if let emotion = latestJournal?.dominantEmotion, !emotion.isEmpty {
+                        Text(emotion)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.warmBrown)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color(hex: 0xf7e5d8), in: Capsule())
+                    }
+                }
+
+                if let journal = latestJournal {
+                    Text(journal.summary.isEmpty ? "最近的状态还在慢慢形成。" : journal.summary)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.nightInk.opacity(0.88))
+                        .lineSpacing(5)
+                        .lineLimit(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("还没有近期总结。完成一次夜谈总结后，这里会先出现最近的状态。")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !prominentProfiles.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("长期状态中较明显的部分")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.warmBrown)
+                        ForEach(prominentProfiles) { profile in
+                            Button {
+                                selectProfile(profile)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(profile.domain.isEmpty ? "长期状态" : profile.domain)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Color.nightInk)
+                                        Text(profile.summary.isEmpty ? profile.evidence : profile.summary)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                    Spacer(minLength: 4)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.warmBrown.opacity(0.7))
+                                }
+                                .padding(10)
+                                .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } else if let latestMemoryLine {
+                    Text(latestMemoryLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white.opacity(0.4), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                }
+            }
+        }
+    }
+}
+
+private struct PatternAnalysisPanel: View {
+    let journals: [JournalEntry]
+    let memories: [MemoryEntry]
+    let profiles: [StateProfile]
+
+    private var recurringThemes: [String] {
+        var counts: [String: Int] = [:]
+        let values = journals.prefix(8).flatMap(\.keywords)
+            + memories.prefix(12).flatMap(\.keywords)
+            + profiles.prefix(8).map(\.domain)
+        for rawValue in values {
+            let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { continue }
+            counts[value, default: 0] += 1
+        }
+        return counts
+            .sorted {
+                if $0.value == $1.value { return $0.key < $1.key }
+                return $0.value > $1.value
+            }
+            .prefix(4)
+            .map(\.key)
+    }
+
+    private var moodPattern: String {
+        let scores = Array(journals.prefix(6).map(\.moodScore))
+        guard scores.count >= 2 else {
+            return "心情变化还需要更多记录才能看得更清楚。"
+        }
+        let recent = Double(scores.prefix(2).reduce(0, +)) / Double(min(2, scores.count))
+        let earlierValues = Array(scores.dropFirst(2))
+        guard !earlierValues.isEmpty else {
+            return "最近已经开始留下连续的心情记录。"
+        }
+        let earlier = Double(earlierValues.reduce(0, +)) / Double(earlierValues.count)
+        if recent > earlier + 0.5 {
+            return "最近的心情比前一段时间稍微松动了一些。"
+        }
+        if recent < earlier - 0.5 {
+            return "最近的心情承受感比前一段时间更明显。"
+        }
+        return "最近的心情大体稳定，但仍有一些来回波动。"
+    }
+
+    private var suggestion: String {
+        if let text = journals.first?.suggestedNextStep.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+            return text
+        }
+        let profileSuggestion = profiles
+            .sorted(by: { $0.intensity > $1.intensity })
+            .first?
+            .supportStrategy
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !profileSuggestion.isEmpty {
+            return profileSuggestion
+        }
+        return "再积累几次夜谈和总结后，这里会出现更贴近你的观察与建议。"
+    }
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("最近的模式", systemImage: "point.3.connected.trianglepath.dotted")
+                        .font(.headline)
+                    Text("从最近的总结、记忆和长期状态里，找出反复出现的线索。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                PatternInsightRow(
+                    title: "心情变化",
+                    text: moodPattern,
+                    systemImage: "waveform.path.ecg"
+                )
+                PatternInsightRow(
+                    title: "反复出现",
+                    text: recurringThemes.isEmpty ? "还没有足够清晰的重复主题。" : recurringThemes.joined(separator: " · "),
+                    systemImage: "arrow.trianglehead.2.clockwise.rotate.90"
+                )
+                PatternInsightRow(
+                    title: "可以留意",
+                    text: suggestion,
+                    systemImage: "lightbulb.max.fill"
+                )
+            }
+        }
+    }
+}
+
+private struct PatternInsightRow: View {
+    let title: String
+    let text: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.warmBrown)
+                .frame(width: 32, height: 32)
+                .background(Color(hex: 0xf7e5d8), in: Circle())
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.warmBrown)
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(Color.nightInk.opacity(0.84))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.38), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct PersonalDataManagementPage: View {
+    @EnvironmentObject private var store: CompanionStore
+    let openMessages: () -> Void
+    let openSessions: () -> Void
+    let openMemory: () -> Void
+    let openJournals: () -> Void
+    let openSourceSession: (String) -> Void
+
+    var body: some View {
+        ZStack {
+            WarmBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    SectionHeader(
+                        title: "数据管理",
+                        subtitle: "这里集中展示同步、索引、完整度、来源和整理进度，不占用自我首页。"
+                    )
+                    SoftPanel {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(store.backendStatus.detail)
+                                    .font(.callout.weight(.medium))
+                                    .foregroundStyle(Color.nightInk)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let lastSyncAt = store.lastBackendSyncAt {
+                                    Text("最近同步：\(lastSyncAt.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer(minLength: 8)
+                            Button {
+                                Task {
+                                    await store.syncAllFromBackend()
+                                }
+                            } label: {
+                                Image(systemName: store.isBackendSyncing ? "hourglass" : "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .frame(width: 38, height: 38)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color.warmBrown)
+                            .disabled(store.isBackendSyncing)
+                            .accessibilityLabel(store.isBackendSyncing ? "正在同步" : "立即同步")
+                        }
+                    }
+                    ControlCenterPanel(
+                        snapshot: store.snapshot,
+                        profiles: store.stateProfiles,
+                        openMessages: openMessages,
+                        openSessions: openSessions,
+                        openMemory: openMemory,
+                        openJournals: openJournals
+                    )
+                    DatabaseIndexPanel(
+                        sessions: store.sessions,
+                        messages: store.messages,
+                        memories: store.memories,
+                        journals: store.journals,
+                        profiles: store.stateProfiles,
+                        bailanEntries: store.bailanDiaryEntries,
+                        flowMoments: store.flowMoments,
+                        careMoments: store.careMoments,
+                        recommendations: store.recommendationHistory
+                    )
+                    DataCompletenessPanel(
+                        sessions: store.sessions,
+                        memories: store.memories,
+                        journals: store.journals,
+                        profiles: store.stateProfiles,
+                        backendStatus: store.backendStatus,
+                        loadError: store.loadError,
+                        lastSyncAt: store.lastBackendSyncAt
+                    )
+                    DataGapPanel(
+                        sessions: store.sessions,
+                        memories: store.memories,
+                        journals: store.journals,
+                        profiles: store.stateProfiles,
+                        openSessions: openSessions,
+                        openMemory: openMemory,
+                        openJournals: openJournals
+                    )
+                    SessionProcessingPanel(
+                        sessions: store.sessions,
+                        memories: store.memories,
+                        journals: store.journals,
+                        profiles: store.stateProfiles,
+                        openSourceSession: openSourceSession,
+                        openSessions: openSessions
+                    )
+                    RecentActivityTimelinePanel(
+                        sessions: store.sessions,
+                        memories: store.memories,
+                        journals: store.journals,
+                        profiles: store.stateProfiles,
+                        openSourceSession: openSourceSession
+                    )
+                    SourceTracePanel(
+                        memories: store.memories,
+                        journals: store.journals,
+                        profiles: store.stateProfiles,
+                        openSourceSession: openSourceSession
+                    )
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle("数据管理")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 struct HistoricalSessionDestination: View {
     @EnvironmentObject private var store: CompanionStore
     let sessionID: String
@@ -779,80 +1119,17 @@ private struct FlowMomentRow: View {
 }
 
 private struct PersonalOverviewHeader: View {
-    @EnvironmentObject private var store: CompanionStore
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("此刻的你")
-                    .font(SensenFonts.handwritten(size: 26))
-                    .foregroundStyle(Color.nightInk)
-                Text("这里收好对话留下的心情、记忆、总结、周报和长期状态。")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack(spacing: 10) {
-                Label(connectionLabel, systemImage: connectionIcon)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(store.backendStatus.isOnline ? Color.green : Color.warmBrown)
-
-                Spacer()
-
-                Button {
-                    Task {
-                        await store.syncAllFromBackend()
-                    }
-                } label: {
-                    Label(store.isBackendSyncing ? "同步中" : "同步", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.warmBrown)
-                .disabled(store.isBackendSyncing)
-            }
-
-            if let notice = store.sessionNotice, !notice.isEmpty {
-                Text(notice)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let lastSyncAt = store.lastBackendSyncAt {
-                Label(
-                    "最近同步：\(lastSyncAt.formatted(date: .omitted, time: .shortened))",
-                    systemImage: "checkmark.icloud.fill"
-                )
-                .font(.caption)
+        VStack(alignment: .leading, spacing: 5) {
+            Text("此刻的你")
+                .font(SensenFonts.handwritten(size: 28))
+                .foregroundStyle(Color.nightInk)
+            Text("先看看最近的心情、长期状态，以及那些反复出现的模式。")
+                .font(.callout)
                 .foregroundStyle(.secondary)
-            }
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(17)
-        .background(Color.white.opacity(0.66), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.warmBrown.opacity(0.12), lineWidth: 1)
-        }
-    }
-
-    private var connectionLabel: String {
-        switch store.backendStatus.state {
-        case .unknown: return "尚未检查连接"
-        case .checking: return "正在连接 Mac"
-        case .online: return "已连接 Mac"
-        case .fallback: return "正在使用手机缓存"
-        }
-    }
-
-    private var connectionIcon: String {
-        switch store.backendStatus.state {
-        case .unknown: return "questionmark.circle"
-        case .checking: return "arrow.triangle.2.circlepath"
-        case .online: return "checkmark.circle.fill"
-        case .fallback: return "iphone"
-        }
+        .padding(.horizontal, 2)
     }
 }
 
@@ -1050,316 +1327,6 @@ private struct RecommendationHistoryCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.65), lineWidth: 1)
         }
-    }
-}
-
-private struct SelfMapGuidePanel: View {
-    let sessions: [SessionSummary]
-    let memories: [MemoryEntry]
-    let journals: [JournalEntry]
-    let profiles: [StateProfile]
-    let openSessions: () -> Void
-    let openMemory: () -> Void
-    let openJournals: () -> Void
-
-    private var latestStateLine: String {
-        guard let journal = journals.first else {
-            return "还没有近期总结"
-        }
-        let emotion = cleaned(journal.dominantEmotion)
-        let summary = cleaned(journal.summary)
-        if !emotion.isEmpty {
-            return emotion
-        }
-        return summary.isEmpty ? "最近有一条总结" : summary
-    }
-
-    private var themeLine: String {
-        let domains = Array(Set(profiles.map { cleaned($0.domain) }.filter { !$0.isEmpty }))
-            .sorted()
-            .prefix(2)
-        if !domains.isEmpty {
-            return domains.joined(separator: " · ")
-        }
-
-        let categories = Array(Set(memories.map { cleaned($0.category) }.filter { !$0.isEmpty }))
-            .sorted()
-            .prefix(2)
-        return categories.isEmpty ? "主题还在形成" : categories.joined(separator: " · ")
-    }
-
-    private var sourceCount: Int {
-        memories.filter { !cleaned($0.sourceSessionID).isEmpty }.count
-            + journals.filter { !cleaned($0.sessionID).isEmpty }.count
-            + profiles.filter { !cleaned($0.sourceSessionID).isEmpty }.count
-    }
-
-    private var gapCount: Int {
-        sessions.filter { $0.messageCount == 0 }.count
-            + memories.filter { cleaned($0.category).isEmpty || cleaned($0.subcategory).isEmpty || cleaned($0.sourceSessionID).isEmpty }.count
-            + journals.filter { cleaned($0.summary).isEmpty || cleaned($0.sessionID).isEmpty }.count
-            + profiles.filter { cleaned($0.summary).isEmpty || cleaned($0.evidence).isEmpty || cleaned($0.supportStrategy).isEmpty || cleaned($0.sourceSessionID).isEmpty }.count
-    }
-
-    var body: some View {
-        SoftPanel {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("自我地图怎么读", systemImage: "map.fill")
-                        .font(.headline)
-                    Text("这页不是让你打分，而是把最近留下的痕迹整理成几条可以慢慢看的路径。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(spacing: 10) {
-                    GuideStepRow(
-                        index: 1,
-                        title: "先看现在",
-                        detail: latestStateLine,
-                        systemImage: "sparkles",
-                        actionTitle: journals.isEmpty ? nil : "总结",
-                        action: journals.isEmpty ? nil : openJournals
-                    )
-                    GuideStepRow(
-                        index: 2,
-                        title: "再看反复出现的主题",
-                        detail: themeLine,
-                        systemImage: "leaf.fill",
-                        actionTitle: memories.isEmpty ? nil : "记忆",
-                        action: memories.isEmpty ? nil : openMemory
-                    )
-                    GuideStepRow(
-                        index: 3,
-                        title: "需要确认时回到来源",
-                        detail: sourceCount == 0 ? "来源链路还在等待形成" : "\(sourceCount) 条内容可以追溯到会话",
-                        systemImage: "link.circle.fill",
-                        actionTitle: sessions.isEmpty ? nil : "会话",
-                        action: sessions.isEmpty ? nil : openSessions
-                    )
-                    GuideStepRow(
-                        index: 4,
-                        title: "最后看待整理的地方",
-                        detail: gapCount == 0 ? "目前没有明显缺口" : "\(gapCount) 处资料还可以补齐",
-                        systemImage: "wand.and.stars",
-                        actionTitle: nil,
-                        action: nil
-                    )
-                }
-            }
-        }
-    }
-
-    private func cleaned(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-}
-
-private struct GuideStepRow: View {
-    let index: Int
-    let title: String
-    let detail: String
-    let systemImage: String
-    let actionTitle: String?
-    let action: (() -> Void)?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            ZStack {
-                Circle()
-                    .fill(Color(hex: 0xf7e5d8))
-                Text("\(index)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.warmBrown)
-            }
-            .frame(width: 30, height: 30)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 7) {
-                    Image(systemName: systemImage)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.warmBrown)
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.nightInk)
-                }
-                Text(detail.isEmpty ? "等待更多记录" : detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-
-            if let actionTitle, let action {
-                Button(action: action) {
-                    Text(actionTitle)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.warmBrown)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(Color.white.opacity(0.58), in: Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(10)
-        .background(Color.white.opacity(0.38), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-    }
-}
-
-private struct PersonalArchivePanel: View {
-    let snapshot: DashboardSnapshot
-    let profileCount: Int
-    let openInbox: () -> Void
-    let openMessages: () -> Void
-    let openSessions: () -> Void
-    let openMemory: () -> Void
-    let openJournals: () -> Void
-    let openSettings: () -> Void
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
-    ]
-
-    var body: some View {
-        SoftPanel {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("资料与设置", systemImage: "books.vertical.fill")
-                        .font(.headline)
-                    Text("信箱、消息、历史会话、总结、记忆和设置都从这里进入。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                LazyVGrid(columns: columns, spacing: 10) {
-                    ArchiveActionTile(
-                        title: "夜谈信箱",
-                        detail: "本次对话与互动",
-                        value: nil,
-                        systemImage: "envelope.fill",
-                        action: openInbox
-                    )
-                    ArchiveActionTile(
-                        title: "全部消息",
-                        detail: "数据库消息流",
-                        value: snapshot.messageCount,
-                        systemImage: "text.bubble.fill",
-                        action: openMessages
-                    )
-                    ArchiveActionTile(
-                        title: "历史会话",
-                        detail: "查看或继续夜谈",
-                        value: snapshot.sessionCount,
-                        systemImage: "clock.arrow.circlepath",
-                        action: openSessions
-                    )
-                    ArchiveActionTile(
-                        title: "会话总结",
-                        detail: "日记与理解线索",
-                        value: snapshot.journalCount,
-                        systemImage: "book.pages.fill",
-                        action: openJournals
-                    )
-                    ArchiveActionTile(
-                        title: "记忆叶片",
-                        detail: "分类与来源",
-                        value: snapshot.memoryCount,
-                        systemImage: "leaf.fill",
-                        action: openMemory
-                    )
-                    Button(action: openSettings) {
-                        ArchiveTileLabel(
-                            title: "设置",
-                            detail: "连接、隐私与缓存",
-                            value: nil,
-                            systemImage: "gearshape.fill"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                HStack(spacing: 8) {
-                    Image(systemName: "person.text.rectangle.fill")
-                        .foregroundStyle(Color.warmBrown)
-                    Text("长期画像")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("\(profileCount) 个主题已在本页展开")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.nightInk)
-                }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            }
-        }
-    }
-}
-
-private struct ArchiveActionTile: View {
-    let title: String
-    let detail: String
-    let value: Int?
-    let systemImage: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ArchiveTileLabel(
-                title: title,
-                detail: detail,
-                value: value,
-                systemImage: systemImage
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct ArchiveTileLabel: View {
-    let title: String
-    let detail: String
-    let value: Int?
-    let systemImage: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.warmBrown)
-                    .frame(width: 30, height: 30)
-                    .background(Color(hex: 0xf7e5d8), in: Circle())
-                Spacer()
-                if let value {
-                    Text("\(value)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.nightInk)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.warmBrown.opacity(0.62))
-                }
-            }
-
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.nightInk)
-            Text(detail)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(11)
-        .frame(maxWidth: .infinity, minHeight: 108, alignment: .topLeading)
-        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 }
 
