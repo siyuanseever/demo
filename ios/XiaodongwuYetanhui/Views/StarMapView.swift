@@ -11,21 +11,8 @@ struct StarMapView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                StarMapBundleImage(name: "starmap_background_cloud")
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
+                Color(hex: 0xf0ecf2)
                     .ignoresSafeArea()
-
-                LinearGradient(
-                    colors: [
-                        Color(hex: 0xeee9f3).opacity(0.48),
-                        Color(hex: 0xf7f0e7).opacity(0.78),
-                        Color(hex: 0xebe2ef).opacity(0.92),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
@@ -65,9 +52,9 @@ struct StarMapView: View {
                                 reason: store.starMapInsight.secondaryGoalReason,
                                 nextStep: store.starMapInsight.secondaryGoalNextStep,
                                 challenge: store.starMapInsight.secondaryGoalChallenge,
-                            role: "次要目标",
-                            tint: Color(hex: 0xcddfd7)
-                        ) {
+                                role: "次要目标",
+                                tint: Color(hex: 0xcddfd7)
+                            ) {
                                 if store.starMapInsight.isMockInsight {
                                     Task {
                                         await store.refreshStarMapInsight(forceRefresh: true)
@@ -125,14 +112,15 @@ struct StarMapView: View {
                 }
                 .scrollIndicators(.hidden)
 
-                StarMapBottomBar(
+                ImmersiveBottomBar(
+                    selectedTab: .starMap,
                     openHome: openHome,
                     openForest: openForest,
                     openStarMap: {},
                     openMe: openMe
                 )
                 .padding(.horizontal, 24)
-                .padding(.bottom, 16)
+                .padding(.bottom, 26)
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .ignoresSafeArea(.container, edges: .bottom)
             }
@@ -159,22 +147,6 @@ private enum FlowDestination: Identifiable {
         switch self {
         case .ritual(let insight, let intention):
             return "\(insight.id)-\(intention)"
-        }
-    }
-}
-
-private struct StarMapBundleImage: View {
-    let name: String
-
-    var body: some View {
-        Group {
-            if let image = UIImage(named: name) ?? UIImage(named: "\(name).png") {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Color(hex: 0xf4efe8)
-            }
         }
     }
 }
@@ -701,52 +673,5 @@ private struct FlowSuggestionLayout: View {
                 .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
         }
-    }
-}
-
-private struct StarMapBottomBar: View {
-    let openHome: () -> Void
-    let openForest: () -> Void
-    let openStarMap: () -> Void
-    let openMe: () -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            StarMapTabButton(title: "疗愈", systemImage: "house.fill", isSelected: false, action: openHome)
-            StarMapTabButton(title: "摆烂", systemImage: "sofa.fill", isSelected: false, action: openForest)
-            StarMapTabButton(title: "心流", systemImage: "sparkles", isSelected: true, action: openStarMap)
-            StarMapTabButton(title: "自我", systemImage: "person.crop.circle", isSelected: false, action: openMe)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color(hex: 0xf2e6d0).opacity(0.96), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color(hex: 0xd8c8b2).opacity(0.72), lineWidth: 1)
-        }
-        .shadow(color: Color.warmBrown.opacity(0.1), radius: 14, x: 0, y: 6)
-    }
-}
-
-private struct StarMapTabButton: View {
-    let title: String
-    let systemImage: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 31, height: 24)
-                    .background(isSelected ? Color(hex: 0xd7c4f2).opacity(0.5) : Color.clear, in: Capsule())
-                Text(title)
-                    .font(.custom("HannotateSC-W5", size: 10))
-            }
-            .foregroundStyle(isSelected ? Color(hex: 0x8a6ea8) : Color.warmBrown.opacity(0.72))
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.plain)
     }
 }

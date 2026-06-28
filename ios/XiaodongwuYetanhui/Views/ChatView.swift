@@ -163,7 +163,7 @@ struct ChatView: View {
     }
 }
 
-private enum MainTab {
+enum MainTab {
     case home
     case forest
     case starMap
@@ -338,7 +338,7 @@ private struct HomeInsightOverlay: View {
     }
 }
 
-private struct ImmersiveBottomBar: View {
+struct ImmersiveBottomBar: View {
     let selectedTab: MainTab
     let openHome: () -> Void
     let openForest: () -> Void
