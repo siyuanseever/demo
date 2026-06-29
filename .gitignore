@@ -9,6 +9,8 @@ logs/app.log
 .obsidian/workspace.json
 log.txt
 waterline/
+tools/
+ios/DerivedData*/
 
 # macOS 系统文件
 .DS_Store
