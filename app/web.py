@@ -2,6 +2,7 @@ import json
 import logging
 import secrets
 import socket
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -2740,6 +2741,24 @@ class WebApp:
         self.orchestrator = build_orchestrator()
 
 
+class WebServer(ThreadingHTTPServer):
+    logger = logging.getLogger(__name__)
+
+    def handle_error(self, request, client_address) -> None:
+        error = sys.exception()
+        if isinstance(
+            error,
+            (BrokenPipeError, ConnectionAbortedError, ConnectionResetError),
+        ):
+            self.logger.debug(
+                "client disconnected address=%r error=%s",
+                client_address,
+                type(error).__name__,
+            )
+            return
+        super().handle_error(request, client_address)
+
+
 class Handler(BaseHTTPRequestHandler):
     app: WebApp
     logger = logging.getLogger(__name__)
@@ -2976,7 +2995,7 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     settings = get_settings()
     Handler.app = WebApp()
-    server = ThreadingHTTPServer((settings.web_host, settings.web_port), Handler)
+    server = WebServer((settings.web_host, settings.web_port), Handler)
     local_url = f"http://127.0.0.1:{settings.web_port}"
     bound_url = f"http://{settings.web_host}:{settings.web_port}"
     print(f"小鹿 Web UI 已启动：{local_url}")
