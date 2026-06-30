@@ -58,7 +58,7 @@ final class CompanionStore: ObservableObject {
 
     init() {
         backendStatus.baseURL = chatService.backendURLDescription
-        macBackendURL = UserDefaults.standard.string(forKey: "sensen.macBackendURL") ?? ""
+        macBackendURL = UserDefaults.standard.string(forKey: "sensen.macBackendURL") ?? chatService.backendURLDescription
         isLocalAIConfigured = secureSettings.deepSeekAPIKey()?.isEmpty == false
         isMacSyncTokenConfigured = secureSettings.macSyncToken()?.isEmpty == false
         careMoments = loadCareMoments()
@@ -303,6 +303,10 @@ final class CompanionStore: ObservableObject {
             )
             return
         }
+        #if targetEnvironment(macCatalyst)
+        // Mac Catalyst prototype runs on the same machine as the Python backend.
+        // It only needs to pull from localhost; no phone-to-Mac upload token is required.
+        #else
         guard let syncToken = secureSettings.macSyncToken(), !syncToken.isEmpty else {
             sessionNotice = "请先在设置中填写 Mac 同步令牌。"
             return
@@ -323,6 +327,7 @@ final class CompanionStore: ObservableObject {
             )
             return
         }
+        #endif
 
         async let fetchedSessions = try? chatService.fetchSessions()
         async let fetchedMessages = try? chatService.fetchMessages()
@@ -376,13 +381,19 @@ final class CompanionStore: ObservableObject {
         if successfulKinds > 0 {
             lastBackendSyncAt = checkedAt
             let isComplete = successfulKinds == 5
+            #if targetEnvironment(macCatalyst)
+            sessionNotice = isComplete
+                ? "已从本机后端刷新会话、消息、记忆、总结和长期画像。"
+                : "已从本机后端刷新部分数据。"
+            #else
             sessionNotice = isComplete
                 ? "已同步会话消息、记忆、总结和长期画像。"
                 : "部分数据暂时未同步，已保留手机上的最近缓存。"
+            #endif
             backendStatus = BackendConnectionStatus(
                 state: .online,
                 baseURL: chatService.backendURLDescription,
-                detail: isComplete ? "Mac 数据已同步到手机。" : "Mac 在线，但有部分数据暂时没有拉取成功。",
+                detail: isComplete ? "本机后端数据已刷新。" : "本机后端在线，但有部分数据暂时没有拉取成功。",
                 lastCheckedAt: checkedAt
             )
         } else {

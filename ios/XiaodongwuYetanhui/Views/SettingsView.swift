@@ -13,8 +13,11 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionHeader(
                         title: "设置",
-                        subtitle: "手机可以独立保存和对话；需要时再与同一局域网里的 Mac 同步。"
+                        subtitle: settingsSubtitle
                     )
+                    #if targetEnvironment(macCatalyst)
+                    MacBackendModePanel()
+                    #else
                     LocalAISettingsPanel(
                         apiKey: $apiKey,
                         isConfigured: store.isLocalAIConfigured,
@@ -25,11 +28,13 @@ struct SettingsView: View {
                         },
                         clear: store.clearDeepSeekAPIKey
                     )
+                    #endif
                     MacConnectionPanel(
                         backendURL: $macBackendURL,
                         syncToken: $macSyncToken,
                         isTokenConfigured: store.isMacSyncTokenConfigured,
                         status: store.backendStatus,
+                        showsSyncToken: showsSyncToken,
                         save: {
                             store.saveMacBackendURL(macBackendURL)
                         },
@@ -47,7 +52,10 @@ struct SettingsView: View {
                         snapshot: store.snapshot,
                         isSyncing: store.isBackendSyncing,
                         lastSyncAt: store.lastBackendSyncAt,
-                        notice: store.sessionNotice
+                        notice: store.sessionNotice,
+                        title: dataPanelTitle,
+                        description: dataPanelDescription,
+                        buttonTitle: dataPanelButtonTitle
                     ) {
                         Task {
                             await store.syncAllFromBackend()
@@ -61,6 +69,73 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             macBackendURL = store.macBackendURL
+        }
+    }
+
+    private var settingsSubtitle: String {
+        #if targetEnvironment(macCatalyst)
+        return "Mac 原型默认连接同一台电脑上的 Python 后端。DeepSeek Key 放在后端 .env 里，不需要在这里重复填写。"
+        #else
+        return "手机可以独立保存和对话；需要时再与同一局域网里的 Mac 同步。"
+        #endif
+    }
+
+    private var showsSyncToken: Bool {
+        #if targetEnvironment(macCatalyst)
+        return false
+        #else
+        return true
+        #endif
+    }
+
+    private var dataPanelTitle: String {
+        #if targetEnvironment(macCatalyst)
+        return "本机数据刷新"
+        #else
+        return "数据与同步"
+        #endif
+    }
+
+    private var dataPanelDescription: String {
+        #if targetEnvironment(macCatalyst)
+        return "Mac App 直接读取本机 SQLite，并可从本机 Python 后端刷新会话、记忆、总结和长期画像。"
+        #else
+        return "手机本地数据始终可用。连接同一局域网的 Mac 后，可手动交换会话、记忆、总结和长期画像。"
+        #endif
+    }
+
+    private var dataPanelButtonTitle: String {
+        #if targetEnvironment(macCatalyst)
+        return "刷新本机后端数据"
+        #else
+        return "与 Mac 同步"
+        #endif
+    }
+}
+
+private struct MacBackendModePanel: View {
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("本机后端模式", systemImage: "macbook.and.desktopcomputer")
+                        .font(.headline)
+                    Spacer()
+                    Text("推荐")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.green)
+                }
+
+                Text("Mac App 只负责界面和数据展示；聊天、总结、记忆合并仍由 Python 后端处理。这样不会把 DeepSeek API Key 写进 App，也不需要同步令牌。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label("请先启动后端：python3 -m app.web。默认地址是 http://127.0.0.1:8765。", systemImage: "terminal.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -135,6 +210,7 @@ private struct MacConnectionPanel: View {
     @Binding var syncToken: String
     let isTokenConfigured: Bool
     let status: BackendConnectionStatus
+    let showsSyncToken: Bool
     let save: () -> Void
     let saveToken: () -> Void
 
@@ -154,32 +230,34 @@ private struct MacConnectionPanel: View {
                     .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
 
                 Button(action: save) {
-                    Label("保存局域网地址", systemImage: "checkmark")
+                    Label(showsSyncToken ? "保存局域网地址" : "保存后端地址", systemImage: "checkmark")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .tint(Color.warmBrown)
 
-                SecureField(
-                    isTokenConfigured ? "输入新令牌可替换现有令牌" : "Mac 同步令牌",
-                    text: $syncToken
-                )
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .font(.callout.monospaced())
-                .padding(.horizontal, 12)
-                .padding(.vertical, 11)
-                .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                if showsSyncToken {
+                    SecureField(
+                        isTokenConfigured ? "输入新令牌可替换现有令牌" : "Mac 同步令牌",
+                        text: $syncToken
+                    )
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.callout.monospaced())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
 
-                Button(action: saveToken) {
-                    Label(isTokenConfigured ? "更新同步令牌" : "保存同步令牌", systemImage: "lock.fill")
-                        .frame(maxWidth: .infinity)
+                    Button(action: saveToken) {
+                        Label(isTokenConfigured ? "更新同步令牌" : "保存同步令牌", systemImage: "lock.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.warmBrown)
+                    .disabled(syncToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .buttonStyle(.bordered)
-                .tint(Color.warmBrown)
-                .disabled(syncToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                Text("Mac 启动前设置相同的 SENSEN_SYNC_TOKEN。只有点击下面的同步按钮时，App 才会连接 Mac。")
+                Text(showsSyncToken ? "Mac 启动前设置相同的 SENSEN_SYNC_TOKEN。只有点击下面的同步按钮时，App 才会连接 Mac。" : "如果 Python 后端跑在同一台 Mac 上，保持默认 http://127.0.0.1:8765 即可。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -248,15 +326,18 @@ private struct DataSyncPanel: View {
     let isSyncing: Bool
     let lastSyncAt: Date?
     let notice: String?
+    let title: String
+    let description: String
+    let buttonTitle: String
     let sync: () -> Void
 
     var body: some View {
         SoftPanel {
             VStack(alignment: .leading, spacing: 14) {
-                Label("数据与同步", systemImage: "externaldrive.fill")
+                Label(title, systemImage: "externaldrive.fill")
                     .font(.headline)
 
-                Text("手机本地数据始终可用。连接同一局域网的 Mac 后，可手动交换会话、记忆、总结和长期画像。")
+                Text(description)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -285,7 +366,7 @@ private struct DataSyncPanel: View {
                 }
 
                 Button(action: sync) {
-                    Label(isSyncing ? "正在同步" : "与 Mac 同步", systemImage: "arrow.triangle.2.circlepath")
+                    Label(isSyncing ? "正在处理" : buttonTitle, systemImage: "arrow.triangle.2.circlepath")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
