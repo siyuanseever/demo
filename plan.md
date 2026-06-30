@@ -1,0 +1,94 @@
+# 当前阶段计划
+
+> 本文件是阶段级战略视图，聚焦当前方向。具体任务列表见 `TODO.md`。
+
+---
+
+## 当前阶段目标
+
+基于 `ROADMAP.md` Phase 3（做出可演示 demo），聚焦以下方向：
+
+1. **完善记忆检索混合策略**：从单一检索升级为"相关 + 近期 + 重要"三层混合，控制总量避免 prompt 污染。
+2. **优化会话体验闭环**：清晰处理已结束 session 的继续对话状态，增加角色选择说明和群聊自动 UI 表达。
+3. **完善数据看板**：增加角色维度统计（回复次数、情绪-角色触发映射）。
+4. **建立 Harness + Loop 基础设施**：完成工程化工具链、验证门控和 Ralph 技术迭代机制。
+5. **搭建 Maker/Checker 双 Agent 架构方向**：产出架构设计文档，为未来代码自动生成和自动验证做准备。
+
+---
+
+## 验收标准
+
+### 工程门控（必须全部通过）
+
+| 门控 | 标准 | 验证命令 |
+|------|------|---------|
+| Gate 0 语法 | `compileall` 零错误 | `python3 -m compileall app` |
+| Gate 1 功能 | 综合通过率 >= 95% | `python3 -m app.evaluation.runner` |
+| Gate 2 结构 | 完整性 100% | 含在 runner 中 |
+| Gate 3 Prompt | JSON 有效率达到阈值 | 查看 `/prompt-inspector` |
+| Gate 4 体验 | 无高风险失败项 | `python3 -m app.evaluation.manual_eval` |
+
+### 功能验收（本阶段完成时）
+
+- [ ] 记忆检索混合策略实现并验证（相关 + 近期 + 重要）
+- [ ] 已结束 session 继续对话有清晰状态处理（方案 A 或 B 确定）
+- [ ] 每条 assistant 消息显示角色选择简短说明
+- [ ] 数据看板增加角色维度统计（回复次数 + 情绪-角色映射）
+- [ ] 群聊自动 UI 优化（"小动物们商量了一下"提示）
+- [ ] Harness 文档（AGENTS.md）包含完整工具链、门控、编排规则
+- [ ] Loop 基础设施可正常运行（单次迭代、任务选择、记忆持久化）
+- [ ] Maker/Checker 架构设计文档完成
+
+---
+
+## 任务分组
+
+### 🔥 进行中（最高优先级）
+
+- 记忆检索改成混合策略（相关 + 近期 + 重要 + 合并去重）
+
+### 📌 近期 TODO（本阶段内）
+
+- 已结束 session 继续对话状态处理（方案 A：允许追加 / 方案 B：分支新 session）
+- 给每条 assistant 消息显示"为什么选这个角色"的简短说明
+- 数据看板增加角色维度统计（回复次数、情绪-角色触发映射）
+- 优化群聊自动 UI 表达（"小动物们商量了一下，由 XX 来回应"）
+- 更新截图，保证 README 展示当前六角色 UI
+
+### 🏗️ 基础设施（已完成的 Harness + Loop）
+
+- ✅ Evaluation 目录整合（app/evaluation/cases/）
+- ✅ 测试覆盖补充（completeness / prompt_eval / runner_integration / manual_eval）
+- ✅ AGENTS.md 升级为 Harness 工程文档
+- ✅ Loop 基础设施（state / task_selector / memory / runner）
+- ✅ Web UI API 路由（harness-status / loop-status / loop-memories）
+
+### 📋 待排期（后续阶段）
+
+- iOS App 原型方向（Xcode、SwiftUI、STT/TTS）
+- 意图识别系统重构（intent-routing）
+- 多小动物交互与角色群聊升级
+- 情绪识别与 UI 状态可视化
+- 心理学知识卡智能检索升级
+
+---
+
+## 技术约束
+
+- **Python 3.12 兼容**，保持现有代码风格（4空格缩进、snake_case）
+- **Loop 模块纯标准库**，不引入新依赖
+- **UI 变更控制在 app/web.py 内**，超限则讨论 frontend 拆分
+- **API keys 只在 .env 中**，不硬编码
+- **对话数据（data/app.db、logs/app.log）不提交到版本控制**
+
+---
+
+## 风险与回退
+
+| 风险 | 应对方案 |
+|------|---------|
+| 记忆混合策略增加 prompt 长度，导致 token 成本上升 | 设置记忆数量上限，优先保证"相关"层质量 |
+| 群聊自动 UI 增加系统提示，打断聊天流 | 控制提示频率，仅在角色切换时显示 |
+| iOS 方向与 Web 方向并行导致资源分散 | 当前阶段聚焦 Web 完善，iOS 仅做环境准备 |
+| Loop 迭代任务过多导致上下文膨胀 | Ralph 技术保障每次迭代重置，记忆持久化到磁盘 |
+| Maker/Checker 架构设计过于超前 | 当前仅产出设计文档，实现细节待后续迭代 |

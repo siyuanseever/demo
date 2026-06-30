@@ -24,5 +24,4 @@ tmp.md
 project-architecture-visualization/
 data/
 data/intent_test_set.jsonl
-.trae/documents/intent-routing-integration.md
-.trae/documents/harness-loop-engineering-plan.md
+.trae/
