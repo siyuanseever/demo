@@ -157,12 +157,15 @@ class IntentRouter:
             character_id = character.id
 
         expression_id = normalize_expression_id(character_id, intent.expression_id)
+        response_mode = intent.response_mode
+        if intent.intent == "DEEP_REPLY" and response_mode == "validate":
+            response_mode = "mixed"
 
         return {
             "user_state": intent.user_state,
             "core_need": intent.core_need,
             "risk_level": intent.risk_level,
-            "response_mode": intent.response_mode,
+            "response_mode": response_mode,
             "character_id": character_id,
             "expression_id": expression_id,
             "knowledge_needs": [],

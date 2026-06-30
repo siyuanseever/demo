@@ -2004,24 +2004,54 @@ HTML = """<!doctype html>
       const decoder = new TextDecoder();
       let buffer = "";
       const events = [];
+      let eventType = "message";
+      let dataLines = [];
+      let stopReading = false;
+
+      function dispatchBufferedEvent() {
+        if (!dataLines.length) return false;
+        const rawData = dataLines.join("\\n");
+        const currentType = eventType || "message";
+        eventType = "message";
+        dataLines = [];
+        try {
+          const event = { type: currentType, data: JSON.parse(rawData) };
+          events.push(event);
+          if (onEvent) onEvent(event);
+          if (currentType === "done") return true;
+        } catch (e) { /* skip malformed event */ }
+        return false;
+      }
+
+      function consumeLine(rawLine) {
+        const line = rawLine.endsWith("\\r") ? rawLine.slice(0, -1) : rawLine;
+        if (line === "") {
+          stopReading = dispatchBufferedEvent() || stopReading;
+        } else if (line.startsWith("event:")) {
+          eventType = line.slice(6).trim() || "message";
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).trimStart());
+        }
+      }
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\\n");
         buffer = lines.pop() || "";
-        let currentEvent = "";
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            try {
-              const event = { type: currentEvent || "message", data: JSON.parse(line.slice(6)) };
-              events.push(event);
-              if (onEvent) onEvent(event);
-            } catch (e) { /* skip */ }
-          }
+        for (const line of lines) consumeLine(line);
+        if (stopReading) {
+          try { await reader.cancel(); } catch (e) { /* ignore */ }
+          break;
         }
+      }
+      if (!stopReading) {
+        buffer += decoder.decode();
+        if (buffer) {
+          for (const line of buffer.split("\\n")) consumeLine(line);
+        }
+        dispatchBufferedEvent();
       }
       return events;
     }
@@ -2181,17 +2211,13 @@ HTML = """<!doctype html>
               const d = event.data;
               hasDeepReply = true;
               if (quickReplyNode) {
-                replaceMessageContent(quickReplyNode, d.reply, d.knowledge_cards || [],
-                  d.character?.id || activeCharacterId,
-                  { expressionId: d.expression?.id || "" }
-                );
+                markMessageFinal(quickReplyNode);
                 quickReplyNode = null;
-              } else {
-                addMessage("deer", d.reply, d.knowledge_cards || [],
-                  d.character?.id || activeCharacterId,
-                  { expressionId: d.expression?.id || "" }
-                );
               }
+              addMessage("deer", d.reply, d.knowledge_cards || [],
+                d.character?.id || activeCharacterId,
+                { expressionId: d.expression?.id || "" }
+              );
               if (d.character?.id) {
                 activeCharacterId = d.character.id;
                 updateAnimalState(d.character.id, d.reply);
@@ -2820,7 +2846,12 @@ HTML = """<!doctype html>
             message.content,
             message.knowledge_cards || [],
             message.character_id || null,
-            { groupRole: message.group_role || "", action: message.action || "", expressionId: message.expression_id || "" }
+            {
+              groupRole: message.group_role || "",
+              action: message.action || "",
+              expressionId: message.expression_id || "",
+              isQuickReply: message.reply_stage === "quick" || message.reply_path === "quick" || message.model === "quick"
+            }
           );
         }
         switchMainView("chat");
@@ -3024,6 +3055,15 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/eval-summary":
                 self.respond_eval_summary()
                 return
+            if path == "/api/harness-status":
+                self.respond_harness_status()
+                return
+            if path == "/api/loop-status":
+                self.respond_loop_status()
+                return
+            if path == "/api/loop-memories":
+                self.respond_loop_memories()
+                return
             self.send_error(404)
         except Exception as error:
             self.logger.exception("http get error path=%s", path)
@@ -3143,7 +3183,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
+        self.send_header("Connection", "close")
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
         try:
@@ -3164,6 +3204,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
             except Exception:
                 pass
+        finally:
+            self.close_connection = True
 
     def respond_json(self, payload: dict, status: int = 200) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -3250,6 +3292,92 @@ class Handler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             self.respond_json({"error": str(e)}, status=500)
+
+    def respond_harness_status(self) -> None:
+        """返回 Harness 各门控状态"""
+        import subprocess
+        from pathlib import Path
+
+        # Gate 0: compileall
+        gate0 = subprocess.run(
+            ["python3", "-m", "compileall", "app"],
+            capture_output=True,
+        ).returncode == 0
+
+        # Gate 1: runner pass rate (check latest report)
+        gate1 = None
+        reports_dir = Path("eval_reports")
+        json_files = sorted(reports_dir.glob("eval_report_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if json_files:
+            try:
+                data = json.loads(json_files[0].read_text(encoding="utf-8"))
+                gate1 = data.get("overall", {}).get("overall_pass_rate", 0) >= 0.95
+            except Exception:
+                pass
+
+        self.respond_json({
+            "gates": {
+                "gate0_syntax": {"name": "语法门控", "passed": gate0, "command": "python3 -m compileall app"},
+                "gate1_functional": {"name": "功能门控", "passed": gate1, "threshold": ">= 95%"},
+                "gate2_structure": {"name": "结构门控", "passed": None, "note": "需手动触发 evaluation.completeness"},
+                "gate3_prompt": {"name": "Prompt 门控", "passed": None, "note": "查看 /prompt-inspector"},
+                "gate4_experience": {"name": "体验门控", "passed": None, "note": "需运行 manual_eval"},
+            }
+        })
+
+    def respond_loop_status(self) -> None:
+        """返回 Loop 迭代状态"""
+        from app.loop.state import LoopState
+        from app.loop.task_selector import TaskSelector
+        from app.loop.memory import LoopMemory
+
+        state = LoopState.load_from_disk()
+        selector = TaskSelector()
+        all_tasks = selector.list_all()
+        pending = [t for t in all_tasks if t.id not in set(state.completed_tasks)]
+        mem = LoopMemory()
+        memories = mem.list_all(limit=1)
+
+        self.respond_json({
+            "iteration": state.iteration_number,
+            "completed_tasks": len(state.completed_tasks),
+            "pending_tasks": len(pending),
+            "total_tasks": len(all_tasks),
+            "last_action": state.last_action_result.get("status", "unknown"),
+            "latest_memory": memories[0].content if memories else None,
+        })
+
+    def respond_loop_memories(self) -> None:
+        """返回 Loop 记忆列表"""
+        from app.loop.memory import LoopMemory
+        from urllib.parse import urlparse
+
+        query = urlparse(self.path).query
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        type_filter = params.get("type") or None
+        limit = 20
+        if "limit" in params:
+            try:
+                limit = max(1, min(int(params["limit"]), 100))
+            except (TypeError, ValueError):
+                pass
+
+        mem = LoopMemory()
+        entries = mem.query_memories(type_filter=type_filter, limit=limit)
+
+        self.respond_json({
+            "entries": [
+                {
+                    "timestamp": e.timestamp,
+                    "iteration": e.iteration,
+                    "type": e.type,
+                    "content": e.content,
+                    "tags": e.tags,
+                }
+                for e in entries
+            ],
+            "count": len(entries),
+        })
 
 
 PROMPT_INSPECTOR_HTML = r"""<!doctype html>

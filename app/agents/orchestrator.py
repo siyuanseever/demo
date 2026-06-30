@@ -733,6 +733,18 @@ class ConversationOrchestrator:
                 "name": "intent_recognition",
                 "status": "done",
                 "summary": f"意图={intent_result.intent} 置信度={intent_result.confidence:.2f} 风险={intent_result.risk_level}",
+                "output": {
+                    "intent": intent_result.intent,
+                    "confidence": intent_result.confidence,
+                    "emotion": intent_result.emotion,
+                    "risk_level": intent_result.risk_level,
+                    "user_state": intent_result.user_state,
+                    "core_need": intent_result.core_need,
+                    "response_mode": intent_result.response_mode,
+                    "memory_queries": intent_result.memory_queries,
+                    "knowledge_queries": intent_result.knowledge_queries,
+                    "reason": intent_result.reason,
+                },
             })
 
             # 路由决策
@@ -847,6 +859,7 @@ class ConversationOrchestrator:
         state_profiles: list[dict],
         debug_trace: dict,
         started_at: float,
+        extra_metadata: dict | None = None,
     ) -> dict:
         """深度回复路径（含兔子形态结构化回复和手动角色回复）。"""
         if route_plan:
@@ -976,6 +989,7 @@ class ConversationOrchestrator:
                 "expression_id": expression_id,
                 "route_plan": route_plan,
                 "knowledge_card_ids": [card.get("id", "") for card in knowledge_cards if card.get("id")],
+                **(extra_metadata or {}),
             },
         )
         self.logger.info(
@@ -1017,7 +1031,12 @@ class ConversationOrchestrator:
         character = get_character(character_id)
         short_messages = messages[-10:]
 
-        quick_text = self._generate_quick_reply_text(user_text, short_messages, character_id)
+        quick_text = self._generate_quick_reply_text(
+            user_text,
+            short_messages,
+            character_id,
+            debug_trace=debug_trace,
+        )
         expression_id = normalize_expression_id(character.id, route_plan.get("expression_id") if route_plan else None)
 
         self.store.add_message(
@@ -1195,6 +1214,7 @@ class ConversationOrchestrator:
         quick_character_id = character_id if character_id != "auto" else auto_select_character(user_text).id
         quick_character = get_character(quick_character_id)
         quick_expression_id = normalize_expression_id(quick_character.id, None)
+        reply_group_id = str(uuid.uuid4())
 
         executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="reply-stream")
         intent_future = None
@@ -1205,7 +1225,11 @@ class ConversationOrchestrator:
                 )
 
             quick_future = executor.submit(
-                self._generate_quick_reply_text, user_text, messages[-10:], quick_character_id,
+                self._generate_quick_reply_text,
+                user_text,
+                messages[-10:],
+                quick_character_id,
+                debug_trace=debug_trace,
             )
 
             # 先拿到快速回复文本（不等待 intent future 完成），确保 SSE 能尽快给用户反馈。
@@ -1221,6 +1245,19 @@ class ConversationOrchestrator:
                 "expression": {"id": quick_expression_id, **((quick_character.expressions or {}).get(quick_expression_id, {}))},
             }
             debug_trace["quick_reply"] = quick_reply_payload
+            self.store.add_message(
+                session_id,
+                "assistant",
+                quick_text,
+                model="quick",
+                metadata={
+                    "character_id": quick_character.id,
+                    "expression_id": quick_expression_id,
+                    "reply_path": "quick",
+                    "reply_stage": "quick",
+                    "reply_group_id": reply_group_id,
+                },
+            )
 
             # 推送快速回复（第一次回复）
             yield self._sse_event("quick_reply", quick_reply_payload)
@@ -1233,9 +1270,31 @@ class ConversationOrchestrator:
                     intent_result = intent_future.result(timeout=8)
                     reply_path = self.intent_router.decide(intent_result, user_text)
                     debug_trace["steps"].append({
+                        "name": "intent_recognition",
+                        "status": "done",
+                        "summary": f"意图={intent_result.intent} 置信度={intent_result.confidence:.2f} 风险={intent_result.risk_level}",
+                        "output": {
+                            "intent": intent_result.intent,
+                            "confidence": intent_result.confidence,
+                            "emotion": intent_result.emotion,
+                            "risk_level": intent_result.risk_level,
+                            "user_state": intent_result.user_state,
+                            "core_need": intent_result.core_need,
+                            "response_mode": intent_result.response_mode,
+                            "memory_queries": intent_result.memory_queries,
+                            "knowledge_queries": intent_result.knowledge_queries,
+                            "reason": intent_result.reason,
+                        },
+                    })
+                    debug_trace["steps"].append({
                         "name": "intent_routing",
                         "status": "done",
                         "summary": f"路由路径={reply_path.path} use_thinking={reply_path.use_thinking}",
+                        "output": {
+                            "path": reply_path.path,
+                            "use_thinking": reply_path.use_thinking,
+                            "route_plan": reply_path.route_plan,
+                        },
                     })
                 except Exception:
                     self.logger.exception("intent recognition failed in stream mode")
@@ -1258,6 +1317,7 @@ class ConversationOrchestrator:
                 final_result = self._deep_response(
                     session_id, user_text, route_plan,
                     messages, state_profiles, debug_trace, started_at,
+                    extra_metadata={"reply_stage": "deep", "reply_group_id": reply_group_id},
                 )
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
@@ -1280,6 +1340,7 @@ class ConversationOrchestrator:
                 final_result = self._deep_response(
                     session_id, user_text, route_plan,
                     messages, state_profiles, debug_trace, started_at,
+                    extra_metadata={"reply_stage": "deep", "reply_group_id": reply_group_id},
                 )
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
@@ -1291,16 +1352,6 @@ class ConversationOrchestrator:
                 yield self._sse_event("deep_reply", final_result)
                 yield self._sse_event("final", final_result)
             elif reply_path.path == "quick":
-                self.store.add_message(
-                    session_id, "assistant", quick_text,
-                    model="quick",
-                    metadata={
-                        "character_id": quick_character.id,
-                        "expression_id": quick_expression_id,
-                        "route_plan": reply_path.route_plan,
-                        "reply_path": "quick",
-                    },
-                )
                 final_result = {
                     "reply": quick_text,
                     "group_messages": [],
@@ -1332,6 +1383,7 @@ class ConversationOrchestrator:
                     "expression": final_result.get("expression", {}),
                 }
                 attach_deep_reply(final_result)
+                yield self._sse_event("deep_reply", final_result)
                 yield self._sse_event("final", final_result)
             elif reply_path.path == "interaction":
                 final_result = self._interaction_response(
@@ -1344,6 +1396,7 @@ class ConversationOrchestrator:
                     "expression": final_result.get("expression", {}),
                 }
                 attach_deep_reply(final_result)
+                yield self._sse_event("deep_reply", final_result)
                 yield self._sse_event("final", final_result)
             elif reply_path.path == "crisis":
                 character = get_character(reply_path.route_plan["character_id"]) if reply_path.route_plan else auto_select_character(user_text)
@@ -1355,6 +1408,7 @@ class ConversationOrchestrator:
                     "expression": final_result.get("expression", {}),
                 }
                 attach_deep_reply(final_result)
+                yield self._sse_event("deep_reply", final_result)
                 yield self._sse_event("final", final_result)
 
             yield self._sse_event("done", {"status": "complete"})
@@ -1370,6 +1424,7 @@ class ConversationOrchestrator:
         user_text: str,
         recent_history: list,
         character_id: str,
+        debug_trace: dict | None = None,
     ) -> str:
         """使用短上下文、简化 persona 生成快速回复文本。max_tokens=400。"""
         character = get_character(character_id)
@@ -1382,6 +1437,7 @@ class ConversationOrchestrator:
             knowledge_cards="暂无",
             role_plan="本轮是快速回复模式，保持简洁温暖，1-2 段即可。",
         )
+        started_at = time.monotonic()
         try:
             response = self._chat(
                 [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_text}],
@@ -1389,9 +1445,25 @@ class ConversationOrchestrator:
                 temperature=0.75,
                 max_tokens=400,
             )
+            if debug_trace is not None:
+                debug_trace["llm_calls"].append({
+                    "name": "quick_reply",
+                    "model": response.model,
+                    "elapsed_sec": round(time.monotonic() - started_at, 2),
+                    "response_format": "text",
+                    "raw_output": preview_text(response.content),
+                })
             return response.content.strip()
         except Exception:
             self.logger.exception("quick reply generation failed")
+            if debug_trace is not None:
+                debug_trace["llm_calls"].append({
+                    "name": "quick_reply",
+                    "model": "unknown",
+                    "elapsed_sec": round(time.monotonic() - started_at, 2),
+                    "response_format": "text",
+                    "error": "快速回复生成失败，已使用兜底文本。",
+                })
             return "我听到了你说的，我在这里。"
 
     def _generate_interaction_content(self, interaction_type: str, character) -> str:
