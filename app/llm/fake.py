@@ -4,6 +4,9 @@ from app.llm.base import LLMResponse, Message
 
 
 class FakeClient:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
     def chat(
         self,
         messages: list[Message],
@@ -14,6 +17,11 @@ class FakeClient:
         thinking: str | None = None,
         reasoning_effort: str | None = None,
     ) -> LLMResponse:
+        self.calls.append({
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "response_format": response_format,
+        })
         if response_format:
             system = messages[0]["content"]
             if "统一意图识别层" in system:
@@ -108,6 +116,49 @@ class FakeClient:
                                 "confidence": 0.6,
                                 "importance": 2,
                             }
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
+            elif "长期心理状态线索" in system and "observations" in system:
+                content = json.dumps(
+                    {
+                        "observations": [
+                            {
+                                "domain": domain,
+                                "has_evidence": domain == "meaning_value",
+                                "observation": (
+                                    "用户正在重新理解道德化自责。"
+                                    if domain == "meaning_value"
+                                    else ""
+                                ),
+                                "stage_hint": (
+                                    "重新理解旧有求生策略"
+                                    if domain == "meaning_value"
+                                    else ""
+                                ),
+                                "intensity_hint": 7 if domain == "meaning_value" else 5,
+                                "trend_hint": "integrating" if domain == "meaning_value" else "unknown",
+                                "confidence": 0.72 if domain == "meaning_value" else 0.2,
+                                "evidence": (
+                                    ["用户反复询问强烈道德感是否不健康。"]
+                                    if domain == "meaning_value"
+                                    else []
+                                ),
+                                "support_hint": (
+                                    "先去羞耻化，再区分价值与自我惩罚。"
+                                    if domain == "meaning_value"
+                                    else ""
+                                ),
+                            }
+                            for domain in (
+                                "self_relation",
+                                "emotion_regulation",
+                                "relationship",
+                                "agency_boundary",
+                                "trauma_pattern",
+                                "meaning_value",
+                            )
                         ]
                     },
                     ensure_ascii=False,

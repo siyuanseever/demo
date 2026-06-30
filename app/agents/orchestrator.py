@@ -1819,26 +1819,44 @@ class ConversationOrchestrator:
     def _review_state_profiles(self, session_id: str, transcript: str) -> list[dict]:
         current_profiles = self.store.list_state_profiles()
         profile_history = self.store.list_state_profile_versions(limit=30)
+        long_term_memories = [
+            dict(memory)
+            for memory in self.store.recent_memories(limit=24)
+        ]
+        observations = self._extract_state_profile_observations(
+            session_id,
+            transcript,
+        )
         prompt = read_prompt("state_profile_review.md").format(
             domains=", ".join(STATE_PROFILE_DOMAINS),
             trends=", ".join(STATE_PROFILE_TRENDS),
             current_profiles=render_state_profiles(current_profiles),
             profile_history=render_state_profile_history(profile_history),
+            long_term_memories=render_memories(long_term_memories),
+            session_observations=preview_text(
+                json.dumps(observations, ensure_ascii=False),
+                7000,
+            ),
         )
         response = self._chat(
             [
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": transcript},
+                {
+                    "role": "user",
+                    "content": "请完成第二阶段融合，并输出六个 domain 的 updates。",
+                },
             ],
             call_type="state_profile_review",
+            session_id=session_id,
             temperature=0.2,
-            max_tokens=1800,
+            max_tokens=2200,
             response_format={"type": "json_object"},
         )
-        payload = json.loads(response.content)
+        payload = parse_json_object(response.content)
         updates = payload.get("updates", [])
         if not isinstance(updates, list):
-            return []
+            updates = []
+        updates = self._complete_state_profile_updates(updates)
         profiles_by_domain = {
             profile.get("domain"): profile
             for profile in current_profiles
@@ -1877,6 +1895,71 @@ class ConversationOrchestrator:
             )
             results.append(saved)
         return results
+
+    def _extract_state_profile_observations(
+        self,
+        session_id: str,
+        transcript: str,
+    ) -> list[dict]:
+        prompt = read_prompt("state_profile_observation.md").format(
+            domains=", ".join(STATE_PROFILE_DOMAINS),
+            trends=", ".join(STATE_PROFILE_TRENDS),
+        )
+        response = self._chat(
+            [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": transcript},
+            ],
+            call_type="state_profile_observation",
+            session_id=session_id,
+            temperature=0.1,
+            max_tokens=1800,
+            response_format={"type": "json_object"},
+        )
+        payload = parse_json_object(response.content)
+        observations = payload.get("observations", [])
+        if not isinstance(observations, list):
+            observations = []
+        by_domain = {
+            item.get("domain"): item
+            for item in observations
+            if isinstance(item, dict) and item.get("domain") in STATE_PROFILE_DOMAINS
+        }
+        completed = []
+        for domain in STATE_PROFILE_DOMAINS:
+            item = by_domain.get(domain)
+            if item is None:
+                item = {
+                    "domain": domain,
+                    "has_evidence": False,
+                    "observation": "",
+                    "stage_hint": "",
+                    "intensity_hint": 5,
+                    "trend_hint": "unknown",
+                    "confidence": 0.0,
+                    "evidence": [],
+                    "support_hint": "",
+                }
+            completed.append(item)
+        return completed
+
+    def _complete_state_profile_updates(self, updates: list[dict]) -> list[dict]:
+        by_domain = {
+            item.get("domain"): item
+            for item in updates
+            if isinstance(item, dict) and item.get("domain") in STATE_PROFILE_DOMAINS
+        }
+        completed = []
+        for domain in STATE_PROFILE_DOMAINS:
+            item = by_domain.get(domain)
+            if item is None:
+                item = {
+                    "action": "no_change",
+                    "domain": domain,
+                    "reason": "融合阶段未返回该领域，系统按证据不足处理。",
+                }
+            completed.append(item)
+        return completed
 
     def _normalize_state_profile_update(
         self,

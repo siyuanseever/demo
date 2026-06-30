@@ -3469,12 +3469,12 @@ function fmtDur(s) {
 }
 
 function tagClass(type) {
-  const map = { reply:'tag-reply', route_plan:'tag-route', memory_extract:'tag-memory', memory_merge:'tag-memory', journal:'tag-journal', home_hint:'tag-home', quick_reply:'tag-reply', state_profile_review:'tag-other', star_map_monthly_review:'tag-other' };
+  const map = { reply:'tag-reply', route_plan:'tag-route', memory_extract:'tag-memory', memory_merge:'tag-memory', journal:'tag-journal', home_hint:'tag-home', quick_reply:'tag-reply', state_profile_observation:'tag-other', state_profile_review:'tag-other', star_map_monthly_review:'tag-other' };
   return map[type] || 'tag-other';
 }
 
 function tagLabel(type) {
-  const map = { reply:'回复', route_plan:'路由', memory_extract:'记忆提取', memory_merge:'记忆合并', journal:'日记', home_hint:'首页提示', quick_reply:'快速回复', state_profile_review:'状态画像', star_map_monthly_review:'星图' };
+  const map = { reply:'回复', route_plan:'路由', memory_extract:'记忆提取', memory_merge:'记忆合并', journal:'日记', home_hint:'首页提示', quick_reply:'快速回复', state_profile_observation:'状态观察', state_profile_review:'状态融合', star_map_monthly_review:'星图' };
   return map[type] || type;
 }
 

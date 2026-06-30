@@ -401,6 +401,42 @@ class FunctionalTest:
                 "未找到 assistant 消息",
             )
 
+    def test_state_profile_two_stage_contract(self):
+        """长期画像必须先观察再融合，并返回全部六个领域。"""
+        from app.memory.schema import STATE_PROFILE_DOMAINS
+
+        sid = self.store.create_session()
+        calls_before = len(self.llm.calls)
+        results = self.orch._review_state_profiles(
+            sid,
+            "user: 我正在重新理解过去对自己的苛责。\nassistant: 我们可以慢慢看清它。",
+        )
+        state_calls = self.llm.calls[calls_before:]
+        system_prompts = [call["messages"][0]["content"] for call in state_calls]
+        has_two_stages = (
+            len(system_prompts) == 2
+            and "第一阶段" in system_prompts[0]
+            and "第二阶段" in system_prompts[1]
+        )
+        result_domains = [item.get("domain") for item in results]
+        complete = result_domains == list(STATE_PROFILE_DOMAINS)
+        persisted = self.store.list_state_profiles()
+        persisted_domains = {item["domain"] for item in persisted}
+        self._record(
+            "state_profile_two_stage_complete_domains",
+            "状态一致性",
+            has_two_stages and complete and "meaning_value" in persisted_domains,
+            (
+                f"两阶段调用={has_two_stages}，六领域审阅完整={complete}，"
+                f"已持久化领域={sorted(persisted_domains)}"
+            ),
+            {
+                "state_call_count": len(state_calls),
+                "result_domains": result_domains,
+                "persisted_domains": sorted(persisted_domains),
+            },
+        )
+
     # ------------------------------------------------------------------
     # 5. 并发安全测试
     # ------------------------------------------------------------------
@@ -497,6 +533,7 @@ class FunctionalTest:
             self.test_orchestrator_json_parse_on_reply,
             self.test_session_lifecycle,
             self.test_message_metadata,
+            self.test_state_profile_two_stage_contract,
             self.test_concurrent_store_access,
             self.test_critical_function_signatures,
         ]
