@@ -59,6 +59,8 @@ def _run_completeness_checks(project_root: str) -> dict[str, Any]:
     checker.check_file_exists("app/web.py", "Web UI")
     checker.check_file_exists("app/characters.py", "角色定义")
     checker.check_file_exists("app/config.py", "配置模块")
+    checker.check_file_exists("app/evaluation/cases/cases.yaml", "评估用例")
+    checker.check_file_exists("app/evaluation/cases/rubric.md", "评分标准")
 
     # 模块可导入性
     checker.check_module_importable("app.llm.deepseek")

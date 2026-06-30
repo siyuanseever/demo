@@ -476,6 +476,10 @@ app/evaluation/
 ├── diagnose.py              # 失败项自动诊断工具
 ├── prompt_tracker.py        # Prompt 调用追踪器（拦截 LLM 调用，记录完整 prompt）
 ├── prompt_evaluator.py      # Prompt 效果评估（质量评分、JSON 有效性、token 效率）
+├── cases/                   # 评估用例与评分标准
+│   ├── __init__.py          # 用例加载器（load_yaml_cases, load_rubric）
+│   ├── cases.yaml           # 体验评估用例
+│   └── rubric.md            # 对话体验评分标准
 └── tests/
     ├── __init__.py
     ├── benchmarks.py        # 耗时基准测试用例

@@ -47,10 +47,11 @@
 
 7. response_mode（回复模式）：
    - stabilize：先稳定情绪（高风险或强烈情绪波动时）
-   - validate：承接和确认感受（日常倾诉）
-   - insight：提供心理学视角（成长困惑）
+   - validate：承接和确认感受（日常倾诉；通常对应 QUICK_REPLY 或 CLARIFY）
+   - insight：提供心理学视角（成长困惑；通常对应 DEEP_REPLY）
    - action：引导行动（已有清晰方向）
-   - mixed：综合陪伴（最常用）
+   - mixed：综合陪伴（先承接感受，再给理解或行动；DEEP_REPLY 最常用）
+   - 如果 intent=DEEP_REPLY，不要只输出 validate；应优先使用 insight 或 mixed。
 
 8. memory_queries / knowledge_queries：0-6 个检索词。仅在涉及具体人或反复出现的困扰时提取记忆检索词；仅在涉及明确心理概念时提取知识检索词。不要编造。
 
