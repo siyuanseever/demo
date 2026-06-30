@@ -1183,35 +1183,51 @@ class ConversationOrchestrator:
         if detect_crisis(user_text):
             character_id_resolved = character_id if character_id != "auto" else auto_select_character(user_text).id
             result = self._crisis_response(session_id, user_text, character_id_resolved, debug_trace, started_at)
+            yield self._sse_event("final", result)
             yield self._sse_event("done", result)
             return
 
         messages = self.store.get_session_messages(session_id)
+        state_profiles = self.store.list_state_profiles()
 
-        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="reply-stream") as executor:
-            # 并行：意图识别
+        # 先并行执行：意图识别 + 快速回复生成
+        quick_text = ""
+        quick_character_id = character_id if character_id != "auto" else auto_select_character(user_text).id
+        quick_character = get_character(quick_character_id)
+        quick_expression_id = normalize_expression_id(quick_character.id, None)
+
+        executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="reply-stream")
+        intent_future = None
+        try:
             if character_id == "auto":
                 intent_future = executor.submit(
                     self.intent_agent.recognize, user_text, messages[-(5 * 2):],
                 )
-            else:
-                intent_future = None
 
-            # 并行：快速回复文本生成
             quick_future = executor.submit(
-                self._generate_quick_reply_text, user_text, messages[-10:],
-                character_id if character_id != "auto" else auto_select_character(user_text).id,
+                self._generate_quick_reply_text, user_text, messages[-10:], quick_character_id,
             )
 
-            # 推送快速回复（先到先用）
+            # 先拿到快速回复文本（不等待 intent future 完成），确保 SSE 能尽快给用户反馈。
             try:
                 quick_text = quick_future.result(timeout=8)
-                yield self._sse_event("quick_reply", {"text": quick_text})
             except Exception:
-                yield self._sse_event("quick_reply", {"text": ""})
+                quick_text = "我听到了你说的，我在这里。"
+                self.logger.warning("quick reply generation timeout in stream mode")
 
-            # 意图路由与深度回复
+            quick_reply_payload = {
+                "text": quick_text,
+                "character": quick_character.to_public_dict(),
+                "expression": {"id": quick_expression_id, **((quick_character.expressions or {}).get(quick_expression_id, {}))},
+            }
+            debug_trace["quick_reply"] = quick_reply_payload
+
+            # 推送快速回复（第一次回复）
+            yield self._sse_event("quick_reply", quick_reply_payload)
+
+            # 等待意图识别结果
             reply_path = None
+            intent_result = None
             if intent_future is not None:
                 try:
                     intent_result = intent_future.result(timeout=8)
@@ -1219,67 +1235,131 @@ class ConversationOrchestrator:
                     debug_trace["steps"].append({
                         "name": "intent_routing",
                         "status": "done",
-                        "summary": f"路由路径={reply_path.path}",
+                        "summary": f"路由路径={reply_path.path} use_thinking={reply_path.use_thinking}",
                     })
                 except Exception:
                     self.logger.exception("intent recognition failed in stream mode")
 
-            # 根据路由决定是否需要深度回复
-            need_deep = False
-            if reply_path and reply_path.path in ("deep",):
-                need_deep = True
-            elif reply_path is None or character_id != "auto":
-                need_deep = True
+            # 根据路由结果决定第二次回复
+            def attach_deep_reply(result: dict) -> None:
+                debug_trace["deep_reply"] = result["deep_reply"]
+                if isinstance(result.get("debug_trace"), dict):
+                    result["debug_trace"]["quick_reply"] = quick_reply_payload
+                    result["debug_trace"]["deep_reply"] = result["deep_reply"]
 
-            if need_deep:
-                if reply_path and reply_path.use_thinking:
-                    state_profiles = self.store.list_state_profiles()
+            if reply_path is None or character_id != "auto":
+                route_plan = None
+                if character_id == "auto":
                     route_plan = self._choose_reply_roles(
                         session_id, user_text,
                         state_profiles=state_profiles,
                         debug_trace=debug_trace,
                     )
-                elif reply_path and reply_path.route_plan:
-                    route_plan = reply_path.route_plan
-                else:
-                    route_plan = None
-
-                state_profiles = self.store.list_state_profiles()
-                deep_result = self._deep_response(
+                final_result = self._deep_response(
                     session_id, user_text, route_plan,
                     messages, state_profiles, debug_trace, started_at,
                 )
-                yield self._sse_event("deep_reply", {
-                    "text": deep_result["reply"],
-                    "character": deep_result["character"],
-                })
-                yield self._sse_event("final", deep_result)
-            else:
-                # quick/clarify/interaction 路径的结果作为 final
-                if reply_path and reply_path.path == "quick":
-                    final_result = self._quick_response(
-                        session_id, user_text, reply_path, messages, debug_trace, started_at,
-                    )
-                elif reply_path and reply_path.path == "clarify":
-                    final_result = self._clarify_response(
-                        session_id, user_text, reply_path, debug_trace, started_at,
-                    )
-                elif reply_path and reply_path.path == "interaction":
-                    final_result = self._interaction_response(
-                        session_id, user_text, reply_path, debug_trace, started_at,
+                final_result["deep_reply"] = {
+                    "text": final_result["reply"],
+                    "character": final_result["character"],
+                    "expression": final_result.get("expression", {}),
+                }
+                final_result["quick_reply"] = quick_reply_payload
+                attach_deep_reply(final_result)
+                yield self._sse_event("deep_reply", final_result)
+                yield self._sse_event("final", final_result)
+            elif reply_path.path == "deep":
+                if reply_path.use_thinking:
+                    route_plan = self._choose_reply_roles(
+                        session_id, user_text,
+                        state_profiles=state_profiles,
+                        debug_trace=debug_trace,
                     )
                 else:
-                    final_result = {
-                        "reply": "",
-                        "knowledge_cards": [],
-                        "character": {},
-                        "expression": {},
-                        "route_plan": None,
-                        "debug_trace": debug_trace,
-                    }
+                    route_plan = reply_path.route_plan
+                final_result = self._deep_response(
+                    session_id, user_text, route_plan,
+                    messages, state_profiles, debug_trace, started_at,
+                )
+                final_result["deep_reply"] = {
+                    "text": final_result["reply"],
+                    "character": final_result["character"],
+                    "expression": final_result.get("expression", {}),
+                }
+                final_result["quick_reply"] = quick_reply_payload
+                attach_deep_reply(final_result)
+                yield self._sse_event("deep_reply", final_result)
+                yield self._sse_event("final", final_result)
+            elif reply_path.path == "quick":
+                self.store.add_message(
+                    session_id, "assistant", quick_text,
+                    model="quick",
+                    metadata={
+                        "character_id": quick_character.id,
+                        "expression_id": quick_expression_id,
+                        "route_plan": reply_path.route_plan,
+                        "reply_path": "quick",
+                    },
+                )
+                final_result = {
+                    "reply": quick_text,
+                    "group_messages": [],
+                    "knowledge_cards": [],
+                    "character": quick_character.to_public_dict(),
+                    "expression": quick_reply_payload["expression"],
+                    "route_plan": reply_path.route_plan,
+                    "quick_reply": quick_reply_payload,
+                    "debug_trace": {
+                        **debug_trace,
+                        "steps": debug_trace["steps"] + [{
+                            "name": "quick_reply_final",
+                            "status": "done",
+                            "summary": "快速回复即为最终回复，无第二次生成。",
+                        }],
+                        "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                        "llm_call_count": len(debug_trace["llm_calls"]),
+                    },
+                }
+                yield self._sse_event("final", final_result)
+            elif reply_path.path == "clarify":
+                final_result = self._clarify_response(
+                    session_id, user_text, reply_path, debug_trace, started_at,
+                )
+                final_result["quick_reply"] = quick_reply_payload
+                final_result["deep_reply"] = {
+                    "text": final_result["reply"],
+                    "character": final_result["character"],
+                    "expression": final_result.get("expression", {}),
+                }
+                attach_deep_reply(final_result)
+                yield self._sse_event("final", final_result)
+            elif reply_path.path == "interaction":
+                final_result = self._interaction_response(
+                    session_id, user_text, reply_path, debug_trace, started_at,
+                )
+                final_result["quick_reply"] = quick_reply_payload
+                final_result["deep_reply"] = {
+                    "text": final_result["reply"],
+                    "character": final_result["character"],
+                    "expression": final_result.get("expression", {}),
+                }
+                attach_deep_reply(final_result)
+                yield self._sse_event("final", final_result)
+            elif reply_path.path == "crisis":
+                character = get_character(reply_path.route_plan["character_id"]) if reply_path.route_plan else auto_select_character(user_text)
+                final_result = self._crisis_response(session_id, user_text, character.id, debug_trace, started_at)
+                final_result["quick_reply"] = quick_reply_payload
+                final_result["deep_reply"] = {
+                    "text": final_result["reply"],
+                    "character": final_result["character"],
+                    "expression": final_result.get("expression", {}),
+                }
+                attach_deep_reply(final_result)
                 yield self._sse_event("final", final_result)
 
             yield self._sse_event("done", {"status": "complete"})
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     # ------------------------------------------------------------------
     # 辅助方法

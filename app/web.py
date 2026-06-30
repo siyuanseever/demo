@@ -1693,6 +1693,27 @@ HTML = """<!doctype html>
           <button type="button" onclick="window.closeDevPanel()">关闭</button>
         </div>
         ${renderTurnPlan(turnPlan)}
+        ${trace.quick_reply || trace.deep_reply ? `
+        <div class="dev-section">
+          <h3>双次回复</h3>
+          <div class="dev-list">
+            ${trace.quick_reply ? `
+            <div class="dev-item">
+              <div><b>第一次 · 快速回复</b></div>
+              <div class="meta">${escapeHtml(trace.quick_reply.text || "")}</div>
+              ${trace.quick_reply.character?.name ? `<div class="meta">角色：${escapeHtml(trace.quick_reply.character.name)}</div>` : ""}
+            </div>
+            ` : ""}
+            ${trace.deep_reply ? `
+            <div class="dev-item">
+              <div><b>第二次 · 深度回复</b></div>
+              <div class="meta">${escapeHtml(trace.deep_reply.text || "")}</div>
+              ${trace.deep_reply.character?.name ? `<div class="meta">角色：${escapeHtml(trace.deep_reply.character.name)}</div>` : ""}
+            </div>
+            ` : ""}
+          </div>
+        </div>
+        ` : ""}
         <div class="dev-section">
           <h3>流程步骤</h3>
           <div class="dev-list">
@@ -1852,6 +1873,27 @@ HTML = """<!doctype html>
       return icons[action] || "";
     }
 
+    function appendKnowledgeCards(bubble, knowledgeCards = []) {
+      if (!knowledgeCards.length) return;
+      const oldCards = bubble.querySelector(".used-cards");
+      if (oldCards) oldCards.remove();
+      const cards = document.createElement("div");
+      cards.className = "used-cards";
+      const label = document.createElement("div");
+      label.className = "meta";
+      label.textContent = "本轮参考知识卡";
+      cards.appendChild(label);
+      for (const card of knowledgeCards) {
+        const tag = document.createElement("span");
+        tag.className = "used-card";
+        tag.textContent = card.title;
+        tag.title = card.concept || "";
+        tag.onclick = () => showKnowledgeDetail(card.id);
+        cards.appendChild(tag);
+      }
+      bubble.appendChild(cards);
+    }
+
     function addMessage(role, text, knowledgeCards = [], characterId = null, options = {}) {
       const character = characterId ? characterById(characterId) : CHARACTERS[0];
       const expression = role === "user" ? null : expressionFor(character, options.expressionId || options.expression_id || "");
@@ -1894,6 +1936,11 @@ HTML = """<!doctype html>
       if (role !== "user" && character.bubble_color) {
         bubble.style.background = character.bubble_color;
       }
+      if (options.isQuickReply) {
+        row.classList.add("quick-reply");
+        bubble.style.borderStyle = "dashed";
+        bubble.style.opacity = "0.85";
+      }
       const head = document.createElement("div");
       head.className = "message-head";
       const face = document.createElement("span");
@@ -1928,26 +1975,11 @@ HTML = """<!doctype html>
       } else {
         body.classList.add("expanded");
       }
-      if (knowledgeCards.length) {
-        const cards = document.createElement("div");
-        cards.className = "used-cards";
-        const label = document.createElement("div");
-        label.className = "meta";
-        label.textContent = "本轮参考知识卡";
-        cards.appendChild(label);
-        for (const card of knowledgeCards) {
-          const tag = document.createElement("span");
-          tag.className = "used-card";
-          tag.textContent = card.title;
-          tag.title = card.concept || "";
-          tag.onclick = () => showKnowledgeDetail(card.id);
-          cards.appendChild(tag);
-        }
-        bubble.appendChild(cards);
-      }
+      appendKnowledgeCards(bubble, knowledgeCards);
       row.appendChild(bubble);
       messages.appendChild(row);
       messages.scrollTop = messages.scrollHeight;
+      return row;
     }
 
     function addSystem(text) {
@@ -1961,7 +1993,7 @@ HTML = """<!doctype html>
     const WEB_TIMEOUT_MS = __WEB_TIMEOUT_MS__;
     const END_TIMEOUT_MS = Math.max(WEB_TIMEOUT_MS, 90000);
 
-    async function listenSSE(url, payload) {
+    async function listenSSE(url, payload, onEvent) {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1984,7 +2016,9 @@ HTML = """<!doctype html>
             currentEvent = line.slice(7).trim();
           } else if (line.startsWith("data: ")) {
             try {
-              events.push({ type: currentEvent || "message", data: JSON.parse(line.slice(6)) });
+              const event = { type: currentEvent || "message", data: JSON.parse(line.slice(6)) };
+              events.push(event);
+              if (onEvent) onEvent(event);
             } catch (e) { /* skip */ }
           }
         }
@@ -2018,6 +2052,7 @@ HTML = """<!doctype html>
 
     function replaceMessageContent(node, newText, knowledgeCards, characterId, options) {
       if (!node) return;
+      node.classList.remove("quick-reply");
       const body = node.querySelector(".message-body");
       if (body) {
         body.textContent = newText;
@@ -2038,6 +2073,12 @@ HTML = """<!doctype html>
             if (avatar && expr.path) avatar.src = expr.path;
           }
         }
+      }
+      const bubble = node.querySelector(".bubble");
+      if (bubble) {
+        bubble.style.borderStyle = "";
+        bubble.style.opacity = "";
+        appendKnowledgeCards(bubble, knowledgeCards || []);
       }
     }
 
@@ -2119,19 +2160,59 @@ HTML = """<!doctype html>
         const currentSessionId = await ensureSession();
         addMessage("user", text);
         addSystem(thinkingName + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
-        let data;
+        let data = null;
+        let quickReplyNode = null;
+        let hasDeepReply = false;
+
         try {
-          const events = await listenSSE("/api/chat_stream", { session_id: currentSessionId, text, character_id: sendingCharacterId });
+          const events = await listenSSE(
+            "/api/chat_stream",
+            { session_id: currentSessionId, text, character_id: sendingCharacterId },
+            (event) => {
+            if (event.type === "quick_reply") {
+              const d = event.data;
+              quickReplyNode = addMessage(
+                "deer", d.text, [],
+                d.character?.id || activeCharacterId,
+                { expressionId: d.expression?.id || "", isQuickReply: true }
+              );
+              if (d.character?.id) updateAnimalState(d.character.id, d.text);
+            } else if (event.type === "deep_reply") {
+              const d = event.data;
+              hasDeepReply = true;
+              if (quickReplyNode) {
+                replaceMessageContent(quickReplyNode, d.reply, d.knowledge_cards || [],
+                  d.character?.id || activeCharacterId,
+                  { expressionId: d.expression?.id || "" }
+                );
+                quickReplyNode = null;
+              } else {
+                addMessage("deer", d.reply, d.knowledge_cards || [],
+                  d.character?.id || activeCharacterId,
+                  { expressionId: d.expression?.id || "" }
+                );
+              }
+              if (d.character?.id) {
+                activeCharacterId = d.character.id;
+                updateAnimalState(d.character.id, d.reply);
+              }
+            } else if (event.type === "final") {
+              data = event.data;
+              if (!hasDeepReply && quickReplyNode) {
+                markMessageFinal(quickReplyNode);
+                quickReplyNode = null;
+              }
+            }
+            }
+          );
           const errorEvent = events.find(e => e.type === "error");
           if (errorEvent) throw new Error(errorEvent.data.error || "SSE 流式错误");
-          const finalEvent = events.find(e => e.type === "final");
-          const doneEvent = events.find(e => e.type === "done" && (e.data?.reply || e.data?.group_messages));
-          data = finalEvent?.data || doneEvent?.data || events.find(e => e.type === "message")?.data;
+
           if (!data) throw new Error("SSE 未返回有效数据");
-          if (!data.reply && !data.group_messages) throw new Error("SSE 数据不完整，降级到普通请求");
         } catch (sseError) {
           addSystem("流式连接不可用，切换普通请求...");
           data = await post("/api/chat", { session_id: currentSessionId, text, character_id: sendingCharacterId });
+          addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId, { expressionId: data.expression?.id || "" });
         }
         lastDebugTrace = data.debug_trace || null;
         renderDevPanel(lastDebugTrace);
@@ -2146,23 +2227,6 @@ HTML = """<!doctype html>
           localStorage.setItem("xiaolu.character", activeCharacterId);
           updateAnimalState(data.character.id, data.reply);
           renderSelectedAnimalCard();
-        }
-        if (Array.isArray(data.group_messages) && data.group_messages.length) {
-          const knowledgeCards = Array.isArray(data.knowledge_cards) ? data.knowledge_cards : [];
-          const mainMessageIndex = data.group_messages.findIndex(item => String(item.role || item.group_role || "").trim().toLowerCase() === "main");
-          const cardTargetIndex = mainMessageIndex >= 0 ? mainMessageIndex : data.group_messages.length - 1;
-          data.group_messages.forEach((item, index) => {
-            if (item.character?.id) updateAnimalState(item.character.id, item.text);
-            addMessage(
-              "deer",
-              item.text,
-              index === cardTargetIndex ? knowledgeCards : [],
-              item.character?.id || activeCharacterId,
-              { groupRole: item.role, action: item.action || "", expressionId: item.expression?.id || item.expression_id || "" }
-            );
-          });
-        } else {
-          addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId, { expressionId: data.expression?.id || "" });
         }
       } catch (error) {
         addSystem(error.message);
