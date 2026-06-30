@@ -90,6 +90,24 @@ def _run_completeness_checks(project_root: str) -> dict[str, Any]:
     return checker.summary()
 
 
+def _run_reply_speed_tests() -> dict[str, Any]:
+    """运行回复速度测试"""
+    from app.evaluation.tests.test_reply_speed import speed_suite
+    return speed_suite()
+
+
+def _run_reply_quality_tests() -> dict[str, Any]:
+    """运行回复质量测试"""
+    from app.evaluation.tests.test_reply_quality import quality_suite
+    return quality_suite()
+
+
+def _run_functional_tests() -> dict[str, Any]:
+    """运行功能完整性与鲁棒性测试"""
+    from app.evaluation.tests.test_functional import functional_suite
+    return functional_suite()
+
+
 class EvaluationRunner:
     """评估运行器"""
 
@@ -111,7 +129,7 @@ class EvaluationRunner:
         print("=" * 60)
 
         # 1. 耗时基准测试
-        print("\n[1/5] ⏱  耗时评估...")
+        print("\n[1/8] ⏱  耗时基准评估...")
         try:
             timer_summary = _run_timer_benchmarks()
             print(f"   完成, 记录了 {len(timer_summary)} 个模块的耗时数据")
@@ -120,7 +138,7 @@ class EvaluationRunner:
             timer_summary = []
 
         # 2. 性能指标采集
-        print("\n[2/5] 📊 性能指标采集...")
+        print("\n[2/8] 📊 性能指标采集...")
         try:
             self.metrics.record_memory()
             self.metrics.record_cpu()
@@ -129,7 +147,7 @@ class EvaluationRunner:
             print(f"   错误: {e}")
 
         # 3. 准确率测试
-        print("\n[3/5] ✅ 准确率评估...")
+        print("\n[3/8] ✅ 准确率评估...")
         try:
             accuracy_result = _run_accuracy_tests()
             print(f"   通过: {accuracy_result.get('passed', 0)}/{accuracy_result.get('total', 0)}")
@@ -138,7 +156,7 @@ class EvaluationRunner:
             accuracy_result = {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0}
 
         # 4. 鲁棒性测试
-        print("\n[4/5] 🛡 鲁棒性评估...")
+        print("\n[4/8] 🛡 鲁棒性评估...")
         try:
             robustness_result = _run_robustness_tests()
             print(f"   通过: {robustness_result.get('passed', 0)}/{robustness_result.get('total', 0)}")
@@ -147,13 +165,40 @@ class EvaluationRunner:
             robustness_result = {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0}
 
         # 5. 完整性检查
-        print("\n[5/5] 📦 完整性评估...")
+        print("\n[5/8] 📦 完整性评估...")
         try:
             completeness_result = _run_completeness_checks(self.project_root)
             print(f"   通过: {completeness_result.get('passed', 0)}/{completeness_result.get('total', 0)}")
         except Exception as e:
             print(f"   错误: {e}")
             completeness_result = {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0}
+
+        # 6. 回复速度测试
+        print("\n[6/8] ⚡ 回复速度评估...")
+        try:
+            speed_result = _run_reply_speed_tests()
+            print(f"   通过: {speed_result.get('passed', 0)}/{speed_result.get('total', 0)}")
+        except Exception as e:
+            print(f"   错误: {e}")
+            speed_result = {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0}
+
+        # 7. 回复质量测试
+        print("\n[7/8] 💬 回复质量评估...")
+        try:
+            quality_result = _run_reply_quality_tests()
+            print(f"   通过: {quality_result.get('passed', 0)}/{quality_result.get('total', 0)}")
+        except Exception as e:
+            print(f"   错误: {e}")
+            quality_result = {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0}
+
+        # 8. 功能完整性测试
+        print("\n[8/8] 🔧 功能完整性评估...")
+        try:
+            functional_result = _run_functional_tests()
+            print(f"   通过: {functional_result.get('passed', 0)}/{functional_result.get('total', 0)}")
+        except Exception as e:
+            print(f"   错误: {e}")
+            functional_result = {"total": 0, "passed": 0, "failed": 0, "pass_rate": 0}
 
         elapsed = time.monotonic() - started_at
 
@@ -170,16 +215,25 @@ class EvaluationRunner:
         accuracy_result = _to_dict(accuracy_result)
         robustness_result = _to_dict(robustness_result)
         completeness_result = _to_dict(completeness_result)
+        speed_result = _to_dict(speed_result)
+        quality_result = _to_dict(quality_result)
+        functional_result = _to_dict(functional_result)
 
         total_tests = (
             accuracy_result.get("total", 0)
             + robustness_result.get("total", 0)
             + completeness_result.get("total", 0)
+            + speed_result.get("total", 0)
+            + quality_result.get("total", 0)
+            + functional_result.get("total", 0)
         )
         total_passed = (
             accuracy_result.get("passed", 0)
             + robustness_result.get("passed", 0)
             + completeness_result.get("passed", 0)
+            + speed_result.get("passed", 0)
+            + quality_result.get("passed", 0)
+            + functional_result.get("passed", 0)
         )
         total_failed = total_tests - total_passed
         overall_pass_rate = total_passed / total_tests if total_tests else 0
@@ -199,6 +253,9 @@ class EvaluationRunner:
             "accuracy": accuracy_result,
             "robustness": robustness_result,
             "completeness": completeness_result,
+            "reply_speed": speed_result,
+            "reply_quality": quality_result,
+            "functional": functional_result,
         }
 
         # 生成报告

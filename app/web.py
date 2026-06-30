@@ -2211,13 +2211,17 @@ HTML = """<!doctype html>
               const d = event.data;
               hasDeepReply = true;
               if (quickReplyNode) {
-                markMessageFinal(quickReplyNode);
+                replaceMessageContent(quickReplyNode, d.reply, d.knowledge_cards || [],
+                  d.character?.id || activeCharacterId,
+                  { expressionId: d.expression?.id || "" }
+                );
                 quickReplyNode = null;
+              } else {
+                addMessage("deer", d.reply, d.knowledge_cards || [],
+                  d.character?.id || activeCharacterId,
+                  { expressionId: d.expression?.id || "" }
+                );
               }
-              addMessage("deer", d.reply, d.knowledge_cards || [],
-                d.character?.id || activeCharacterId,
-                { expressionId: d.expression?.id || "" }
-              );
               if (d.character?.id) {
                 activeCharacterId = d.character.id;
                 updateAnimalState(d.character.id, d.reply);
@@ -2234,7 +2238,11 @@ HTML = """<!doctype html>
           const errorEvent = events.find(e => e.type === "error");
           if (errorEvent) throw new Error(errorEvent.data.error || "SSE 流式错误");
 
-          if (!data) throw new Error("SSE 未返回有效数据");
+          if (!data) {
+            const finalEvent = events.find(e => e.type === "final");
+            if (finalEvent) data = finalEvent.data;
+          }
+          if (!data) data = {};
         } catch (sseError) {
           addSystem("流式连接不可用，切换普通请求...");
           data = await post("/api/chat", { session_id: currentSessionId, text, character_id: sendingCharacterId });
@@ -3058,12 +3066,6 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/harness-status":
                 self.respond_harness_status()
                 return
-            if path == "/api/loop-status":
-                self.respond_loop_status()
-                return
-            if path == "/api/loop-memories":
-                self.respond_loop_memories()
-                return
             self.send_error(404)
         except Exception as error:
             self.logger.exception("http get error path=%s", path)
@@ -3325,59 +3327,6 @@ class Handler(BaseHTTPRequestHandler):
             }
         })
 
-    def respond_loop_status(self) -> None:
-        """返回 Loop 迭代状态"""
-        from app.loop.state import LoopState
-        from app.loop.task_selector import TaskSelector
-        from app.loop.memory import LoopMemory
-
-        state = LoopState.load_from_disk()
-        selector = TaskSelector()
-        all_tasks = selector.list_all()
-        pending = [t for t in all_tasks if t.id not in set(state.completed_tasks)]
-        mem = LoopMemory()
-        memories = mem.list_all(limit=1)
-
-        self.respond_json({
-            "iteration": state.iteration_number,
-            "completed_tasks": len(state.completed_tasks),
-            "pending_tasks": len(pending),
-            "total_tasks": len(all_tasks),
-            "last_action": state.last_action_result.get("status", "unknown"),
-            "latest_memory": memories[0].content if memories else None,
-        })
-
-    def respond_loop_memories(self) -> None:
-        """返回 Loop 记忆列表"""
-        from app.loop.memory import LoopMemory
-        from urllib.parse import urlparse
-
-        query = urlparse(self.path).query
-        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
-        type_filter = params.get("type") or None
-        limit = 20
-        if "limit" in params:
-            try:
-                limit = max(1, min(int(params["limit"]), 100))
-            except (TypeError, ValueError):
-                pass
-
-        mem = LoopMemory()
-        entries = mem.query_memories(type_filter=type_filter, limit=limit)
-
-        self.respond_json({
-            "entries": [
-                {
-                    "timestamp": e.timestamp,
-                    "iteration": e.iteration,
-                    "type": e.type,
-                    "content": e.content,
-                    "tags": e.tags,
-                }
-                for e in entries
-            ],
-            "count": len(entries),
-        })
 
 
 PROMPT_INSPECTOR_HTML = r"""<!doctype html>

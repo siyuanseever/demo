@@ -44,6 +44,9 @@ class ReportGenerator:
         accuracy = data.get("accuracy", {})
         robustness = data.get("robustness", {})
         completeness = data.get("completeness", {})
+        reply_speed = data.get("reply_speed", {})
+        reply_quality = data.get("reply_quality", {})
+        functional = data.get("functional", {})
 
         def _card(title: str, content: str, color: str = "#3498db") -> str:
             return f"""
@@ -144,6 +147,66 @@ class ReportGenerator:
                 f"<p>{_badge('通过数', f'{comp_passed}/{comp_total}', comp_rate >= 0.95)}</p>" +
                 _table(["模块", "总数", "通过", "通过率"], complete_rows),
             "#1abc9c")
+
+        # 回复速度
+        speed_details = reply_speed.get("details", [])
+        if speed_details:
+            speed_total = reply_speed.get("total", 0)
+            speed_passed = reply_speed.get("passed", 0)
+            speed_rate = reply_speed.get("pass_rate", 0)
+            speed_rows = []
+            for d in speed_details:
+                status = "✅" if d.get("passed") else "❌"
+                speed_rows.append([
+                    f"{status} {d.get('test_name', '')}",
+                    f"{d.get('elapsed_sec', 0):.3f}s",
+                    f"{d.get('sla_sec', 0)}s",
+                    d.get("path", ""),
+                    d.get("message", "")[:80],
+                ])
+            sections += _card("⚡ 回复速度评估",
+                f"<p>{_badge('通过数', f'{speed_passed}/{speed_total}', speed_rate >= 0.95)}</p>" +
+                _table(["测试项", "耗时", "SLA", "路径", "说明"], speed_rows),
+            "#e74c3c")
+
+        # 回复质量
+        quality_details = reply_quality.get("details", [])
+        if quality_details:
+            quality_total = reply_quality.get("total", 0)
+            quality_passed = reply_quality.get("passed", 0)
+            quality_rate = reply_quality.get("pass_rate", 0)
+            quality_rows = []
+            for d in quality_details:
+                status = "✅" if d.get("passed") else "❌"
+                quality_rows.append([
+                    f"{status} {d.get('test_name', '')}",
+                    d.get("dimension", ""),
+                    f"{d.get('score', 0):.2f}",
+                    d.get("message", "")[:100],
+                ])
+            sections += _card("💬 回复质量评估",
+                f"<p>{_badge('通过数', f'{quality_passed}/{quality_total}', quality_rate >= 0.95)}</p>" +
+                _table(["测试项", "维度", "得分", "说明"], quality_rows),
+            "#9b59b6")
+
+        # 功能完整性
+        functional_details = functional.get("details", [])
+        if functional_details:
+            func_total = functional.get("total", 0)
+            func_passed = functional.get("passed", 0)
+            func_rate = functional.get("pass_rate", 0)
+            func_rows = []
+            for d in functional_details:
+                status = "✅" if d.get("passed") else "❌"
+                func_rows.append([
+                    f"{status} {d.get('test_name', '')}",
+                    d.get("category", ""),
+                    d.get("message", "")[:100],
+                ])
+            sections += _card("🔧 功能完整性评估",
+                f"<p>{_badge('通过数', f'{func_passed}/{func_total}', func_rate >= 0.95)}</p>" +
+                _table(["测试项", "类别", "说明"], func_rows),
+            "#f39c12")
 
         return f"""<!DOCTYPE html>
 <html lang="zh-CN">
