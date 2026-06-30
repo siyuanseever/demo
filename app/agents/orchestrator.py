@@ -245,6 +245,9 @@ class ConversationOrchestrator:
         self.knowledge = KnowledgeRetriever()
         self.logger = logging.getLogger(__name__)
         settings = get_settings()
+        self.quick_reply_max_tokens = settings.quick_reply_max_tokens
+        self.quick_reply_history_turns = settings.quick_reply_history_turns
+        self.quick_reply_history_chars = settings.quick_reply_history_chars
         self.intent_agent = IntentAgent(
             llm,
             confidence_threshold=settings.intent_confidence_threshold,
@@ -1222,40 +1225,49 @@ class ConversationOrchestrator:
             quick_future = executor.submit(
                 self._generate_quick_reply_text,
                 user_text,
-                messages[-10:],
+                messages,
                 quick_character_id,
                 debug_trace=debug_trace,
             )
 
-            # 先拿到快速回复文本（不等待 intent future 完成），确保 SSE 能尽快给用户反馈。
+            # 等待真实 quick 模型结果。quick 的速度通过更短 prompt / 更少上下文 / 更小 max_tokens 控制，
+            # 不使用本地模板兜底，避免前端展示内容与开发面板 trace 不一致。
+            quick_source = "llm"
+            quick_reply_payload = None
             try:
-                quick_text = quick_future.result(timeout=8)
+                quick_text = quick_future.result()
             except Exception:
-                quick_text = "我听到了你说的，我在这里。"
-                self.logger.warning("quick reply generation timeout in stream mode")
+                self.logger.exception("quick reply generation failed in stream mode; skip quick event")
+                debug_trace["steps"].append({
+                    "name": "quick_reply",
+                    "status": "skipped",
+                    "summary": "快速回复模型调用失败，未使用本地模板兜底。",
+                })
+            if quick_text:
+                quick_reply_payload = {
+                    "text": quick_text,
+                    "character": quick_character.to_public_dict(),
+                    "expression": {"id": quick_expression_id, **((quick_character.expressions or {}).get(quick_expression_id, {}))},
+                    "source": quick_source,
+                }
+                debug_trace["quick_reply"] = quick_reply_payload
+                self.store.add_message(
+                    session_id,
+                    "assistant",
+                    quick_text,
+                    model="quick",
+                    metadata={
+                        "character_id": quick_character.id,
+                        "expression_id": quick_expression_id,
+                        "reply_path": "quick",
+                        "reply_stage": "quick",
+                        "reply_group_id": reply_group_id,
+                        "quick_source": quick_source,
+                    },
+                )
 
-            quick_reply_payload = {
-                "text": quick_text,
-                "character": quick_character.to_public_dict(),
-                "expression": {"id": quick_expression_id, **((quick_character.expressions or {}).get(quick_expression_id, {}))},
-            }
-            debug_trace["quick_reply"] = quick_reply_payload
-            self.store.add_message(
-                session_id,
-                "assistant",
-                quick_text,
-                model="quick",
-                metadata={
-                    "character_id": quick_character.id,
-                    "expression_id": quick_expression_id,
-                    "reply_path": "quick",
-                    "reply_stage": "quick",
-                    "reply_group_id": reply_group_id,
-                },
-            )
-
-            # 推送快速回复（第一次回复）
-            yield self._sse_event("quick_reply", quick_reply_payload)
+                # 推送快速回复（第一次回复）
+                yield self._sse_event("quick_reply", quick_reply_payload)
 
             # 等待意图识别结果
             reply_path = None
@@ -1298,7 +1310,8 @@ class ConversationOrchestrator:
             def attach_deep_reply(result: dict) -> None:
                 debug_trace["deep_reply"] = result["deep_reply"]
                 if isinstance(result.get("debug_trace"), dict):
-                    result["debug_trace"]["quick_reply"] = quick_reply_payload
+                    if quick_reply_payload is not None:
+                        result["debug_trace"]["quick_reply"] = quick_reply_payload
                     result["debug_trace"]["deep_reply"] = result["deep_reply"]
 
             if reply_path is None or character_id != "auto":
@@ -1319,7 +1332,8 @@ class ConversationOrchestrator:
                     "character": final_result["character"],
                     "expression": final_result.get("expression", {}),
                 }
-                final_result["quick_reply"] = quick_reply_payload
+                if quick_reply_payload is not None:
+                    final_result["quick_reply"] = quick_reply_payload
                 attach_deep_reply(final_result)
                 yield self._sse_event("deep_reply", final_result)
                 yield self._sse_event("final", final_result)
@@ -1342,11 +1356,28 @@ class ConversationOrchestrator:
                     "character": final_result["character"],
                     "expression": final_result.get("expression", {}),
                 }
-                final_result["quick_reply"] = quick_reply_payload
+                if quick_reply_payload is not None:
+                    final_result["quick_reply"] = quick_reply_payload
                 attach_deep_reply(final_result)
                 yield self._sse_event("deep_reply", final_result)
                 yield self._sse_event("final", final_result)
             elif reply_path.path == "quick":
+                if quick_reply_payload is None:
+                    final_result = self._deep_response(
+                        session_id, user_text, reply_path.route_plan,
+                        messages, state_profiles, debug_trace, started_at,
+                        extra_metadata={"reply_stage": "deep", "reply_group_id": reply_group_id},
+                    )
+                    final_result["deep_reply"] = {
+                        "text": final_result["reply"],
+                        "character": final_result["character"],
+                        "expression": final_result.get("expression", {}),
+                    }
+                    attach_deep_reply(final_result)
+                    yield self._sse_event("deep_reply", final_result)
+                    yield self._sse_event("final", final_result)
+                    yield self._sse_event("done", {"status": "complete"})
+                    return
                 final_result = {
                     "reply": quick_text,
                     "group_messages": [],
@@ -1371,7 +1402,8 @@ class ConversationOrchestrator:
                 final_result = self._clarify_response(
                     session_id, user_text, reply_path, debug_trace, started_at,
                 )
-                final_result["quick_reply"] = quick_reply_payload
+                if quick_reply_payload is not None:
+                    final_result["quick_reply"] = quick_reply_payload
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
                     "character": final_result["character"],
@@ -1384,7 +1416,8 @@ class ConversationOrchestrator:
                 final_result = self._interaction_response(
                     session_id, user_text, reply_path, debug_trace, started_at,
                 )
-                final_result["quick_reply"] = quick_reply_payload
+                if quick_reply_payload is not None:
+                    final_result["quick_reply"] = quick_reply_payload
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
                     "character": final_result["character"],
@@ -1396,7 +1429,8 @@ class ConversationOrchestrator:
             elif reply_path.path == "crisis":
                 character = get_character(reply_path.route_plan["character_id"]) if reply_path.route_plan else auto_select_character(user_text)
                 final_result = self._crisis_response(session_id, user_text, character.id, debug_trace, started_at)
-                final_result["quick_reply"] = quick_reply_payload
+                if quick_reply_payload is not None:
+                    final_result["quick_reply"] = quick_reply_payload
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
                     "character": final_result["character"],
@@ -1421,45 +1455,54 @@ class ConversationOrchestrator:
         character_id: str,
         debug_trace: dict | None = None,
     ) -> str:
-        """使用短上下文、简化 persona 生成快速回复文本。max_tokens=400。"""
+        """使用极短上下文生成真实 quick 回复。"""
         character = get_character(character_id)
-        system_prompt = read_prompt("persona.md").format(
-            character_profile=character.prompt,
-            current_character_name=character.name,
-            conversation_history=render_conversation_history(recent_history[-10:]),
-            memories="暂无",
-            state_profiles="暂无",
-            knowledge_cards="暂无",
-            role_plan="本轮是快速回复模式，保持简洁温暖，1-2 段即可。",
+        history_text = self._render_quick_history(recent_history)
+        system_prompt = (
+            f"你是{character.name}，{character.voice}\n"
+            f"角色核心：{character.tagline}\n"
+            "任务：生成第一条快速回应，用来让用户尽快感到被听见。\n"
+            "要求：只回复 1-2 句；不要长篇分析；不要列点；不要写角色名；不要写动作描写；"
+            "要贴着用户这句话里的具体情绪或需求说，不要使用空泛模板。\n"
+            f"最近上下文：\n{history_text or '（无）'}"
         )
         started_at = time.monotonic()
-        try:
-            response = self._chat(
-                [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_text}],
-                call_type="quick_reply",
-                temperature=0.75,
-                max_tokens=400,
-            )
-            if debug_trace is not None:
-                debug_trace["llm_calls"].append({
-                    "name": "quick_reply",
-                    "model": response.model,
-                    "elapsed_sec": round(time.monotonic() - started_at, 2),
-                    "response_format": "text",
-                    "raw_output": preview_text(response.content),
-                })
-            return response.content.strip()
-        except Exception:
-            self.logger.exception("quick reply generation failed")
-            if debug_trace is not None:
-                debug_trace["llm_calls"].append({
-                    "name": "quick_reply",
-                    "model": "unknown",
-                    "elapsed_sec": round(time.monotonic() - started_at, 2),
-                    "response_format": "text",
-                    "error": "快速回复生成失败，已使用兜底文本。",
-                })
-            return "我听到了你说的，我在这里。"
+        response = self._chat(
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_text}],
+            call_type="quick_reply",
+            temperature=0.65,
+            max_tokens=self.quick_reply_max_tokens,
+        )
+        if debug_trace is not None:
+            debug_trace["llm_calls"].append({
+                "name": "quick_reply",
+                "model": response.model,
+                "elapsed_sec": round(time.monotonic() - started_at, 2),
+                "response_format": "text",
+                "raw_output": preview_text(response.content),
+                "prompt_chars": len(system_prompt) + len(user_text),
+                "history_turns": self.quick_reply_history_turns,
+                "max_tokens": self.quick_reply_max_tokens,
+            })
+        return response.content.strip()
+
+    def _render_quick_history(self, recent_history: list) -> str:
+        items = recent_history[-max(0, self.quick_reply_history_turns * 2):]
+        lines = []
+        budget = max(0, self.quick_reply_history_chars)
+        for item in items:
+            role = item["role"] if isinstance(item, dict) else item["role"]
+            content = item["content"] if isinstance(item, dict) else item["content"]
+            label = "用户" if role == "user" else "助手"
+            line = f"{label}：{str(content).strip()}"
+            if budget and len(line) > budget:
+                line = line[:budget] + "..."
+            lines.append(line)
+            if budget:
+                budget -= len(line)
+                if budget <= 0:
+                    break
+        return "\n".join(lines)
 
     def _generate_interaction_content(self, interaction_type: str, character) -> str:
         """根据 interaction_type 使用模板生成交互引导内容。"""

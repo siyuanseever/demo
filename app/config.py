@@ -21,6 +21,9 @@ class Settings:
     intent_confidence_threshold: float
     intent_quick_max_tokens: int
     intent_timeout_ms: int
+    quick_reply_max_tokens: int
+    quick_reply_history_turns: int
+    quick_reply_history_chars: int
     prompt_tracking_enabled: bool
 
 
@@ -57,5 +60,8 @@ def get_settings() -> Settings:
         intent_confidence_threshold=float(os.getenv("INTENT_CONFIDENCE_THRESHOLD", "0.85")),
         intent_quick_max_tokens=int(os.getenv("INTENT_QUICK_MAX_TOKENS", "400")),
         intent_timeout_ms=int(os.getenv("INTENT_TIMEOUT_MS", "8000")),
+        quick_reply_max_tokens=int(os.getenv("QUICK_REPLY_MAX_TOKENS", "120")),
+        quick_reply_history_turns=int(os.getenv("QUICK_REPLY_HISTORY_TURNS", "2")),
+        quick_reply_history_chars=int(os.getenv("QUICK_REPLY_HISTORY_CHARS", "600")),
         prompt_tracking_enabled=os.getenv("PROMPT_TRACKING_ENABLED", "false").lower() == "true",
     )
