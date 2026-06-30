@@ -16,7 +16,28 @@ class FakeClient:
     ) -> LLMResponse:
         if response_format:
             system = messages[0]["content"]
-            if "策略规划器" in system:
+            if "统一意图识别层" in system:
+                content = json.dumps(
+                    {
+                        "intent": "DEEP_REPLY",
+                        "confidence": 0.92,
+                        "emotion": "困惑",
+                        "risk_level": "low",
+                        "character_id": "yoran",
+                        "expression_id": "serene",
+                        "response_mode": "insight",
+                        "memory_queries": ["道德感", "自我苛责", "完美主义"],
+                        "knowledge_queries": ["严苛内在批判者", "创伤性向内归因"],
+                        "user_state": "在复杂情绪里寻找心理机制解释",
+                        "core_need": "被理解并理清内在模式",
+                        "response_guidance": "先承接，再温和解释心理机制。",
+                        "clarify_reply": "",
+                        "interaction_type": "",
+                        "reason": "fake 模式：固定走深度回复。",
+                    },
+                    ensure_ascii=False,
+                )
+            elif "策略规划器" in system:
                 content = json.dumps(
                     {
                         "user_state": "在复杂情绪里寻找心理机制解释",

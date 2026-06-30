@@ -1,5 +1,4 @@
 .env
-data/*.db
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -11,7 +10,9 @@ log.txt
 waterline/
 tools/
 ios/DerivedData*/
-
+eval_reports/
+prompt-evaluation-report/prompt-evaluation-report.html
+prompt-evaluation-report/
 # macOS 系统文件
 .DS_Store
 
@@ -21,3 +22,6 @@ context.md
 prompt.py
 tmp.md
 project-architecture-visualization/
+data/
+data/intent_test_set.jsonl
+.trae/documents/intent-routing-integration.md

@@ -14,6 +14,9 @@ from app.characters import (
     get_character,
     normalize_expression_id,
 )
+from app.config import get_settings
+from app.intent.agent import IntentAgent
+from app.intent.router import IntentRouter
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
 from app.memory.schema import MEMORY_CATEGORIES, STATE_PROFILE_DOMAINS, STATE_PROFILE_TRENDS
@@ -246,6 +249,38 @@ class ConversationOrchestrator:
         self.store = store
         self.knowledge = KnowledgeRetriever()
         self.logger = logging.getLogger(__name__)
+        settings = get_settings()
+        self.intent_agent = IntentAgent(
+            llm,
+            confidence_threshold=settings.intent_confidence_threshold,
+            max_history_turns=5,
+            max_tokens=settings.intent_quick_max_tokens,
+        )
+        self.intent_router = IntentRouter(confidence_threshold=settings.intent_confidence_threshold)
+
+    def _chat(
+        self,
+        messages,
+        *,
+        call_type="",
+        session_id=None,
+        temperature=0.7,
+        max_tokens=1200,
+        response_format=None,
+        thinking=None,
+        reasoning_effort=None,
+    ):
+        """包装 LLM 调用，自动设置 Prompt 追踪上下文"""
+        if hasattr(self.llm, "set_context"):
+            self.llm.set_context(call_type=call_type, session_id=session_id)
+        return self.llm.chat(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+            thinking=thinking,
+            reasoning_effort=reasoning_effort,
+        )
 
     def start_session(self) -> str:
         session_id = self.store.create_session()
@@ -287,11 +322,12 @@ class ConversationOrchestrator:
             f"{preview_text(json.dumps([item.get('text', '') for item in disliked_hints], ensure_ascii=False), 600)}"
         )
         try:
-            response = self.llm.chat(
+            response = self._chat(
                 [
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": user_context},
                 ],
+                call_type="home_hint",
                 temperature=0.7,
                 max_tokens=120,
             )
@@ -442,11 +478,12 @@ class ConversationOrchestrator:
         }
 
         try:
-            response = self.llm.chat(
+            response = self._chat(
                 [
                     {"role": "system", "content": read_prompt("star_map_monthly_review.md")},
                     {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
                 ],
+                call_type="star_map_monthly_review",
                 temperature=0.3,
                 max_tokens=1200,
                 response_format={"type": "json_object"},
@@ -666,20 +703,153 @@ class ConversationOrchestrator:
         character_id: str | None = None,
     ) -> dict:
         started_at = time.monotonic()
-        route_plan = None
         debug_trace = {
             "mode": "rabbit_auto" if character_id == "auto" else "manual_rabbit_form",
             "steps": [],
             "llm_calls": [],
         }
         state_profiles = self.store.list_state_profiles()
-        if character_id == "auto":
-            route_plan = self._choose_reply_roles(
-                session_id,
-                user_text,
-                state_profiles=state_profiles,
-                debug_trace=debug_trace,
+
+        self.store.add_message(session_id, "user", user_text)
+        self.logger.info("reply start session=%s character=%s user_chars=%s", session_id, character_id, len(user_text))
+
+        # 危机检测保持在模型调用之前，但用户输入要先保存，便于历史和安全复盘。
+        if detect_crisis(user_text):
+            if character_id == "auto":
+                character = auto_select_character(user_text)
+            else:
+                character = get_character(character_id)
+            return self._crisis_response(
+                session_id, user_text, character.id, debug_trace, started_at,
             )
+
+        if character_id == "auto":
+            messages = self.store.get_session_messages(session_id)
+            recent_history = messages[-(5 * 2):]  # 最近 5 轮
+
+            # 统一意图识别
+            intent_result = self.intent_agent.recognize(user_text, recent_history)
+            debug_trace["steps"].append({
+                "name": "intent_recognition",
+                "status": "done",
+                "summary": f"意图={intent_result.intent} 置信度={intent_result.confidence:.2f} 风险={intent_result.risk_level}",
+            })
+
+            # 路由决策
+            reply_path = self.intent_router.decide(intent_result, user_text)
+            debug_trace["steps"].append({
+                "name": "intent_routing",
+                "status": "done",
+                "summary": f"路由路径={reply_path.path} use_thinking={reply_path.use_thinking}",
+            })
+
+            # 按路径分流
+            if reply_path.path == "crisis":
+                character = get_character(reply_path.route_plan["character_id"]) if reply_path.route_plan else auto_select_character(user_text)
+                return self._crisis_response(session_id, user_text, character.id, debug_trace, started_at)
+            elif reply_path.path == "quick":
+                return self._quick_response(session_id, user_text, reply_path, messages, debug_trace, started_at)
+            elif reply_path.path == "clarify":
+                return self._clarify_response(session_id, user_text, reply_path, debug_trace, started_at)
+            elif reply_path.path == "interaction":
+                return self._interaction_response(session_id, user_text, reply_path, debug_trace, started_at)
+            elif reply_path.path == "deep":
+                if reply_path.use_thinking:
+                    # 低置信度：回退到 thinking 模式的策略规划
+                    route_plan = self._choose_reply_roles(
+                        session_id, user_text,
+                        state_profiles=state_profiles,
+                        debug_trace=debug_trace,
+                    )
+                else:
+                    route_plan = reply_path.route_plan
+                return self._deep_response(
+                    session_id, user_text, route_plan,
+                    messages, state_profiles, debug_trace, started_at,
+                )
+            else:
+                # 未知路径回退到 deep
+                route_plan = self._choose_reply_roles(
+                    session_id, user_text,
+                    state_profiles=state_profiles,
+                    debug_trace=debug_trace,
+                )
+                return self._deep_response(
+                    session_id, user_text, route_plan,
+                    messages, state_profiles, debug_trace, started_at,
+                )
+        else:
+            # 手动角色模式：保持原有逻辑
+            character = get_character(character_id)
+            route_plan = None
+            debug_trace["manual_character_id"] = character.id
+            debug_trace["steps"].append({
+                "name": "manual_character",
+                "status": "done",
+                "summary": f"使用手动选择角色：{character.name}。",
+            })
+            messages = self.store.get_session_messages(session_id)
+            return self._deep_response(
+                session_id, user_text, route_plan,
+                messages, state_profiles, debug_trace, started_at,
+            )
+
+    # ------------------------------------------------------------------
+    # 多路径响应方法
+    # ------------------------------------------------------------------
+
+    def _crisis_response(
+        self,
+        session_id: str,
+        user_text: str,
+        character_id: str,
+        debug_trace: dict,
+        started_at: float,
+    ) -> dict:
+        """危机干预响应路径。"""
+        character = get_character(character_id)
+        expression_id = normalize_expression_id(character.id, "concerned")
+        self.store.add_message(
+            session_id,
+            "assistant",
+            CRISIS_RESPONSE,
+            model="safety",
+            metadata={"character_id": character.id, "expression_id": expression_id},
+        )
+        self.logger.info("reply safety session=%s", session_id)
+        return {
+            "reply": CRISIS_RESPONSE,
+            "knowledge_cards": [],
+            "character": character.to_public_dict(),
+            "expression": {
+                "id": expression_id,
+                **((character.expressions or {}).get(expression_id, {})),
+            },
+            "route_plan": None,
+            "debug_trace": {
+                **debug_trace,
+                "steps": debug_trace["steps"] + [{
+                    "name": "safety",
+                    "status": "triggered",
+                    "summary": "命中安全兜底回复，未继续调用生成模型。",
+                }],
+                "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                "llm_call_count": len(debug_trace["llm_calls"]),
+            },
+        }
+
+    def _deep_response(
+        self,
+        session_id: str,
+        user_text: str,
+        route_plan: dict | None,
+        messages: list,
+        state_profiles: list[dict],
+        debug_trace: dict,
+        started_at: float,
+    ) -> dict:
+        """深度回复路径（含兔子形态结构化回复和手动角色回复）。"""
+        if route_plan:
             character = get_character(route_plan["character_id"])
             debug_trace["steps"].append({
                 "name": "turn_planner",
@@ -688,50 +858,10 @@ class ConversationOrchestrator:
                 "output": route_plan,
             })
         else:
-            character = get_character(character_id)
-            route_plan = None
-            debug_trace["steps"].append({
-                "name": "manual_character",
-                "status": "done",
-                "summary": f"使用手动选择角色：{character.name}。",
-            })
-        self.logger.info(
-            "reply start session=%s character=%s user_chars=%s",
-            session_id,
-            character.id,
-            len(user_text),
-        )
-        self.store.add_message(session_id, "user", user_text)
-        if detect_crisis(user_text):
-            expression_id = normalize_expression_id(character.id, "concerned")
-            self.store.add_message(
-                session_id,
-                "assistant",
-                CRISIS_RESPONSE,
-                model="safety",
-                metadata={"character_id": character.id, "expression_id": expression_id},
+            character = get_character(
+                debug_trace.get("manual_character_id", "mianmian"),
             )
-            self.logger.info("reply safety session=%s", session_id)
-            return {
-                "reply": CRISIS_RESPONSE,
-                "knowledge_cards": [],
-                "character": character.to_public_dict(),
-                "expression": {
-                    "id": expression_id,
-                    **((character.expressions or {}).get(expression_id, {})),
-                },
-                "route_plan": route_plan,
-                "debug_trace": {
-                    **debug_trace,
-                    "steps": debug_trace["steps"] + [{
-                        "name": "safety",
-                        "status": "triggered",
-                        "summary": "命中安全兜底回复，未继续调用生成模型。",
-                    }],
-                },
-            }
 
-        messages = self.store.get_session_messages(session_id)
         memory_queries = route_plan.get("memory_queries", []) if route_plan else []
         knowledge_queries = []
         if route_plan:
@@ -792,8 +922,10 @@ class ConversationOrchestrator:
         llm_messages.append({"role": "user", "content": user_text})
 
         generation_started_at = time.monotonic()
-        response = self.llm.chat(
+        response = self._chat(
             llm_messages,
+            call_type="reply",
+            session_id=session_id,
             temperature=0.75,
             max_tokens=1100,
             response_format={"type": "json_object"} if route_plan else None,
@@ -870,6 +1002,364 @@ class ConversationOrchestrator:
             },
         }
 
+    def _quick_response(
+        self,
+        session_id: str,
+        user_text: str,
+        reply_path,
+        messages: list,
+        debug_trace: dict,
+        started_at: float,
+    ) -> dict:
+        """轻量快速回复路径。使用短上下文、简化 persona、max_tokens=400。"""
+        route_plan = reply_path.route_plan
+        character_id = route_plan["character_id"] if route_plan else auto_select_character(user_text).id
+        character = get_character(character_id)
+        short_messages = messages[-10:]
+
+        quick_text = self._generate_quick_reply_text(user_text, short_messages, character_id)
+        expression_id = normalize_expression_id(character.id, route_plan.get("expression_id") if route_plan else None)
+
+        self.store.add_message(
+            session_id,
+            "assistant",
+            quick_text,
+            model="quick",
+            metadata={
+                "character_id": character.id,
+                "expression_id": expression_id,
+                "route_plan": route_plan,
+                "reply_path": "quick",
+            },
+        )
+        self.logger.info("quick reply done session=%s elapsed=%.2fs", session_id, time.monotonic() - started_at)
+
+        return {
+            "reply": quick_text,
+            "group_messages": [],
+            "knowledge_cards": [],
+            "character": character.to_public_dict(),
+            "expression": {
+                "id": expression_id,
+                **((character.expressions or {}).get(expression_id, {})),
+            },
+            "route_plan": route_plan,
+            "debug_trace": {
+                **debug_trace,
+                "steps": debug_trace["steps"] + [{
+                    "name": "quick_reply",
+                    "status": "done",
+                    "summary": "已通过轻量路径生成快速回复。",
+                }],
+                "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                "llm_call_count": len(debug_trace["llm_calls"]),
+            },
+        }
+
+    def _clarify_response(
+        self,
+        session_id: str,
+        user_text: str,
+        reply_path,
+        debug_trace: dict,
+        started_at: float,
+    ) -> dict:
+        """追问路径。直接使用 intent 阶段已生成的 clarify_reply，不调用 LLM。"""
+        route_plan = reply_path.route_plan
+        clarify_text = reply_path.intent_result.clarify_reply or "你能再说多一点吗？我想更好地理解你现在的感受。"
+
+        character_id = route_plan["character_id"] if route_plan else auto_select_character(user_text).id
+        character = get_character(character_id)
+        expression_id = normalize_expression_id(character.id, route_plan.get("expression_id") if route_plan else None)
+
+        self.store.add_message(
+            session_id,
+            "assistant",
+            clarify_text,
+            model="clarify",
+            metadata={
+                "character_id": character.id,
+                "expression_id": expression_id,
+                "route_plan": route_plan,
+                "reply_path": "clarify",
+            },
+        )
+        self.logger.info("clarify reply done session=%s elapsed=%.2fs", session_id, time.monotonic() - started_at)
+
+        return {
+            "reply": clarify_text,
+            "group_messages": [],
+            "knowledge_cards": [],
+            "character": character.to_public_dict(),
+            "expression": {
+                "id": expression_id,
+                **((character.expressions or {}).get(expression_id, {})),
+            },
+            "route_plan": route_plan,
+            "debug_trace": {
+                **debug_trace,
+                "steps": debug_trace["steps"] + [{
+                    "name": "clarify_reply",
+                    "status": "done",
+                    "summary": "已通过追问路径返回 clarify_reply，未调用 LLM。",
+                }],
+                "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                "llm_call_count": len(debug_trace["llm_calls"]),
+            },
+        }
+
+    def _interaction_response(
+        self,
+        session_id: str,
+        user_text: str,
+        reply_path,
+        debug_trace: dict,
+        started_at: float,
+    ) -> dict:
+        """交互引导路径（呼吸练习、身体扫描等），使用模板生成。"""
+        route_plan = reply_path.route_plan
+        interaction_type = reply_path.intent_result.interaction_type or "breathing"
+
+        character_id = route_plan["character_id"] if route_plan else auto_select_character(user_text).id
+        character = get_character(character_id)
+        expression_id = normalize_expression_id(character.id, route_plan.get("expression_id") if route_plan else None)
+
+        interaction_text = self._generate_interaction_content(interaction_type, character)
+
+        self.store.add_message(
+            session_id,
+            "assistant",
+            interaction_text,
+            model="interaction",
+            metadata={
+                "character_id": character.id,
+                "expression_id": expression_id,
+                "route_plan": route_plan,
+                "reply_path": "interaction",
+                "interaction_type": interaction_type,
+            },
+        )
+        self.logger.info("interaction reply done session=%s type=%s elapsed=%.2fs", session_id, interaction_type, time.monotonic() - started_at)
+
+        return {
+            "reply": interaction_text,
+            "group_messages": [],
+            "knowledge_cards": [],
+            "character": character.to_public_dict(),
+            "expression": {
+                "id": expression_id,
+                **((character.expressions or {}).get(expression_id, {})),
+            },
+            "route_plan": route_plan,
+            "debug_trace": {
+                **debug_trace,
+                "steps": debug_trace["steps"] + [{
+                    "name": "interaction_reply",
+                    "status": "done",
+                    "summary": f"已通过交互路径生成 {interaction_type} 引导内容。",
+                }],
+                "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                "llm_call_count": len(debug_trace["llm_calls"]),
+            },
+        }
+
+    def reply_stream(
+        self,
+        session_id: str,
+        user_text: str,
+        character_id: str = "auto",
+    ):
+        """SSE 流式推送生成器。并行执行意图识别 + 快速回复生成，推送事件。"""
+        started_at = time.monotonic()
+        debug_trace = {
+            "mode": "rabbit_auto" if character_id == "auto" else "manual_rabbit_form",
+            "steps": [],
+            "llm_calls": [],
+        }
+
+        self.store.add_message(session_id, "user", user_text)
+
+        # 危机检测
+        if detect_crisis(user_text):
+            character_id_resolved = character_id if character_id != "auto" else auto_select_character(user_text).id
+            result = self._crisis_response(session_id, user_text, character_id_resolved, debug_trace, started_at)
+            yield self._sse_event("done", result)
+            return
+
+        messages = self.store.get_session_messages(session_id)
+
+        with ThreadPoolExecutor(max_workers=2, thread_name_prefix="reply-stream") as executor:
+            # 并行：意图识别
+            if character_id == "auto":
+                intent_future = executor.submit(
+                    self.intent_agent.recognize, user_text, messages[-(5 * 2):],
+                )
+            else:
+                intent_future = None
+
+            # 并行：快速回复文本生成
+            quick_future = executor.submit(
+                self._generate_quick_reply_text, user_text, messages[-10:],
+                character_id if character_id != "auto" else auto_select_character(user_text).id,
+            )
+
+            # 推送快速回复（先到先用）
+            try:
+                quick_text = quick_future.result(timeout=8)
+                yield self._sse_event("quick_reply", {"text": quick_text})
+            except Exception:
+                yield self._sse_event("quick_reply", {"text": ""})
+
+            # 意图路由与深度回复
+            reply_path = None
+            if intent_future is not None:
+                try:
+                    intent_result = intent_future.result(timeout=8)
+                    reply_path = self.intent_router.decide(intent_result, user_text)
+                    debug_trace["steps"].append({
+                        "name": "intent_routing",
+                        "status": "done",
+                        "summary": f"路由路径={reply_path.path}",
+                    })
+                except Exception:
+                    self.logger.exception("intent recognition failed in stream mode")
+
+            # 根据路由决定是否需要深度回复
+            need_deep = False
+            if reply_path and reply_path.path in ("deep",):
+                need_deep = True
+            elif reply_path is None or character_id != "auto":
+                need_deep = True
+
+            if need_deep:
+                if reply_path and reply_path.use_thinking:
+                    state_profiles = self.store.list_state_profiles()
+                    route_plan = self._choose_reply_roles(
+                        session_id, user_text,
+                        state_profiles=state_profiles,
+                        debug_trace=debug_trace,
+                    )
+                elif reply_path and reply_path.route_plan:
+                    route_plan = reply_path.route_plan
+                else:
+                    route_plan = None
+
+                state_profiles = self.store.list_state_profiles()
+                deep_result = self._deep_response(
+                    session_id, user_text, route_plan,
+                    messages, state_profiles, debug_trace, started_at,
+                )
+                yield self._sse_event("deep_reply", {
+                    "text": deep_result["reply"],
+                    "character": deep_result["character"],
+                })
+                yield self._sse_event("final", deep_result)
+            else:
+                # quick/clarify/interaction 路径的结果作为 final
+                if reply_path and reply_path.path == "quick":
+                    final_result = self._quick_response(
+                        session_id, user_text, reply_path, messages, debug_trace, started_at,
+                    )
+                elif reply_path and reply_path.path == "clarify":
+                    final_result = self._clarify_response(
+                        session_id, user_text, reply_path, debug_trace, started_at,
+                    )
+                elif reply_path and reply_path.path == "interaction":
+                    final_result = self._interaction_response(
+                        session_id, user_text, reply_path, debug_trace, started_at,
+                    )
+                else:
+                    final_result = {
+                        "reply": "",
+                        "knowledge_cards": [],
+                        "character": {},
+                        "expression": {},
+                        "route_plan": None,
+                        "debug_trace": debug_trace,
+                    }
+                yield self._sse_event("final", final_result)
+
+            yield self._sse_event("done", {"status": "complete"})
+
+    # ------------------------------------------------------------------
+    # 辅助方法
+    # ------------------------------------------------------------------
+
+    def _generate_quick_reply_text(
+        self,
+        user_text: str,
+        recent_history: list,
+        character_id: str,
+    ) -> str:
+        """使用短上下文、简化 persona 生成快速回复文本。max_tokens=400。"""
+        character = get_character(character_id)
+        system_prompt = read_prompt("persona.md").format(
+            character_profile=character.prompt,
+            current_character_name=character.name,
+            conversation_history=render_conversation_history(recent_history[-10:]),
+            memories="暂无",
+            state_profiles="暂无",
+            knowledge_cards="暂无",
+            role_plan="本轮是快速回复模式，保持简洁温暖，1-2 段即可。",
+        )
+        try:
+            response = self._chat(
+                [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_text}],
+                call_type="quick_reply",
+                temperature=0.75,
+                max_tokens=400,
+            )
+            return response.content.strip()
+        except Exception:
+            self.logger.exception("quick reply generation failed")
+            return "我听到了你说的，我在这里。"
+
+    def _generate_interaction_content(self, interaction_type: str, character) -> str:
+        """根据 interaction_type 使用模板生成交互引导内容。"""
+        name = character.name
+        templates = {
+            "breathing": (
+                f"{name}轻轻靠近你，邀请你一起做一个小练习。\n\n"
+                "我们一起来做四次慢呼吸吧：\n"
+                "吸气……数到四……\n"
+                "屏住……数到四……\n"
+                "呼气……数到四……\n"
+                "再来一次，不着急，按照自己的节奏来。\n\n"
+                "当你准备好了，可以告诉我你现在感觉怎么样。"
+            ),
+            "body_scan": (
+                f"{name}在旁边安静地陪着你。\n\n"
+                "你可以试着从头到脚慢慢感受一下自己的身体：\n"
+                "- 感受你的额头，是不是有一点紧？\n"
+                "- 感受你的肩膀，能不能轻轻放下一点？\n"
+                "- 感受你的双手，它们现在是什么温度？\n"
+                "- 感受你的脚底，它们和地面接触的感觉是怎样的？\n\n"
+                "不着急，一个一个来。感受到了什么都可以告诉我。"
+            ),
+            "mood_check": (
+                f"{name}想先了解一下你现在的心情。\n\n"
+                "如果用一个词来形容你此刻的感觉，会是什么？\n"
+                "不用想太多，第一个浮现的词就好。\n\n"
+                "或者你也可以说：现在我什么感觉都没有，那也没关系。"
+            ),
+            "mini_game": (
+                f"{name}想到了一个小游戏，也许能帮你稍微放松一下。\n\n"
+                "我们来玩「五个感官」吧：\n"
+                "试着找到身边——\n"
+                "- 一样你可以看到的东西\n"
+                "- 一样你可以摸到的东西\n"
+                "- 一样你可以听到的东西\n\n"
+                "不一定要全找到，找到一个就很好。准备好了就告诉我。"
+            ),
+        }
+        return templates.get(interaction_type, templates["breathing"])
+
+    @staticmethod
+    def _sse_event(event_type: str, data) -> str:
+        """构造 SSE 格式事件字符串。"""
+        payload = json.dumps(data, ensure_ascii=False)
+        return f"event: {event_type}\ndata: {payload}\n\n"
+
     def _choose_reply_roles(
         self,
         session_id: str,
@@ -889,11 +1379,13 @@ class ConversationOrchestrator:
         )
         router_started_at = time.monotonic()
         try:
-            response = self.llm.chat(
+            response = self._chat(
                 [
                     {"role": "system", "content": prompt},
                     {"role": "user", "content": user_text},
                 ],
+                call_type="route_plan",
+                session_id=session_id,
                 temperature=0.2,
                 max_tokens=650,
                 response_format={"type": "json_object"},
@@ -1015,11 +1507,12 @@ class ConversationOrchestrator:
 
     def _write_journal(self, transcript: str) -> dict:
         prompt = read_prompt("journal.md")
-        response = self.llm.chat(
+        response = self._chat(
             [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": transcript},
             ],
+            call_type="journal",
             temperature=0.3,
             max_tokens=800,
             response_format={"type": "json_object"},
@@ -1030,11 +1523,12 @@ class ConversationOrchestrator:
         prompt = read_prompt("memory_extract.md").replace(
             "{{categories}}", ", ".join(MEMORY_CATEGORIES)
         )
-        response = self.llm.chat(
+        response = self._chat(
             [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": transcript},
             ],
+            call_type="memory_extract",
             temperature=0.2,
             max_tokens=600,
             response_format={"type": "json_object"},
@@ -1141,11 +1635,12 @@ class ConversationOrchestrator:
             current_profiles=render_state_profiles(current_profiles),
             profile_history=render_state_profile_history(profile_history),
         )
-        response = self.llm.chat(
+        response = self._chat(
             [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": transcript},
             ],
+            call_type="state_profile_review",
             temperature=0.2,
             max_tokens=1800,
             response_format={"type": "json_object"},
@@ -1261,11 +1756,12 @@ class ConversationOrchestrator:
             "candidate_memory": candidate,
             "existing_memories": existing,
         }
-        response = self.llm.chat(
+        response = self._chat(
             [
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
             ],
+            call_type="memory_merge",
             temperature=0.2,
             max_tokens=700,
             response_format={"type": "json_object"},

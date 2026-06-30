@@ -18,6 +18,10 @@ class Settings:
     web_host: str
     web_port: int
     sync_token: str | None
+    intent_confidence_threshold: float
+    intent_quick_max_tokens: int
+    intent_timeout_ms: int
+    prompt_tracking_enabled: bool
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -50,4 +54,8 @@ def get_settings() -> Settings:
         web_host=os.getenv("WEB_HOST", "127.0.0.1"),
         web_port=int(os.getenv("WEB_PORT", "8765")),
         sync_token=os.getenv("SENSEN_SYNC_TOKEN"),
+        intent_confidence_threshold=float(os.getenv("INTENT_CONFIDENCE_THRESHOLD", "0.85")),
+        intent_quick_max_tokens=int(os.getenv("INTENT_QUICK_MAX_TOKENS", "400")),
+        intent_timeout_ms=int(os.getenv("INTENT_TIMEOUT_MS", "8000")),
+        prompt_tracking_enabled=os.getenv("PROMPT_TRACKING_ENABLED", "false").lower() == "true",
     )

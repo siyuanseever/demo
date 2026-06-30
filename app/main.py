@@ -1,5 +1,6 @@
 from app.agents.orchestrator import ConversationOrchestrator
 from app.config import get_settings
+from app.evaluation.prompt_tracker import wrap_llm_client
 from app.llm.deepseek import DeepSeekClient
 from app.llm.fake import FakeClient
 from app.logging_setup import setup_logging
@@ -25,6 +26,8 @@ def build_orchestrator() -> ConversationOrchestrator:
             reasoning_effort=settings.deepseek_reasoning_effort,
             stream=settings.deepseek_stream,
         )
+    if settings.prompt_tracking_enabled:
+        llm = wrap_llm_client(llm)
     store = Store(settings.app_db_path)
     return ConversationOrchestrator(llm=llm, store=store)
 

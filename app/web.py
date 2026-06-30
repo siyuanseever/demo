@@ -1961,6 +1961,37 @@ HTML = """<!doctype html>
     const WEB_TIMEOUT_MS = __WEB_TIMEOUT_MS__;
     const END_TIMEOUT_MS = Math.max(WEB_TIMEOUT_MS, 90000);
 
+    async function listenSSE(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const events = [];
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\\n");
+        buffer = lines.pop() || "";
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            try {
+              events.push({ type: currentEvent || "message", data: JSON.parse(line.slice(6)) });
+            } catch (e) { /* skip */ }
+          }
+        }
+      }
+      return events;
+    }
+
     async function post(path, payload = {}, timeoutMs = WEB_TIMEOUT_MS) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -1983,6 +2014,38 @@ HTML = """<!doctype html>
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "请求失败");
       return data;
+    }
+
+    function replaceMessageContent(node, newText, knowledgeCards, characterId, options) {
+      if (!node) return;
+      const body = node.querySelector(".message-body");
+      if (body) {
+        body.textContent = newText;
+        if (newText.length > 80 || newText.includes("\\n")) {
+          body.classList.add("collapsed");
+        } else {
+          body.classList.add("expanded");
+        }
+      }
+      if (options && options.expressionId) {
+        const char = characterById(characterId);
+        if (char) {
+          const expr = expressionFor(char, options.expressionId);
+          if (expr) {
+            const nameEl = node.querySelector(".name");
+            if (nameEl && expr.label) nameEl.textContent = char.name + " · " + expr.label;
+            const avatar = node.querySelector(".avatar");
+            if (avatar && expr.path) avatar.src = expr.path;
+          }
+        }
+      }
+    }
+
+    function markMessageFinal(node) {
+      if (!node) return;
+      node.dataset.final = "true";
+      const placeholder = node.querySelector(".placeholder-loading");
+      if (placeholder) placeholder.remove();
     }
 
     async function get(path) {
@@ -2056,7 +2119,20 @@ HTML = """<!doctype html>
         const currentSessionId = await ensureSession();
         addMessage("user", text);
         addSystem(thinkingName + "正在思考。如果超过 " + Math.round(WEB_TIMEOUT_MS / 1000) + " 秒，会自动解锁。");
-        const data = await post("/api/chat", { session_id: currentSessionId, text, character_id: sendingCharacterId });
+        let data;
+        try {
+          const events = await listenSSE("/api/chat_stream", { session_id: currentSessionId, text, character_id: sendingCharacterId });
+          const errorEvent = events.find(e => e.type === "error");
+          if (errorEvent) throw new Error(errorEvent.data.error || "SSE 流式错误");
+          const finalEvent = events.find(e => e.type === "final");
+          const doneEvent = events.find(e => e.type === "done" && (e.data?.reply || e.data?.group_messages));
+          data = finalEvent?.data || doneEvent?.data || events.find(e => e.type === "message")?.data;
+          if (!data) throw new Error("SSE 未返回有效数据");
+          if (!data.reply && !data.group_messages) throw new Error("SSE 数据不完整，降级到普通请求");
+        } catch (sseError) {
+          addSystem("流式连接不可用，切换普通请求...");
+          data = await post("/api/chat", { session_id: currentSessionId, text, character_id: sendingCharacterId });
+        }
         lastDebugTrace = data.debug_trace || null;
         renderDevPanel(lastDebugTrace);
         const routeSummary = routePlanSummary(data.route_plan);
@@ -2773,6 +2849,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond_json({"session_id": session_id})
                 return
             payload = self.read_json()
+            if path == "/api/chat_stream":
+                self._handle_chat_stream(payload)
+                return
             if path == "/api/chat":
                 result = self.app.orchestrator.reply_detail(
                     payload["session_id"],
@@ -2865,6 +2944,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/knowledge_detail":
                 self.respond_knowledge_detail()
+                return
+            if path == "/prompt-inspector":
+                self.respond_prompt_inspector()
+                return
+            if path == "/api/prompt-calls":
+                self.respond_prompt_calls()
+                return
+            if path == "/api/prompt-call-detail":
+                self.respond_prompt_call_detail()
+                return
+            if path == "/api/prompt-eval-summary":
+                self.respond_prompt_eval_summary()
+                return
+            if path == "/api/eval-summary":
+                self.respond_eval_summary()
                 return
             self.send_error(404)
         except Exception as error:
@@ -2980,6 +3074,33 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _handle_chat_stream(self, payload: dict) -> None:
+        """SSE 流式推送双路径回复。"""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        try:
+            for sse_chunk in self.app.orchestrator.reply_stream(
+                payload["session_id"],
+                payload["text"],
+                character_id=payload.get("character_id"),
+            ):
+                self.wfile.write(sse_chunk.encode("utf-8"))
+                self.wfile.flush()
+        except BrokenPipeError:
+            self.logger.info("SSE client disconnected")
+        except Exception as error:
+            self.logger.exception("SSE stream error")
+            try:
+                error_chunk = json.dumps({"error": str(error)}).encode("utf-8")
+                self.wfile.write(f"event: error\ndata: {error_chunk.decode()}\n\n".encode("utf-8"))
+                self.wfile.flush()
+            except Exception:
+                pass
+
     def respond_json(self, payload: dict, status: int = 200) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -2990,6 +3111,381 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args) -> None:
         return
+
+    def respond_prompt_inspector(self) -> None:
+        self.respond_html(PROMPT_INSPECTOR_HTML)
+
+    def respond_prompt_calls(self) -> None:
+        from app.evaluation.prompt_tracker import PromptTracker
+        tracker = PromptTracker()
+        records = tracker.to_dict_list(limit=200)
+        # 倒序排列，最新的在前面
+        records.reverse()
+        self.respond_json({"records": records, "stats": tracker.get_stats()})
+
+    def respond_prompt_call_detail(self) -> None:
+        query = urlparse(self.path).query
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        call_id = params.get("id")
+        if not call_id:
+            self.respond_json({"error": "missing call id"}, status=400)
+            return
+        from app.evaluation.prompt_tracker import PromptTracker
+        from app.evaluation.prompt_evaluator import PromptEvaluator
+        tracker = PromptTracker()
+        evaluator = PromptEvaluator(tracker)
+        record = tracker.get_record(call_id)
+        if not record:
+            self.respond_json({"error": "call not found"}, status=404)
+            return
+        score = evaluator.evaluate_call(call_id)
+        self.respond_json({"record": record.__dict__, "score": score.__dict__})
+
+    def respond_prompt_eval_summary(self) -> None:
+        from app.evaluation.prompt_tracker import PromptTracker
+        from app.evaluation.prompt_evaluator import PromptEvaluator
+        tracker = PromptTracker()
+        evaluator = PromptEvaluator(tracker)
+        evaluator.evaluate_all()
+        self.respond_json({"summary": evaluator.get_summary()})
+
+    def respond_eval_summary(self) -> None:
+        """返回现有评估框架的汇总结果"""
+        import glob
+        import os
+        from pathlib import Path
+        reports_dir = Path("eval_reports")
+        json_files = sorted(reports_dir.glob("eval_report_*.json"), key=os.path.getmtime, reverse=True)
+        if not json_files:
+            self.respond_json({"error": "no evaluation reports found"}, status=404)
+            return
+        try:
+            data = json.loads(json_files[0].read_text(encoding="utf-8"))
+            self.respond_json({
+                "report_file": str(json_files[0]),
+                "generated_at": data.get("generated_at"),
+                "overall": data.get("overall", {}),
+                "accuracy_summary": {
+                    "total": data.get("accuracy", {}).get("total", 0),
+                    "passed": data.get("accuracy", {}).get("passed", 0),
+                    "pass_rate": data.get("accuracy", {}).get("pass_rate", 0),
+                    "by_module": data.get("accuracy", {}).get("by_module", {}),
+                },
+                "robustness_summary": {
+                    "total": data.get("robustness", {}).get("total", 0),
+                    "passed": data.get("robustness", {}).get("passed", 0),
+                    "pass_rate": data.get("robustness", {}).get("pass_rate", 0),
+                    "by_module": data.get("robustness", {}).get("by_module", {}),
+                },
+                "completeness_summary": {
+                    "total": data.get("completeness", {}).get("total", 0),
+                    "passed": data.get("completeness", {}).get("passed", 0),
+                    "pass_rate": data.get("completeness", {}).get("pass_rate", 0),
+                },
+                "timer_summary": data.get("timer_summary", [])[:20],
+            })
+        except Exception as e:
+            self.respond_json({"error": str(e)}, status=500)
+
+
+PROMPT_INSPECTOR_HTML = r"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prompt 追踪与效果评估</title>
+<style>
+  :root { --bg:#f8f9fa; --panel:#fff; --text:#212529; --muted:#6c757d; --accent:#0d6efd; --success:#198754; --danger:#dc3545; --warning:#ffc107; --border:#dee2e6; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+  .container { max-width:1400px; margin:0 auto; padding:20px; }
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  h1 { font-size:22px; margin:0; }
+  .nav { display:flex; gap:8px; }
+  .nav button { padding:6px 14px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:13px; }
+  .nav button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
+  .stat-card { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .stat-card .label { font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .stat-card .value { font-size:24px; font-weight:600; }
+  .stat-card .value.good { color:var(--success); }
+  .stat-card .value.warn { color:var(--warning); }
+  .stat-card .value.bad { color:var(--danger); }
+  .section { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:20px; }
+  .section h2 { font-size:16px; margin:0 0 14px 0; padding-bottom:10px; border-bottom:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--border); }
+  th { background:#f1f3f5; font-weight:600; position:sticky; top:0; }
+  tr:hover { background:#f8f9fa; cursor:pointer; }
+  .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:500; }
+  .tag-reply { background:#e7f3ff; color:#004085; }
+  .tag-route { background:#fff3cd; color:#856404; }
+  .tag-memory { background:#d4edda; color:#155724; }
+  .tag-journal { background:#f8d7da; color:#721c24; }
+  .tag-home { background:#e2e3e5; color:#383d41; }
+  .tag-other { background:#f1f3f5; color:#495057; }
+  .detail-panel { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:100; align-items:center; justify-content:center; }
+  .detail-panel.open { display:flex; }
+  .detail-box { background:#fff; width:min(900px,95vw); height:min(800px,90vh); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+  .detail-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--border); background:#f8f9fa; }
+  .detail-header h3 { margin:0; font-size:15px; }
+  .detail-body { flex:1; overflow:auto; padding:20px; }
+  .detail-close { width:32px; height:32px; border:none; background:#e9ecef; border-radius:6px; cursor:pointer; font-size:18px; }
+  .prompt-block { background:#f8f9fa; border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:14px; white-space:pre-wrap; font-family:"SF Mono",Monaco,monospace; font-size:12px; line-height:1.6; max-height:400px; overflow:auto; }
+  .prompt-block .role { color:var(--accent); font-weight:600; }
+  .score-bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
+  .score-bar .bar { flex:1; height:8px; background:#e9ecef; border-radius:4px; overflow:hidden; }
+  .score-bar .bar-inner { height:100%; border-radius:4px; }
+  .score-bar .bar-inner.good { background:var(--success); }
+  .score-bar .bar-inner.warn { background:var(--warning); }
+  .score-bar .bar-inner.bad { background:var(--danger); }
+  .empty { text-align:center; padding:40px; color:var(--muted); }
+  .refresh-btn { padding:6px 14px; border:1px solid var(--accent); border-radius:6px; background:#fff; color:var(--accent); cursor:pointer; font-size:13px; }
+  .refresh-btn:hover { background:var(--accent); color:#fff; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Prompt 追踪与效果评估</h1>
+    <div class="nav">
+      <button class="active" onclick="showTab('prompts')">Prompt 追踪</button>
+      <button onclick="showTab('eval')">代码评估</button>
+      <button class="refresh-btn" onclick="loadAll()">刷新数据</button>
+    </div>
+  </header>
+
+  <div id="tab-prompts">
+    <div class="stats" id="prompt-stats">
+      <div class="stat-card"><div class="label">总调用次数</div><div class="value" id="st-total">-</div></div>
+      <div class="stat-card"><div class="label">平均响应时间</div><div class="value" id="st-time">-</div></div>
+      <div class="stat-card"><div class="label">平均 Prompt Token</div><div class="value" id="st-ptok">-</div></div>
+      <div class="stat-card"><div class="label">平均 Response Token</div><div class="value" id="st-rtok">-</div></div>
+      <div class="stat-card"><div class="label">平均质量得分</div><div class="value" id="st-score">-</div></div>
+    </div>
+
+    <div class="section">
+      <h2>调用历史</h2>
+      <div id="calls-table-wrap">
+        <div class="empty">正在加载...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-eval" class="hidden">
+    <div class="stats" id="eval-stats">
+      <div class="stat-card"><div class="label">总测试数</div><div class="value" id="ev-total">-</div></div>
+      <div class="stat-card"><div class="label">通过率</div><div class="value" id="ev-rate">-</div></div>
+      <div class="stat-card"><div class="label">准确率</div><div class="value" id="ev-acc">-</div></div>
+      <div class="stat-card"><div class="label">鲁棒性</div><div class="value" id="ev-rob">-</div></div>
+      <div class="stat-card"><div class="label">完整性</div><div class="value" id="ev-comp">-</div></div>
+    </div>
+    <div class="section">
+      <h2>耗时统计 Top 20</h2>
+      <div id="timer-table-wrap"><div class="empty">正在加载...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-panel" id="detail-panel" onclick="closeDetail(event)">
+  <div class="detail-box" onclick="event.stopPropagation()">
+    <div class="detail-header">
+      <h3 id="detail-title">调用详情</h3>
+      <button class="detail-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="detail-body" id="detail-body">
+      <div class="empty">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let promptData = { records: [], stats: {} };
+let evalData = {};
+
+function showTab(name) {
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-prompts').classList.toggle('hidden', name !== 'prompts');
+  document.getElementById('tab-eval').classList.toggle('hidden', name !== 'eval');
+}
+
+function fmtTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts * 1000);
+  return d.toLocaleString('zh-CN', { hour12: false, month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
+function fmtDur(s) {
+  if (s === undefined || s === null) return '-';
+  if (s < 0.001) return '<1ms';
+  if (s < 1) return (s * 1000).toFixed(0) + 'ms';
+  return s.toFixed(2) + 's';
+}
+
+function tagClass(type) {
+  const map = { reply:'tag-reply', route_plan:'tag-route', memory_extract:'tag-memory', memory_merge:'tag-memory', journal:'tag-journal', home_hint:'tag-home', quick_reply:'tag-reply', state_profile_review:'tag-other', star_map_monthly_review:'tag-other' };
+  return map[type] || 'tag-other';
+}
+
+function tagLabel(type) {
+  const map = { reply:'回复', route_plan:'路由', memory_extract:'记忆提取', memory_merge:'记忆合并', journal:'日记', home_hint:'首页提示', quick_reply:'快速回复', state_profile_review:'状态画像', star_map_monthly_review:'星图' };
+  return map[type] || type;
+}
+
+async function loadPrompts() {
+  try {
+    const res = await fetch('/api/prompt-calls');
+    promptData = await res.json();
+    renderPromptStats();
+    renderCallsTable();
+  } catch (e) {
+    document.getElementById('calls-table-wrap').innerHTML = '<div class="empty">加载失败: ' + e.message + '</div>';
+  }
+}
+
+async function loadEval() {
+  try {
+    const res = await fetch('/api/eval-summary');
+    evalData = await res.json();
+    renderEvalStats();
+    renderTimerTable();
+  } catch (e) {
+    document.getElementById('timer-table-wrap').innerHTML = '<div class="empty">加载失败: ' + e.message + '</div>';
+  }
+}
+
+function renderPromptStats() {
+  const s = promptData.stats || {};
+  const bt = s.by_type || {};
+  let totalCalls = s.total_calls || 0;
+  let avgTime = s.avg_response_time_sec || 0;
+  let avgPTok = 0, avgRTok = 0;
+  let count = 0;
+  Object.values(bt).forEach(t => { avgPTok += t.avg_prompt_tokens || 0; avgRTok += t.avg_response_tokens || 0; count++; });
+  if (count) { avgPTok /= count; avgRTok /= count; }
+  document.getElementById('st-total').textContent = totalCalls;
+  document.getElementById('st-time').textContent = fmtDur(avgTime);
+  document.getElementById('st-ptok').textContent = avgPTok ? avgPTok.toFixed(0) : '-';
+  document.getElementById('st-rtok').textContent = avgRTok ? avgRTok.toFixed(0) : '-';
+  document.getElementById('st-score').textContent = '-';
+}
+
+function renderCallsTable() {
+  const records = promptData.records || [];
+  if (!records.length) {
+    document.getElementById('calls-table-wrap').innerHTML = '<div class="empty">暂无调用记录</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>时间</th><th>类型</th><th>模型</th><th>Prompt Token</th><th>Response Token</th><th>耗时</th></tr></thead><tbody>';
+  records.forEach(r => {
+    html += `<tr onclick="openDetail('${r.call_id}')">
+      <td>${fmtTime(r.timestamp)}</td>
+      <td><span class="tag ${tagClass(r.call_type)}">${tagLabel(r.call_type)}</span></td>
+      <td>${r.model}</td>
+      <td>${r.prompt_tokens_est}</td>
+      <td>${r.response_tokens_est}</td>
+      <td>${fmtDur(r.response_time_sec)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('calls-table-wrap').innerHTML = html;
+}
+
+async function openDetail(callId) {
+  const panel = document.getElementById('detail-panel');
+  const body = document.getElementById('detail-body');
+  panel.classList.add('open');
+  body.innerHTML = '<div class="empty">加载中...</div>';
+  try {
+    const res = await fetch('/api/prompt-call-detail?id=' + encodeURIComponent(callId));
+    const data = await res.json();
+    const r = data.record || {};
+    const s = data.score || {};
+    let html = '';
+    html += '<div style="margin-bottom:10px;font-size:13px;color:var(--muted)">Call ID: ' + (r.call_id || '-') + ' | Session: ' + (r.session_id || '-') + '</div>';
+
+    if (s.overall_score !== undefined) {
+      const scoreCls = s.overall_score >= 80 ? 'good' : (s.overall_score >= 60 ? 'warn' : 'bad');
+      html += '<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;margin-bottom:6px;">质量评分: ' + (s.overall_score || 0).toFixed(1) + '/100</div>';
+      html += '<div class="score-bar"><div class="bar"><div class="bar-inner ' + scoreCls + '" style="width:' + Math.min(100, s.overall_score) + '%"></div></div></div></div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;color:var(--muted);margin-bottom:16px;">';
+      html += '<div>JSON有效: ' + (s.json_valid ? '是' : '否') + '</div>';
+      html += '<div>必填字段完整: ' + (s.has_required_fields ? '是' : '否') + '</div>';
+      html += '<div>回复长度: ' + (s.reply_length || 0) + ' 字</div>';
+      html += '<div>段落数: ' + (s.reply_paragraphs || 0) + '</div>';
+      html += '</div>';
+    }
+
+    html += '<div style="font-weight:600;margin-bottom:8px;font-size:14px;">完整 Prompt</div>';
+    (r.messages || []).forEach(m => {
+      html += '<div class="prompt-block"><span class="role">[' + (m.role || 'unknown') + ']</span>\n' + escapeHtml(m.content || '') + '</div>';
+    });
+
+    html += '<div style="font-weight:600;margin:16px 0 8px;font-size:14px;">LLM 响应</div>';
+    html += '<div class="prompt-block" style="max-height:300px;">' + escapeHtml(r.response_content || '') + '</div>';
+
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<div class="empty">加载失败: ' + e.message + '</div>';
+  }
+}
+
+function closeDetail(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderEvalStats() {
+  const d = evalData;
+  if (d.error) {
+    document.getElementById('eval-stats').innerHTML = '<div class="empty">' + d.error + '</div>';
+    return;
+  }
+  const o = d.overall || {};
+  const a = d.accuracy_summary || {};
+  const r = d.robustness_summary || {};
+  const c = d.completeness_summary || {};
+  const rate = (o.overall_pass_rate || 0) * 100;
+  const rateCls = rate >= 90 ? 'good' : (rate >= 70 ? 'warn' : 'bad');
+  document.getElementById('ev-total').textContent = o.total_tests || 0;
+  document.getElementById('ev-rate').textContent = rate.toFixed(1) + '%';
+  document.getElementById('ev-rate').className = 'value ' + rateCls;
+  document.getElementById('ev-acc').textContent = ((a.pass_rate || 0) * 100).toFixed(1) + '%';
+  document.getElementById('ev-rob').textContent = ((r.pass_rate || 0) * 100).toFixed(1) + '%';
+  document.getElementById('ev-comp').textContent = ((c.pass_rate || 0) * 100).toFixed(1) + '%';
+}
+
+function renderTimerTable() {
+  const items = (evalData.timer_summary || []);
+  if (!items.length) {
+    document.getElementById('timer-table-wrap').innerHTML = '<div class="empty">暂无数据</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>模块</th><th>调用次数</th><th>平均(s)</th><th>最小(s)</th><th>最大(s)</th><th>P95(s)</th><th>P99(s)</th></tr></thead><tbody>';
+  items.forEach(t => {
+    html += `<tr><td>${t.name}</td><td>${t.count}</td><td>${t.avg_sec}</td><td>${t.min_sec}</td><td>${t.max_sec}</td><td>${t.p95_sec}</td><td>${t.p99_sec}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('timer-table-wrap').innerHTML = html;
+}
+
+function loadAll() {
+  loadPrompts();
+  loadEval();
+}
+
+loadAll();
+</script>
+</body>
+</html>"""
 
 
 def main() -> None:
