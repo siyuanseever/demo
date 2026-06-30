@@ -427,9 +427,6 @@ final class CompanionStore: ObservableObject {
                 )
             }
             database.upsertRemoteMessages(detail.messages)
-            // 补全：同步该会话相关的日记和记忆，避免 Mac 端打开历史会话后缺少关联数据
-            database.upsertRemoteJournals(detail.journals)
-            database.upsertRemoteMemories(detail.memories)
             load()
         } catch {
             sessionNotice = "暂时无法同步这个会话：\(Self.describe(error))"

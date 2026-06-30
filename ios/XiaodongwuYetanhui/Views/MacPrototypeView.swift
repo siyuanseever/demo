@@ -24,6 +24,7 @@ struct MacPrototypeView: View {
 
 private enum MacWorkspaceSection: String, CaseIterable, Identifiable {
     case conversation
+    case flow
     case sessions
     case memories
     case journals
@@ -35,6 +36,7 @@ private enum MacWorkspaceSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .conversation: "夜谈"
+        case .flow: "心流"
         case .sessions: "会话"
         case .memories: "记忆"
         case .journals: "日记"
@@ -46,6 +48,7 @@ private enum MacWorkspaceSection: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .conversation: "bubble.left.and.bubble.right.fill"
+        case .flow: "sparkles"
         case .sessions: "clock.arrow.circlepath"
         case .memories: "books.vertical.fill"
         case .journals: "book.closed.fill"
@@ -177,6 +180,8 @@ private struct MacWorkspaceDetail: View {
         switch selection {
         case .conversation:
             MacConversationWorkspace()
+        case .flow:
+            MacFlowWorkspace()
         case .sessions:
             MacSessionsWorkspace(openConversation: openConversation)
         case .memories:
@@ -533,6 +538,265 @@ private struct MacConversationInspector: View {
             .padding(20)
         }
         .background(Color(red: 0.96, green: 0.94, blue: 0.90))
+    }
+}
+
+private struct MacFlowWorkspace: View {
+    @EnvironmentObject private var store: CompanionStore
+
+    var body: some View {
+        let insight = store.starMapInsight
+        MacCollectionWorkspace(
+            title: "心流导航",
+            subtitle: "把近期长期状态、记忆和日记压缩成当前最值得照看的目标。",
+            isEmpty: false
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                MacFlowHeaderCard(insight: insight)
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                    MacFlowGoalCard(
+                        role: "主要目标",
+                        title: insight.primaryGoalTitle,
+                        reason: insight.primaryGoalReason,
+                        nextStep: insight.primaryGoalNextStep,
+                        challenge: insight.primaryGoalChallenge,
+                        tint: Color(red: 0.84, green: 0.79, blue: 0.92)
+                    )
+
+                    if insight.hasSecondaryGoal {
+                        MacFlowGoalCard(
+                            role: "次要目标",
+                            title: insight.secondaryGoalTitle,
+                            reason: insight.secondaryGoalReason,
+                            nextStep: insight.secondaryGoalNextStep,
+                            challenge: insight.secondaryGoalChallenge,
+                            tint: Color(red: 0.78, green: 0.88, blue: 0.84)
+                        )
+                    } else {
+                        MacFlowPlaceholderGoalCard()
+                    }
+                }
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                    MacFlowInfoCard(
+                        icon: "cloud.sun.fill",
+                        title: "近期情绪天气",
+                        bodyText: insight.recentEmotionSummary,
+                        tags: insight.recentEmotionTags
+                    )
+
+                    MacFlowInfoCard(
+                        icon: "scope",
+                        title: insight.flowConditionTitle,
+                        bodyText: insight.flowConditionDetail.isEmpty ? insight.flowSupport : insight.flowConditionDetail,
+                        tags: insight.flowConditions
+                    )
+
+                    MacFlowInfoCard(
+                        icon: "sparkles",
+                        title: insight.recentPatternTitle,
+                        bodyText: insight.recentPatternDetail,
+                        tags: insight.recentPattern
+                    )
+
+                    MacFlowInfoCard(
+                        icon: "bookmark.fill",
+                        title: "记忆在提醒你",
+                        bodyText: insight.flowSupport,
+                        tags: insight.memoryCues
+                    )
+                }
+
+                MacFlowReminderCard(insight: insight)
+
+                HStack {
+                    Button {
+                        Task {
+                            await store.refreshStarMapInsight(forceRefresh: true)
+                        }
+                    } label: {
+                        Label(
+                            store.isFlowInsightRefreshing ? "正在重新生成" : "重新生成心流导航",
+                            systemImage: "arrow.clockwise"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.46, green: 0.39, blue: 0.66))
+                    .disabled(store.isFlowInsightRefreshing)
+
+                    Text(store.flowInsightNotice)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .task {
+            await store.refreshStarMapInsight()
+        }
+    }
+}
+
+private struct MacFlowHeaderCard: View {
+    let insight: StarMapInsight
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("当前周期", systemImage: "moon.stars.fill")
+                    .font(.headline)
+                Spacer()
+                Text(insight.periodLabel)
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(insight.coreInsight)
+                .font(.title2.bold())
+                .foregroundStyle(Color(red: 0.22, green: 0.20, blue: 0.28))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(insight.coreInsightDetail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if insight.isMockInsight {
+                Label("当前可能是占位分析。连接后端并刷新后，会基于真实日记、记忆和长期状态生成。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.92, green: 0.88, blue: 0.98),
+                    Color(red: 0.98, green: 0.92, blue: 0.86),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+    }
+}
+
+private struct MacFlowGoalCard: View {
+    let role: String
+    let title: String
+    let reason: String
+    let nextStep: String
+    let challenge: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(role)
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !challenge.isEmpty {
+                    Text(challenge)
+                        .font(.caption.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.55), in: Capsule())
+                }
+            }
+
+            Text(title.isEmpty ? "还没有形成目标" : title)
+                .font(.title3.bold())
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(reason)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 5) {
+                Label("下一步", systemImage: "arrow.right.circle.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Text(nextStep.isEmpty ? "先完成几次夜谈总结，再生成更具体的小步骤。" : nextStep)
+                    .font(.callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
+        .background(tint.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct MacFlowPlaceholderGoalCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("次要目标", systemImage: "circle.dotted")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Text("暂时不拆第二个目标")
+                .font(.title3.bold())
+            Text("当系统判断当前阶段只需要一个主线时，这里会保持空白，避免制造额外负担。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
+        .background(Color.white.opacity(0.50), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.secondary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
+        }
+    }
+}
+
+private struct MacFlowInfoCard: View {
+    let icon: String
+    let title: String
+    let bodyText: String
+    let tags: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.headline)
+            Text(bodyText)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !tags.isEmpty {
+                MacTagFlow(items: tags)
+            }
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
+        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct MacFlowReminderCard: View {
+    let insight: StarMapInsight
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(insight.gentleReminderTitle, systemImage: "leaf.fill")
+                .font(.headline)
+            Text(insight.gentleReminder)
+                .font(.title3.bold())
+                .fixedSize(horizontal: false, vertical: true)
+            Text(insight.gentleReminderDetail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.94, green: 0.96, blue: 0.90), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
