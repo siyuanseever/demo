@@ -36,26 +36,21 @@ def read_prompt(name: str) -> str:
 
 def parse_json_object(content: str) -> dict:
     text = str(content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
+    if not text:
+        return {}
     try:
         payload = json.loads(text)
-    except json.JSONDecodeError as original_error:
+    except json.JSONDecodeError:
         start = text.find("{")
         end = text.rfind("}")
         if start < 0 or end <= start:
-            raise
+            return {}
         try:
             payload = json.loads(text[start : end + 1])
         except json.JSONDecodeError:
-            raise original_error
+            return {}
     if not isinstance(payload, dict):
-        raise ValueError("LLM response must be a JSON object")
+        return {}
     return payload
 
 
