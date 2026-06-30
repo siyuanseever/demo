@@ -169,7 +169,7 @@ class FunctionalTest:
             route_plan={"character_id": "yoyo"},
             intent_result=intent,
         )
-        result = self.orch._clarify_response(sid, "测试", reply_path, {"steps": []}, 0)
+        result = self.orch._clarify_response(sid, "测试", reply_path, {"steps": [], "llm_calls": []}, 0)
         reply = result.get("reply", "")
 
         # clarify 路径不应调用 LLM（debug_trace.llm_calls 为空或不变）
@@ -209,7 +209,7 @@ class FunctionalTest:
             route_plan={"character_id": "yoyo"},
             intent_result=intent,
         )
-        result = self.orch._interaction_response(sid, "测试", reply_path, {"steps": []}, 0)
+        result = self.orch._interaction_response(sid, "测试", reply_path, {"steps": [], "llm_calls": []}, 0)
         reply = result.get("reply", "")
 
         # 交互路径回复应包含模板关键词
@@ -370,10 +370,18 @@ class FunctionalTest:
 
     def test_message_metadata(self):
         """消息元数据完整性"""
+        import json as _json
         sid = self.store.create_session()
         self.orch.reply_detail(sid, "测试元数据", "auto")
         messages = self.store.get_session_messages(sid)
-        assistant_msgs = [m for m in messages if m["role"] == "assistant"]
+        assistant_msgs = []
+        for m in messages:
+            if m["role"] == "assistant":
+                d = dict(m)
+                # metadata 在数据库中是 JSON 字符串，需要反序列化
+                raw_meta = d.get("metadata", "{}") or "{}"
+                d["metadata"] = _json.loads(raw_meta) if isinstance(raw_meta, str) else raw_meta
+                assistant_msgs.append(d)
 
         if assistant_msgs:
             msg = assistant_msgs[0]

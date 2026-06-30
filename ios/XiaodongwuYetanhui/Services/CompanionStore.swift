@@ -40,6 +40,8 @@ final class CompanionStore: ObservableObject {
     @Published var localAISettingsNotice: String?
     @Published var macBackendURL = ""
     @Published var isMacSyncTokenConfigured = false
+    @Published var moodAnalytics: RemoteMoodAnalytics?
+    @Published var isMoodRefreshing = false
 
     private let chatService = ChatService()
     private let localDeepSeekService = LocalDeepSeekService()
@@ -425,6 +427,9 @@ final class CompanionStore: ObservableObject {
                 )
             }
             database.upsertRemoteMessages(detail.messages)
+            // 补全：同步该会话相关的日记和记忆，避免 Mac 端打开历史会话后缺少关联数据
+            database.upsertRemoteJournals(detail.journals)
+            database.upsertRemoteMemories(detail.memories)
             load()
         } catch {
             sessionNotice = "暂时无法同步这个会话：\(Self.describe(error))"
@@ -441,6 +446,18 @@ final class CompanionStore: ObservableObject {
         backendStatus = await chatService.checkConnection()
         if backendStatus.isOnline {
             await syncAllFromBackend()
+        }
+    }
+
+    func refreshMoodAnalytics() async {
+        guard !isMoodRefreshing else { return }
+        isMoodRefreshing = true
+        defer { isMoodRefreshing = false }
+        do {
+            let analytics = try await chatService.fetchMoodAnalytics()
+            moodAnalytics = analytics
+        } catch {
+            // 保持上次缓存，静默失败
         }
     }
 

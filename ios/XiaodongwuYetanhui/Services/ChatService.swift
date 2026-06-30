@@ -503,6 +503,14 @@ final class ChatService {
         return response.items.compactMap { $0.current?.remoteStateProfile }
     }
 
+    func fetchMoodAnalytics() async throws -> RemoteMoodAnalytics {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/mood_analytics"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+        let response: RemoteMoodAnalyticsResponseBody = try await decode(request)
+        return response.analytics
+    }
+
     func uploadSyncBundle(_ bundle: SyncUploadBundle, token: String) async throws {
         let normalizedPath = "api/sync/merge"
         var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
@@ -756,6 +764,24 @@ private struct RemoteMessageResponseBody: Decodable {
         case expressionID = "expression_id"
         case knowledgeCardIDs = "knowledge_card_ids"
         case routePlan = "route_plan"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        sessionID = try container.decode(String.self, forKey: .sessionID)
+        role = try container.decode(String.self, forKey: .role)
+        content = try container.decode(String.self, forKey: .content)
+        model = try container.decodeIfPresent(String.self, forKey: .model)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        characterID = try container.decodeIfPresent(String.self, forKey: .characterID)
+        groupRole = try container.decodeIfPresent(String.self, forKey: .groupRole)
+        action = try container.decodeIfPresent(String.self, forKey: .action)
+        expressionID = try container.decodeIfPresent(String.self, forKey: .expressionID)
+        knowledgeCardIDs = try container.decodeIfPresent([String].self, forKey: .knowledgeCardIDs)
+        // 容错：route_plan 可能是嵌套格式（多角色）或扁平格式（单角色），
+        // 格式不匹配时设为 nil，避免毁掉整个消息列表的解码。
+        routePlan = try? container.decode(SyncRoutePlanRecord.self, forKey: .routePlan)
     }
 
     var remoteMessage: RemoteChatMessage {
@@ -1248,6 +1274,86 @@ private struct EndSessionJournalBody: Decodable {
 private struct EndSessionMemoryBody: Decodable {}
 
 private struct EndSessionStateProfileBody: Decodable {}
+
+struct RemoteMoodAnalytics: Decodable {
+    let points: [RemoteMoodPoint]
+    let daily: [RemoteMoodDaily]
+    let weekly: [RemoteMoodWeekly]
+}
+
+struct RemoteMoodPoint: Decodable {
+    let id: String
+    let sessionID: String
+    let date: String
+    let week: String
+    let createdAt: String
+    let score: Double
+    let dominantEmotion: String
+    let summary: String
+    let keywords: [String]
+    let emotionCurve: [String]
+    let suggestedNextStep: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionID = "session_id"
+        case date
+        case week
+        case createdAt = "created_at"
+        case score
+        case dominantEmotion = "dominant_emotion"
+        case summary
+        case keywords
+        case emotionCurve = "emotion_curve"
+        case suggestedNextStep = "suggested_next_step"
+    }
+}
+
+struct RemoteMoodDaily: Decodable {
+    let date: String
+    let score: Double
+    let count: Int
+    let keywords: [String]
+    let dominantEmotion: String
+    let summary: String
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case score
+        case count
+        case keywords
+        case dominantEmotion = "dominant_emotion"
+        case summary
+    }
+}
+
+struct RemoteMoodWeekly: Decodable {
+    let week: String
+    let score: Double
+    let count: Int
+    let keywords: [String]
+    let dominantEmotion: String
+    let summary: String
+
+    enum CodingKeys: String, CodingKey {
+        case week
+        case score
+        case count
+        case keywords
+        case dominantEmotion = "dominant_emotion"
+        case summary
+    }
+}
+
+private struct RemoteMoodAnalyticsResponseBody: Decodable {
+    let points: [RemoteMoodPoint]
+    let daily: [RemoteMoodDaily]
+    let weekly: [RemoteMoodWeekly]
+
+    var analytics: RemoteMoodAnalytics {
+        RemoteMoodAnalytics(points: points, daily: daily, weekly: weekly)
+    }
+}
 
 private enum ChatServiceError: Error, CustomStringConvertible {
     case invalidResponse

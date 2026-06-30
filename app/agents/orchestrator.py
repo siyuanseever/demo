@@ -1118,7 +1118,7 @@ class ConversationOrchestrator:
                     "summary": "已通过追问路径返回 clarify_reply，未调用 LLM。",
                 }],
                 "total_elapsed_sec": round(time.monotonic() - started_at, 2),
-                "llm_call_count": len(debug_trace["llm_calls"]),
+                "llm_call_count": len(debug_trace.get("llm_calls", [])),
             },
         }
 
@@ -1173,7 +1173,7 @@ class ConversationOrchestrator:
                     "summary": f"已通过交互路径生成 {interaction_type} 引导内容。",
                 }],
                 "total_elapsed_sec": round(time.monotonic() - started_at, 2),
-                "llm_call_count": len(debug_trace["llm_calls"]),
+                "llm_call_count": len(debug_trace.get("llm_calls", [])),
             },
         }
 

@@ -743,8 +743,16 @@ private struct MacMemoryCategoryCard: View {
     }
 }
 
+private enum MacJournalViewMode: String, CaseIterable, Identifiable {
+    case journalList = "日记列表"
+    case moodTrack = "心情轨迹"
+
+    var id: String { rawValue }
+}
+
 private struct MacJournalsWorkspace: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var viewMode: MacJournalViewMode = .journalList
 
     var body: some View {
         MacCollectionWorkspace(
@@ -752,16 +760,267 @@ private struct MacJournalsWorkspace: View {
             subtitle: "按周查看日记、情绪轨迹、关键词和阶段性小结。",
             isEmpty: store.journals.isEmpty
         ) {
-            ForEach(macJournalWeeks(store.journals)) { week in
-                VStack(alignment: .leading, spacing: 12) {
-                    MacWeeklyReportCard(week: week)
+            Picker("查看方式", selection: $viewMode) {
+                ForEach(MacJournalViewMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 320)
+            .padding(.bottom, 6)
 
-                    ForEach(week.journals) { journal in
-                        MacJournalDetailCard(journal: journal)
-                    }
+            switch viewMode {
+            case .journalList:
+                journalListContent
+            case .moodTrack:
+                MacMoodTrackView()
+                    .environmentObject(store)
+            }
+        }
+        .task {
+            await store.refreshMoodAnalytics()
+        }
+    }
+
+    private var journalListContent: some View {
+        ForEach(macJournalWeeks(store.journals)) { week in
+            VStack(alignment: .leading, spacing: 12) {
+                MacWeeklyReportCard(week: week)
+
+                ForEach(week.journals) { journal in
+                    MacJournalDetailCard(journal: journal)
                 }
             }
         }
+    }
+}
+
+private struct MacMoodTrackView: View {
+    @EnvironmentObject private var store: CompanionStore
+
+    var body: some View {
+        if store.isMoodRefreshing && store.moodAnalytics == nil {
+            ProgressView("正在读取心情数据...")
+                .frame(maxWidth: .infinity, minHeight: 200)
+        } else if let analytics = store.moodAnalytics, !analytics.daily.isEmpty {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                // 本周概览
+                if let latestWeek = analytics.weekly.first {
+                    MacMoodWeekOverviewCard(week: latestWeek)
+                }
+
+                // 每日情绪变化轨迹
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("最近每日情绪")
+                        .font(.headline)
+                    Text("根据每次夜谈后生成的心情评分与主导情绪")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    let recentDaily = Array(analytics.daily.suffix(14).reversed())
+                    ForEach(recentDaily, id: \.date) { day in
+                        MacMoodDailyCard(day: day)
+                    }
+                }
+
+                // 单 session 情绪轨迹（从现有 journals 中展示 emotion_curve）
+                if !store.journals.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("单次夜谈情绪轨迹")
+                            .font(.headline)
+                        Text("每次夜谈中记录到的情绪变化序列")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        ForEach(store.journals.prefix(6)) { journal in
+                            MacSessionEmotionCurveCard(journal: journal)
+                        }
+                    }
+                }
+            }
+        } else {
+            ContentUnavailableView(
+                "还没有足够的心情数据",
+                systemImage: "chart.line.uptrend.xyaxis",
+                description: Text("完成几次夜谈并生成总结后，这里会显示情绪变化轨迹。")
+            )
+            .frame(maxWidth: .infinity, minHeight: 360)
+        }
+    }
+}
+
+private struct MacMoodWeekOverviewCard: View {
+    let week: RemoteMoodWeekly
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("本周概览")
+                    .font(.title3.bold())
+                Spacer()
+                Text(week.week)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("平均心情")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(String(format: "%.1f", week.score))
+                        .font(.title2.bold())
+                        .foregroundStyle(moodColor(week.score))
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("主导情绪")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(week.dominantEmotion)
+                        .font(.title3.bold())
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("记录次数")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(week.count)")
+                        .font(.title3.bold())
+                }
+
+                Spacer()
+            }
+
+            if !week.keywords.isEmpty {
+                MacTagFlow(items: week.keywords)
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.93, green: 0.95, blue: 0.88),
+                    Color(red: 0.96, green: 0.92, blue: 0.90),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 18)
+        )
+    }
+
+    private func moodColor(_ score: Double) -> Color {
+        if score >= 2 { return Color(red: 0.35, green: 0.55, blue: 0.35) }
+        if score >= 0 { return Color(red: 0.55, green: 0.50, blue: 0.30) }
+        if score >= -2 { return Color(red: 0.60, green: 0.40, blue: 0.30) }
+        return Color(red: 0.55, green: 0.30, blue: 0.35)
+    }
+}
+
+private struct MacMoodDailyCard: View {
+    let day: RemoteMoodDaily
+
+    var body: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .center, spacing: 2) {
+                Text(dayLabel)
+                    .font(.caption.bold())
+                Text(dayNumber)
+                    .font(.title3.bold())
+            }
+            .frame(width: 48)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(day.dominantEmotion)
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Text(String(format: "%.1f", day.score))
+                        .font(.subheadline.bold())
+                        .foregroundStyle(moodColor(day.score))
+                }
+
+                if !day.keywords.isEmpty {
+                    MacTagFlow(items: day.keywords)
+                }
+
+                if !day.summary.isEmpty {
+                    Text(day.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var dayLabel: String {
+        guard let date = macParseDate(day.date + "T00:00:00Z") else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date)
+    }
+
+    private var dayNumber: String {
+        guard let date = macParseDate(day.date + "T00:00:00Z") else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
+
+    private func moodColor(_ score: Double) -> Color {
+        if score >= 2 { return Color(red: 0.35, green: 0.55, blue: 0.35) }
+        if score >= 0 { return Color(red: 0.55, green: 0.50, blue: 0.30) }
+        if score >= -2 { return Color(red: 0.60, green: 0.40, blue: 0.30) }
+        return Color(red: 0.55, green: 0.30, blue: 0.35)
+    }
+}
+
+private struct MacSessionEmotionCurveCard: View {
+    let journal: JournalEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(journal.dominantEmotion.isEmpty ? "一次夜谈" : journal.dominantEmotion)
+                    .font(.subheadline.bold())
+                Spacer()
+                Text("心情 \(journal.moodScore)")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.62), in: Capsule())
+                Text(macShortDate(journal.createdAt))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !journal.emotionCurve.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(journal.emotionCurve, id: \.self) { emotion in
+                        Text(emotion)
+                            .font(.caption.bold())
+                            .foregroundStyle(Color(red: 0.36, green: 0.39, blue: 0.31))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Color.white.opacity(0.62),
+                                in: Capsule()
+                            )
+                    }
+                }
+            } else {
+                Text("这次夜谈没有记录到情绪变化序列。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
