@@ -10,9 +10,7 @@ log.txt
 waterline/
 tools/
 ios/DerivedData*/
-eval_reports/
-prompt-evaluation-report/prompt-evaluation-report.html
-prompt-evaluation-report/
+
 # macOS 系统文件
 .DS_Store
 
@@ -21,7 +19,9 @@ prompt.md
 context.md
 prompt.py
 tmp.md
-project-architecture-visualization/
 data/
-data/intent_test_set.jsonl
 .trae/
+
+eval_reports/
+prompt-evaluation-report/
+project-architecture-visualization/

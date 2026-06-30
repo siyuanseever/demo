@@ -29,6 +29,7 @@ final class CompanionStore: ObservableObject {
     @Published var sessionNotice: String?
     @Published var isBackendSyncing = false
     @Published var summarizingSessionID: String?
+    @Published var latestCloseSummary: SessionCloseSummary?
     @Published var lastBackendSyncAt: Date?
     @Published var homeEncouragement = "你已经很努力了，慢慢来，一切都会好起来的。"
     @Published var homeEncouragementHint: HomeHint?
@@ -168,6 +169,7 @@ final class CompanionStore: ObservableObject {
         chatService.resetSession()
         localDeepSeekService.resetSession()
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
+        latestCloseSummary = nil
         sessionNotice = "已经准备好一个新的夜谈。"
         chatNotice = nil
         refreshInteractionOffers()
@@ -237,6 +239,9 @@ final class CompanionStore: ObservableObject {
         sessionNotice = "正在结束并总结这次夜谈..."
         do {
             let summary: SessionCloseSummary
+            #if targetEnvironment(macCatalyst)
+            summary = try await chatService.closeCurrentSession()
+            #else
             if isLocalAIConfigured, let apiKey = secureSettings.deepSeekAPIKey() {
                 summary = try await localDeepSeekService.closeCurrentSession(
                     apiKey: apiKey,
@@ -245,13 +250,20 @@ final class CompanionStore: ObservableObject {
             } else {
                 summary = try await chatService.closeCurrentSession()
             }
+            #endif
+            #if targetEnvironment(macCatalyst)
+            sessionNotice = "已总结：处理 \(summary.memoryCount) 条记忆，评估 \(summary.stateProfiles.count) 项长期状态。"
+            await syncAllFromBackend(forceStarMapRefresh: true)
+            #else
             sessionNotice = isLocalAIConfigured
                 ? summary.journalSummary
                 : "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
             if !isLocalAIConfigured {
                 await syncAllFromBackend(forceStarMapRefresh: true)
             }
+            #endif
             load()
+            latestCloseSummary = summary
             messages.append(
                 ChatMessage(
                     id: UUID().uuidString,

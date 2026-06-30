@@ -216,6 +216,11 @@ private struct MacConversationWorkspace: View {
                                     .id(message.id)
                             }
 
+                            if let summary = store.latestCloseSummary {
+                                MacSessionCloseResultCard(summary: summary)
+                                    .id(summary.id)
+                            }
+
                             if store.isSending {
                                 MacThinkingRow(character: store.selectedCharacter)
                             }
@@ -239,6 +244,12 @@ private struct MacConversationWorkspace: View {
                         guard let lastID = store.messages.last?.id else { return }
                         withAnimation(.easeOut(duration: 0.22)) {
                             proxy.scrollTo(lastID, anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: store.latestCloseSummary?.id) {
+                        guard let summaryID = store.latestCloseSummary?.id else { return }
+                        withAnimation(.easeOut(duration: 0.28)) {
+                            proxy.scrollTo(summaryID, anchor: .bottom)
                         }
                     }
                 }
@@ -410,6 +421,286 @@ private struct MacMessageRow: View {
                 .frame(width: 340)
             }
         }
+    }
+}
+
+private struct MacSessionCloseResultCard: View {
+    let summary: SessionCloseSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color(red: 0.38, green: 0.52, blue: 0.34))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("本次夜谈已整理")
+                        .font(.title3.bold())
+                    Text("下面是这次总结实际写入或评估的内容。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 10) {
+                    Label("\(summary.memoryCount) 条记忆", systemImage: "books.vertical")
+                    Label("\(summary.stateProfileCount) 项状态", systemImage: "chart.line.uptrend.xyaxis")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if let journal = summary.journal {
+                MacCloseJournalSection(journal: journal)
+            } else {
+                MacCloseSection(title: "总结日记", icon: "book.closed.fill") {
+                    Text(summary.journalSummary)
+                        .font(.callout)
+                        .textSelection(.enabled)
+                }
+            }
+
+            MacCloseSection(title: "记忆处理", icon: "books.vertical.fill") {
+                if summary.memories.isEmpty {
+                    Text("这次没有新增、合并或修改长期记忆。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(summary.memories) { memory in
+                        MacCloseMemoryRow(memory: memory)
+                    }
+                }
+            }
+
+            MacCloseSection(title: "长期状态评估", icon: "chart.line.uptrend.xyaxis") {
+                if summary.stateProfiles.isEmpty {
+                    Text("这次没有返回长期状态评估结果。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(summary.stateProfiles) { profile in
+                        MacCloseStateRow(profile: profile)
+                    }
+                }
+            }
+        }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.94, green: 0.97, blue: 0.91),
+                    Color(red: 0.98, green: 0.93, blue: 0.90),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.78))
+        }
+    }
+}
+
+private struct MacCloseJournalSection: View {
+    let journal: SessionCloseJournal
+
+    var body: some View {
+        MacCloseSection(title: "总结日记", icon: "book.closed.fill") {
+            HStack(spacing: 9) {
+                if !journal.dominantEmotion.isEmpty {
+                    Text(journal.dominantEmotion)
+                        .font(.caption.bold())
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Color.pink.opacity(0.12), in: Capsule())
+                }
+                Text("心情 \(journal.moodScore)")
+                    .font(.caption.bold())
+                    .foregroundStyle(macMoodColor(Double(journal.moodScore)))
+            }
+
+            Text(journal.summary)
+                .font(.callout)
+                .textSelection(.enabled)
+
+            if !journal.emotionCurve.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("情绪变化")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    MacTagFlow(items: journal.emotionCurve)
+                }
+            }
+
+            if !journal.insights.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("洞察")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    ForEach(journal.insights, id: \.self) { insight in
+                        Label(insight, systemImage: "sparkle")
+                            .font(.caption)
+                    }
+                }
+            }
+
+            if !journal.keywords.isEmpty {
+                MacTagFlow(items: journal.keywords)
+            }
+
+            if !journal.suggestedNextStep.isEmpty {
+                Label(journal.suggestedNextStep, systemImage: "arrow.right.circle.fill")
+                    .font(.callout.weight(.semibold))
+            }
+        }
+    }
+}
+
+private struct MacCloseMemoryRow: View {
+    let memory: SessionCloseMemory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text("\(macMemoryCategoryTitle(memory.category)) / \(memory.subcategory)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                MacCloseActionBadge(action: memory.action)
+            }
+
+            Text(memory.content)
+                .font(.callout)
+                .textSelection(.enabled)
+
+            if !memory.reason.isEmpty {
+                Text("处理依据：\(memory.reason)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !memory.keywords.isEmpty {
+                MacTagFlow(items: memory.keywords)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct MacCloseStateRow: View {
+    let profile: SessionCloseStateProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(macStateDomainTitle(profile.domain))
+                        .font(.subheadline.bold())
+                    Text(profile.stage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                MacCloseActionBadge(action: profile.action)
+            }
+
+            if !profile.summary.isEmpty {
+                Text(profile.summary)
+                    .font(.callout)
+                    .textSelection(.enabled)
+            }
+
+            HStack(spacing: 12) {
+                Label("强度 \(profile.intensity)", systemImage: "gauge.with.dots.needle.50percent")
+                Label(profile.trend, systemImage: "arrow.up.right")
+                Text("置信度 \(Int(profile.confidence * 100))%")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            if !profile.evidence.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("本次依据")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    ForEach(profile.evidence, id: \.self) { evidence in
+                        Text("• \(evidence)")
+                            .font(.caption)
+                    }
+                }
+            }
+
+            if !profile.supportStrategy.isEmpty {
+                Label(profile.supportStrategy, systemImage: "heart.text.square.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !profile.reason.isEmpty {
+                Text("判断说明：\(profile.reason)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct MacCloseActionBadge: View {
+    let action: String
+
+    var body: some View {
+        Text(actionTitle)
+            .font(.caption2.bold())
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .foregroundStyle(actionColor)
+            .background(actionColor.opacity(0.12), in: Capsule())
+    }
+
+    private var actionTitle: String {
+        switch action {
+        case "create": "新增"
+        case "merge": "合并"
+        case "update": "更新"
+        case "contradict": "矛盾修订"
+        case "ignore": "忽略"
+        case "no_change": "保持不变"
+        default: action
+        }
+    }
+
+    private var actionColor: Color {
+        switch action {
+        case "create": Color.green
+        case "merge", "update": Color.blue
+        case "contradict": Color.orange
+        case "ignore", "no_change": Color.secondary
+        default: Color.purple
+        }
+    }
+}
+
+private struct MacCloseSection<Content: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.headline)
+            content
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 15))
     }
 }
 
@@ -1073,7 +1364,6 @@ private struct MacMoodTrackView: View {
                     MacMoodWeekOverviewCard(week: latestWeek)
                 }
 
-                // 每日情绪变化轨迹
                 VStack(alignment: .leading, spacing: 10) {
                     Text("最近每日情绪")
                         .font(.headline)
@@ -1081,13 +1371,29 @@ private struct MacMoodTrackView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    let recentDaily = Array(analytics.daily.suffix(14).reversed())
+                    let recentDaily = Array(analytics.daily.suffix(14))
+                    MacMoodTrendChart(
+                        points: recentDaily.map {
+                            MacMoodChartPoint(
+                                id: $0.date,
+                                label: macMoodDayLabel($0.date),
+                                score: $0.score,
+                                detail: $0.dominantEmotion
+                            )
+                        },
+                        title: "最近 14 天心情曲线",
+                        subtitle: "0 是中性；越高越正向，越低越沉重。"
+                    )
+
+                    Text("每日记录")
+                        .font(.subheadline.bold())
+                        .padding(.top, 4)
+
                     ForEach(recentDaily, id: \.date) { day in
                         MacMoodDailyCard(day: day)
                     }
                 }
 
-                // 单 session 情绪轨迹（从现有 journals 中展示 emotion_curve）
                 if !store.journals.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("单次夜谈情绪轨迹")
@@ -1179,6 +1485,159 @@ private struct MacMoodWeekOverviewCard: View {
         if score >= 0 { return Color(red: 0.55, green: 0.50, blue: 0.30) }
         if score >= -2 { return Color(red: 0.60, green: 0.40, blue: 0.30) }
         return Color(red: 0.55, green: 0.30, blue: 0.35)
+    }
+}
+
+private struct MacMoodChartPoint: Identifiable, Hashable {
+    let id: String
+    let label: String
+    let score: Double
+    let detail: String
+}
+
+private struct MacMoodTrendChart: View {
+    let points: [MacMoodChartPoint]
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.bold())
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let averageScore {
+                    Text(String(format: "均值 %.1f", averageScore))
+                        .font(.caption.bold())
+                        .foregroundStyle(macMoodColor(averageScore))
+                }
+            }
+
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let height = geometry.size.height
+                let leftInset: CGFloat = 34
+                let rightInset: CGFloat = 14
+                let topInset: CGFloat = 12
+                let bottomInset: CGFloat = 28
+                let plotWidth = max(1, width - leftInset - rightInset)
+                let plotHeight = max(1, height - topInset - bottomInset)
+                let baselineY = yPosition(for: 0, top: topInset, height: plotHeight)
+
+                ZStack(alignment: .topLeading) {
+                    chartGrid(
+                        width: width,
+                        plotWidth: plotWidth,
+                        leftInset: leftInset,
+                        rightInset: rightInset,
+                        topInset: topInset,
+                        plotHeight: plotHeight,
+                        baselineY: baselineY
+                    )
+
+                    ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
+                        let x = xPosition(index: index, count: points.count, left: leftInset, width: plotWidth)
+                        let y = yPosition(for: point.score, top: topInset, height: plotHeight)
+                        let barTop = min(y, baselineY)
+                        let barHeight = max(3, abs(baselineY - y))
+
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(macMoodColor(point.score).opacity(0.28))
+                            .frame(width: points.count > 8 ? 14 : 20, height: barHeight)
+                            .position(x: x, y: barTop + barHeight / 2)
+
+                        Circle()
+                            .fill(macMoodColor(point.score))
+                            .frame(width: 8, height: 8)
+                            .position(x: x, y: y)
+
+                        Text(point.label)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .position(x: x, y: height - 10)
+                    }
+
+                    Path { path in
+                        for (index, point) in points.enumerated() {
+                            let x = xPosition(index: index, count: points.count, left: leftInset, width: plotWidth)
+                            let y = yPosition(for: point.score, top: topInset, height: plotHeight)
+                            if index == 0 {
+                                path.move(to: CGPoint(x: x, y: y))
+                            } else {
+                                path.addLine(to: CGPoint(x: x, y: y))
+                            }
+                        }
+                    }
+                    .stroke(Color(red: 0.42, green: 0.35, blue: 0.62), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+                }
+            }
+            .frame(height: 190)
+
+            HStack(spacing: 10) {
+                Label("正向", systemImage: "arrow.up.circle.fill")
+                    .foregroundStyle(macMoodColor(3))
+                Label("中性", systemImage: "minus.circle.fill")
+                    .foregroundStyle(macMoodColor(0))
+                Label("负向", systemImage: "arrow.down.circle.fill")
+                    .foregroundStyle(macMoodColor(-3))
+            }
+            .font(.caption)
+        }
+        .padding(15)
+        .background(Color.white.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var averageScore: Double? {
+        guard !points.isEmpty else { return nil }
+        return points.reduce(0) { $0 + $1.score } / Double(points.count)
+    }
+
+    @ViewBuilder
+    private func chartGrid(
+        width: CGFloat,
+        plotWidth: CGFloat,
+        leftInset: CGFloat,
+        rightInset: CGFloat,
+        topInset: CGFloat,
+        plotHeight: CGFloat,
+        baselineY: CGFloat
+    ) -> some View {
+        let positiveY = yPosition(for: 5, top: topInset, height: plotHeight)
+        let negativeY = yPosition(for: -5, top: topInset, height: plotHeight)
+
+        ForEach([
+            ("+5", positiveY),
+            ("0", baselineY),
+            ("-5", negativeY),
+        ], id: \.0) { label, y in
+            Path { path in
+                path.move(to: CGPoint(x: leftInset, y: y))
+                path.addLine(to: CGPoint(x: width - rightInset, y: y))
+            }
+            .stroke(label == "0" ? Color.secondary.opacity(0.32) : Color.secondary.opacity(0.14), lineWidth: label == "0" ? 1.2 : 0.8)
+
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .position(x: 15, y: y)
+        }
+    }
+
+    private func xPosition(index: Int, count: Int, left: CGFloat, width: CGFloat) -> CGFloat {
+        guard count > 1 else { return left + width / 2 }
+        return left + width * CGFloat(index) / CGFloat(count - 1)
+    }
+
+    private func yPosition(for score: Double, top: CGFloat, height: CGFloat) -> CGFloat {
+        let clamped = min(5, max(-5, score))
+        let normalized = (clamped + 5) / 10
+        return top + height * CGFloat(1 - normalized)
     }
 }
 
@@ -1500,6 +1959,19 @@ private struct MacJournalWeek: Identifiable {
             .prefix(3)
         return summaries.isEmpty ? "这一周的记录还在形成。" : summaries.joined(separator: "\n\n")
     }
+
+    var chartPoints: [MacMoodChartPoint] {
+        journals
+            .sorted { $0.createdAt < $1.createdAt }
+            .map {
+                MacMoodChartPoint(
+                    id: $0.id,
+                    label: macMoodShortDayLabel($0.createdAt),
+                    score: Double($0.moodScore),
+                    detail: $0.dominantEmotion
+                )
+            }
+    }
 }
 
 private struct MacWeeklyReportCard: View {
@@ -1529,6 +2001,14 @@ private struct MacWeeklyReportCard: View {
                 .font(.callout)
                 .lineLimit(8)
                 .textSelection(.enabled)
+
+            if !week.chartPoints.isEmpty {
+                MacMoodTrendChart(
+                    points: week.chartPoints,
+                    title: "本周心情轨迹",
+                    subtitle: "每根柱代表一篇总结日记，折线显示这一周的起伏。"
+                )
+            }
 
             if !week.keywords.isEmpty {
                 MacTagFlow(items: week.keywords)
@@ -1718,6 +2198,31 @@ private func frequencySorted(_ values: [String]) -> [(String, Int)] {
 
 private func mostFrequent(_ values: [String]) -> String? {
     frequencySorted(values).first?.0
+}
+
+private func macMemoryCategoryTitle(_ categoryID: String) -> String {
+    macMemoryCategories.first { $0.id == categoryID }?.title ?? categoryID
+}
+
+private func macStateDomainTitle(_ domainID: String) -> String {
+    macStateDomains.first { $0.id == domainID }?.title ?? domainID
+}
+
+private func macMoodColor(_ score: Double) -> Color {
+    if score >= 2 { return Color(red: 0.35, green: 0.55, blue: 0.35) }
+    if score >= 0 { return Color(red: 0.56, green: 0.48, blue: 0.30) }
+    if score >= -2 { return Color(red: 0.66, green: 0.43, blue: 0.30) }
+    return Color(red: 0.58, green: 0.30, blue: 0.36)
+}
+
+private func macMoodDayLabel(_ value: String) -> String {
+    guard let date = macParseDate(value + "T00:00:00Z") else { return value }
+    return macDateFormatter("M/d").string(from: date)
+}
+
+private func macMoodShortDayLabel(_ value: String) -> String {
+    guard let date = macParseDate(value) else { return "" }
+    return macDateFormatter("d日").string(from: date)
 }
 
 private func macParseDate(_ value: String) -> Date? {

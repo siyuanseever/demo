@@ -23,10 +23,66 @@ struct ChatServiceGroupMessage {
     let knowledgeCards: [KnowledgeCard]
 }
 
-struct SessionCloseSummary {
+struct SessionCloseJournal {
+    let summary: String
+    let emotionCurve: [String]
+    let keywords: [String]
+    let insights: [String]
+    let suggestedNextStep: String
+    let moodScore: Int
+    let dominantEmotion: String
+}
+
+struct SessionCloseMemory: Identifiable {
+    let id: String
+    let category: String
+    let subcategory: String
+    let content: String
+    let keywords: [String]
+    let action: String
+    let reason: String
+    let confidence: Double
+    let importance: Int
+}
+
+struct SessionCloseStateProfile: Identifiable {
+    var id: String { domain }
+    let domain: String
+    let stage: String
+    let summary: String
+    let intensity: Int
+    let trend: String
+    let confidence: Double
+    let evidence: [String]
+    let supportStrategy: String
+    let action: String
+    let reason: String
+}
+
+struct SessionCloseSummary: Identifiable {
+    let id = UUID()
     let journalSummary: String
     let memoryCount: Int
     let stateProfileCount: Int
+    let journal: SessionCloseJournal?
+    let memories: [SessionCloseMemory]
+    let stateProfiles: [SessionCloseStateProfile]
+
+    init(
+        journalSummary: String,
+        memoryCount: Int,
+        stateProfileCount: Int,
+        journal: SessionCloseJournal? = nil,
+        memories: [SessionCloseMemory] = [],
+        stateProfiles: [SessionCloseStateProfile] = []
+    ) {
+        self.journalSummary = journalSummary
+        self.memoryCount = memoryCount
+        self.stateProfileCount = stateProfileCount
+        self.journal = journal
+        self.memories = memories
+        self.stateProfiles = stateProfiles
+    }
 }
 
 struct HomeHint {
@@ -448,7 +504,10 @@ final class ChatService {
         return SessionCloseSummary(
             journalSummary: response.journal.summary,
             memoryCount: response.memories.count,
-            stateProfileCount: response.stateProfiles.count
+            stateProfileCount: response.stateProfiles.filter { $0.action != "no_change" }.count,
+            journal: response.journal.closeJournal,
+            memories: response.memories.map(\.closeMemory),
+            stateProfiles: response.stateProfiles.map(\.closeStateProfile)
         )
     }
 
@@ -1269,11 +1328,152 @@ private struct EndSessionResponseBody: Decodable {
 
 private struct EndSessionJournalBody: Decodable {
     let summary: String
+    let emotionCurve: [String]
+    let keywords: [String]
+    let insights: [String]
+    let suggestedNextStep: String
+    let moodScore: Int
+    let dominantEmotion: String
+
+    enum CodingKeys: String, CodingKey {
+        case summary
+        case emotionCurve = "emotion_curve"
+        case keywords
+        case insights
+        case suggestedNextStep = "suggested_next_step"
+        case moodScore = "mood_score"
+        case dominantEmotion = "dominant_emotion"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        emotionCurve = try container.decodeIfPresent([String].self, forKey: .emotionCurve) ?? []
+        keywords = try container.decodeIfPresent([String].self, forKey: .keywords) ?? []
+        insights = try container.decodeIfPresent([String].self, forKey: .insights) ?? []
+        suggestedNextStep = try container.decodeIfPresent(String.self, forKey: .suggestedNextStep) ?? ""
+        moodScore = try container.decodeIfPresent(Int.self, forKey: .moodScore) ?? 0
+        dominantEmotion = try container.decodeIfPresent(String.self, forKey: .dominantEmotion) ?? ""
+    }
+
+    var closeJournal: SessionCloseJournal {
+        SessionCloseJournal(
+            summary: summary,
+            emotionCurve: emotionCurve,
+            keywords: keywords,
+            insights: insights,
+            suggestedNextStep: suggestedNextStep,
+            moodScore: moodScore,
+            dominantEmotion: dominantEmotion
+        )
+    }
 }
 
-private struct EndSessionMemoryBody: Decodable {}
+private struct EndSessionMemoryBody: Decodable {
+    let id: String
+    let category: String
+    let subcategory: String
+    let content: String
+    let keywords: [String]
+    let action: String
+    let reason: String
+    let confidence: Double
+    let importance: Int
 
-private struct EndSessionStateProfileBody: Decodable {}
+    enum CodingKeys: String, CodingKey {
+        case id
+        case category
+        case subcategory
+        case content
+        case keywords
+        case action
+        case reason
+        case confidence
+        case importance
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? "未分类"
+        subcategory = try container.decodeIfPresent(String.self, forKey: .subcategory) ?? "general"
+        content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        keywords = try container.decodeIfPresent([String].self, forKey: .keywords) ?? []
+        action = try container.decodeIfPresent(String.self, forKey: .action) ?? "create"
+        reason = try container.decodeIfPresent(String.self, forKey: .reason) ?? ""
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence) ?? 0
+        importance = try container.decodeIfPresent(Int.self, forKey: .importance) ?? 0
+    }
+
+    var closeMemory: SessionCloseMemory {
+        SessionCloseMemory(
+            id: id,
+            category: category,
+            subcategory: subcategory,
+            content: content,
+            keywords: keywords,
+            action: action,
+            reason: reason,
+            confidence: confidence,
+            importance: importance
+        )
+    }
+}
+
+private struct EndSessionStateProfileBody: Decodable {
+    let domain: String
+    let stage: String
+    let summary: String
+    let intensity: Int
+    let trend: String
+    let confidence: Double
+    let evidence: [String]
+    let supportStrategy: String
+    let action: String
+    let reason: String
+
+    enum CodingKeys: String, CodingKey {
+        case domain
+        case stage
+        case summary
+        case intensity
+        case trend
+        case confidence
+        case evidence
+        case supportStrategy = "support_strategy"
+        case action
+        case reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        domain = try container.decodeIfPresent(String.self, forKey: .domain) ?? "unknown"
+        stage = try container.decodeIfPresent(String.self, forKey: .stage) ?? ""
+        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        intensity = try container.decodeIfPresent(Int.self, forKey: .intensity) ?? 0
+        trend = try container.decodeIfPresent(String.self, forKey: .trend) ?? "unknown"
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence) ?? 0
+        evidence = try container.decodeIfPresent([String].self, forKey: .evidence) ?? []
+        supportStrategy = try container.decodeIfPresent(String.self, forKey: .supportStrategy) ?? ""
+        action = try container.decodeIfPresent(String.self, forKey: .action) ?? "no_change"
+        reason = try container.decodeIfPresent(String.self, forKey: .reason) ?? ""
+    }
+
+    var closeStateProfile: SessionCloseStateProfile {
+        SessionCloseStateProfile(
+            domain: domain,
+            stage: stage,
+            summary: summary,
+            intensity: intensity,
+            trend: trend,
+            confidence: confidence,
+            evidence: evidence,
+            supportStrategy: supportStrategy,
+            action: action,
+            reason: reason
+        )
+    }
+}
 
 struct RemoteMoodAnalytics: Decodable {
     let points: [RemoteMoodPoint]
