@@ -19,7 +19,6 @@ This repository is a Python stdlib demo for **小动物夜谈会**, a psychologi
 - `app/knowledge/` contains knowledge/content cards and retrieval helpers.
 - `app/prompts/` contains prompts sent to the LLM.
 - `app/evaluation/` contains the evaluation framework, test cases, and prompt quality assessment.
-- `app/loop/` contains the Loop infrastructure for autonomous iteration (Ralph technique).
 - `app/static/` stores avatars, cozy status images, and UI background assets.
 - `docs/`, `TODO.md`, and `ROADMAP.md` document product direction and implementation notes.
 - Runtime files live in `data/app.db` and `logs/app.log`; avoid committing private data.
@@ -38,10 +37,6 @@ This repository is a Python stdlib demo for **小动物夜谈会**, a psychologi
 | 自动诊断 | `python3 -m app.evaluation.diagnose` | 失败项自动分类（产品缺陷/测试缺陷） |
 | Prompt 追踪 | Web UI `/prompt-inspector` | 实时查看 LLM 调用详情、token 用量、质量评分 |
 | 体验评估 | `python3 -m app.evaluation.manual_eval` | 基于 cases 的手工/半自动评估 |
-| Loop 运行 | `python3 -m app.loop` | 单次迭代运行（Ralph 技术） |
-| 任务列表 | `python3 -m app.loop --list-tasks` | 查看 TODO.md 解析出的任务队列 |
-| 记忆查看 | `python3 -m app.loop --memory` | 查看跨迭代记忆 |
-| Loop 重置 | `python3 -m app.loop --reset` | 重置 Loop 状态 |
 
 ### 快速验证组合
 
@@ -104,7 +99,6 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 | Prompt 文件变更 | Gate 3 + Gate 4（手工 case 验证） |
 | 新增/删除模块 | Gate 0 + Gate 1 + Gate 2 |
 | Evaluation 框架变更 | Gate 0 + Gate 1 + Gate 2 |
-| Loop 基础设施变更 | Gate 0 + Gate 1 + Loop 自测 |
 
 ### 5.2 失败响应流程
 
@@ -192,16 +186,6 @@ diagnose 工具将失败项自动分类为三类：
                                                     └─ 待确认   → 询问用户
 ```
 
-### 5.4 Loop 迭代与门控衔接
-
-Loop 单次迭代完成后，若本次任务涉及代码变更：
-
-1. 自动触发 Gate 0（compileall）
-2. 自动触发 Gate 1（evaluation.runner）
-3. 若门控失败，自动运行 diagnose 工具
-4. 将诊断结果写入 `data/loop_memory.jsonl`（type="error"）
-5. 下次迭代优先选择修复此问题的任务
-
 ---
 
 ## 6. 代码风格与命名约定
@@ -258,46 +242,3 @@ Pull requests should include: purpose, key files changed, validation commands ru
 ## 9. 安全与配置
 
 Keep API keys in `.env`; never hard-code or commit secrets. Use `.env.example` for new configuration names. Be careful with `data/app.db` and `logs/app.log`, because they may contain private conversation data.
-
----
-
-## 10. Loop 基础设施
-
-### 10.1 设计原则（Ralph 技术）
-
-- 每次迭代完全重置上下文（不保留上次实例状态）
-- 所有状态从磁盘读取
-- 完成任务后立即退出
-- 记忆存储在磁盘，不依赖上下文窗口
-
-### 10.2 状态文件约定
-
-- `plan.md`（用户维护）—— 当前阶段计划
-- `status.md`（用户维护）—— 当前进度状态
-- `data/loop_state.json`（自动维护）—— Loop 运行状态
-- `data/loop_memory.jsonl`（自动维护）—— 跨迭代记忆
-- `TODO.md`（现有）—— Loop 任务来源
-
-### 10.3 运行方式
-
-```bash
-# 运行单次迭代
-python3 -m app.loop
-
-# 查看任务队列
-python3 -m app.loop --list-tasks
-
-# 查看跨迭代记忆
-python3 -m app.loop --memory
-
-# 重置 Loop 状态
-python3 -m app.loop --reset
-```
-
-### 10.4 记忆持久化机制
-
-- 记忆类型：`decision`（关键决策）、`observation`（观察/发现）、`error`（错误及修复）、`pattern`（重复模式）
-- 默认只加载最近 50 条记忆，旧记录自动归档
-- 使用简单关键词匹配检索（未来可升级向量化）
-
-详细说明见 `app/loop/README.md`。

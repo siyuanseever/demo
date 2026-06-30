@@ -1,13 +1,13 @@
 # 当前进度状态
 
-> 人维护的结构化进度视图，与 `data/loop_memory.jsonl`（机器自动事件流）互补。
+> 人维护的结构化进度视图。
 > 最后更新时间：2026-06-30
 
 ---
 
 ## 当前阶段
 
-`ROADMAP.md` Phase 3：做出可演示 demo + Harness/Loop 基础设施建设
+`ROADMAP.md` Phase 3：做出可演示 demo + Harness 基础设施建设
 
 ---
 
@@ -23,10 +23,10 @@
 
 | 指标 | 当前值 | 目标 |
 |------|--------|------|
-| Gate 1 综合通过率 | **95.6%** | >= 95% |
+| Gate 1 综合通过率 | **100%** | >= 95% |
 | 总测试数 | 90 | - |
-| 通过 | 86 | - |
-| 失败 | 4 | - |
+| 通过 | 90 | - |
+| 失败 | 0 | - |
 | 最近验证命令 | `python3 -m compileall app && python3 -m app.evaluation.runner` | - |
 
 ---
@@ -45,11 +45,11 @@
 
 ## 最近完成（最近 3-5 项）
 
-1. ✅ Harness 建设与 Loop 基础设施完成（evaluation 整合、测试补充、AGENTS.md 升级、app/loop/ 模块）
-2. ✅ 长期状态画像：跨会话追踪用户心理状态，支持版本历史
-3. ✅ 智能检索：策略规划器自动生成 memory_queries 和 knowledge_queries
-4. ✅ 精细化 thinking 控制：策略规划用 high-effort，回复生成关闭 thinking
-5. ✅ 记忆按时间排序查看：支持按分类和最近更新两种视图
+1. ✅ 修复 4 个产品代码缺陷：安全模块危机检测漏检 + orchestrator JSON 解析异常（测试通过率从 95.6% 提升至 100%）
+2. ✅ 建立 Maker-Checker 工作流规范（写入 AGENTS.md 5.3 节，所有 Agent 必须遵循）
+3. ✅ 移除 `app/loop/` 空壳模块（无实际功能，Codex/Claude Code 本身即为完整 Loop）
+4. ✅ Harness 建设完成（evaluation 整合、测试补充、AGENTS.md 升级）
+5. ✅ 长期状态画像：跨会话追踪用户心理状态，支持版本历史
 
 ---
 
@@ -80,7 +80,6 @@
 2. **选择 session 继续方案**：在方案 A（允许追加）和方案 B（分支新 session）中做决策
 3. **实施角色选择说明**：在 assistant 消息中增加一行简短的角色选择理由
 4. **运行 manual_eval**：完成近期功能后，运行体验评估验证"被理解感"
-5. **推进 Maker/Checker 架构**：在真实迭代中验证设计，逐步注入业务逻辑
 
 ---
 
@@ -89,7 +88,6 @@
 | 时间 | 验证项 | 结果 |
 |------|--------|------|
 | 2026-06-30 | compileall | 通过 |
-| 2026-06-30 | evaluation.runner | 95.6% 通过 |
-| 2026-06-30 | loop --list-tasks | 正常（190 任务） |
-| 2026-06-30 | loop 单次迭代 | 正常（完成 todo_in_progress_1，已重置） |
+| 2026-06-30 | evaluation.runner | **100% 通过（90/90）** |
+| 2026-06-30 | evaluation.diagnose | 0 产品缺陷，0 测试缺陷 |
 | 2026-06-30 | manual_eval | 正常（5 用例输出） |
