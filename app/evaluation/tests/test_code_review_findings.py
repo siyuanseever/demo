@@ -1196,10 +1196,10 @@ class DiagnoseFrameworkLabelTest(AccuracyTest):
 
     def run(self):
         import inspect
-        from app.evaluation.diagnose import print_diagnose
+        from app.evaluation.diagnose import print_diagnosis
 
         # 检查 dimensions 字典中 framework 的标签
-        source = inspect.getsource(print_diagnose)
+        source = inspect.getsource(print_diagnosis)
 
         # 查找 framework 的标签
         import re
