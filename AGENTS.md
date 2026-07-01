@@ -116,9 +116,32 @@ python3 -m compileall app && python3 -m app.evaluation.runner
     → 待人工确认 → 人工判断 → 修复对应方 → 重跑门控
 ```
 
-### 5.3 修改—检查工作流（所有 Agent 必须遵循）
+### 5.3 Checker / Fixer 角色隔离
 
-本节定义所有 AI Agent 在本项目中修改代码时的强制流程。当前主要由 Codex 在同一任务中完成修改和检查，不假设存在独立 Loop、Ralph runner 或双 Agent 运行时。
+自动化角色必须严格分工：
+
+| 角色 | 可以修改 | 禁止修改 |
+|------|---------|---------|
+| Test / Checker Agent | `app/evaluation/**`、测试 fixture、测试报告 | 产品实现、Prompt、iOS 产品代码 |
+| Product / Fixer Agent（Codex） | 产品实现和必要产品文档 | `app/evaluation/**`、测试、fixture、case |
+
+- Checker 可以只读访问 `data/app.db` 生成私有评估或脱敏/合成测试，但不得持久化真实对话原文。
+- Fixer 可以运行 Checker 提供的测试，但不得新增、删除、修改或放宽测试。
+- Fixer 判断测试有问题时，只能生成结构化异议报告，由 Checker 复核。
+- Checker 报告、Fixer 回执和复验结果使用 `docs/automation/` 中定义的通信协议。
+- Checker 负责关闭 issue；Fixer 只能标记为 `fixed_pending_verification`。
+- Checker 每 6 小时追加一份独立报告；Fixer 每天按 index + cursor 批量消费所有未处理报告，禁止只读取 `LATEST_CHECKER.json`。
+- 双方使用持久分支 `automation/quality-loop` 串行提交，调度器负责互斥，不增加第三个智能 Agent。
+
+完整 Prompt：
+
+- `docs/automation/automation-orchestration.md`
+- `docs/automation/checker-agent-prompt.md`
+- `docs/automation/product-fixer-agent-prompt.md`
+
+### 5.4 修改—检查工作流（所有 Agent 必须遵循）
+
+本节定义所有 AI Agent 在各自权限内修改代码时的强制流程。
 
 #### 第 1 步：修改前 — 读取上下文
 
@@ -155,14 +178,14 @@ diagnose 工具将失败项自动分类为三类：
 
 | 分类 | 含义 | 处理方式 |
 |------|------|---------|
-| **产品代码缺陷** | 源代码有问题 | Agent 可直接修复（若确定修改方案） |
-| **测试代码缺陷** | 测试用例本身有问题 | 需与用户确认后再修改测试 |
+| **产品代码缺陷** | 源代码有问题 | 仅 Product / Fixer Agent 可修复 |
+| **测试代码缺陷** | 测试用例本身有问题 | 仅 Test / Checker Agent 可修复 |
 | **待人工确认** | 无法自动判断 | 必须询问用户，不可自行修改 |
 
-**确定可修改的情况**（Agent 可直接修复）：
-- diagnose 明确指出修改位置和修改内容
-- 修复方案简单、风险低（如添加关键词、添加 try-except）
-- 不涉及产品逻辑变更
+**确定可修改的情况**（对应角色可直接修复）：
+- Product / Fixer：Checker 测试能稳定复现、产品契约明确且不涉及安全策略选择。
+- Test / Checker：能够证明断言、fixture 或 Harness 与已确认契约不一致。
+- 修改范围属于当前角色的允许路径。
 
 **不确定的情况**（必须先询问用户）：
 - 修改可能影响产品行为或用户体验
@@ -186,9 +209,9 @@ diagnose 工具将失败项自动分类为三类：
 读取上下文 → 修改代码 → 运行测试 → 分析结果
                                         ├─ 全通过 → 汇报结果
                                         └─ 有失败 → 运行 diagnose
-                                                    ├─ 产品缺陷 → 确定可修？→ 直接修复 → 重跑测试
+                                                    ├─ 产品缺陷 → Fixer 确定可修？→ 修产品 → 重跑测试
                                                     │                          └─ 不确定 → 询问用户
-                                                    ├─ 测试缺陷 → 询问用户
+                                                    ├─ 测试缺陷 → Checker 修测试 → 重跑测试
                                                     └─ 待确认   → 询问用户
 ```
 
