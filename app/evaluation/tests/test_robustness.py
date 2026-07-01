@@ -178,10 +178,12 @@ class OrchestratorHelpersRobustnessTest(RobustnessTest):
 
 def get_robustness_tests() -> list[RobustnessTest]:
     """返回所有鲁棒性测试实例"""
+    from app.evaluation.tests.test_code_review_findings import get_code_review_tests
     return [
         MemoryStoreRobustnessTest(),
         CharactersRobustnessTest(),
         SafetyRobustnessTest(),
         KnowledgeRobustnessTest(),
         OrchestratorHelpersRobustnessTest(),
+        *get_code_review_tests(),
     ]
