@@ -1008,6 +1008,78 @@ class Store:
         scored.sort(key=lambda item: item[0], reverse=True)
         return [memory for _, memory in scored[:limit]]
 
+    def search_memories_hybrid(
+        self,
+        query: str,
+        *,
+        query_terms: list[str] | None = None,
+        relevant_limit: int = 5,
+        recent_limit: int = 3,
+        important_limit: int = 2,
+        important_threshold: int = 7,
+        total_limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """四层混合检索：相关记忆 + 近期记忆 + 重要记忆 + 合并去重。
+
+        Args:
+            query: 用户输入文本。
+            query_terms: 规划器输出的检索关键词。
+            relevant_limit: 相关记忆层上限。
+            recent_limit: 近期记忆层条数（按时间倒序）。
+            important_limit: 重要记忆层条数上限。
+            important_threshold: 重要性阈值，importance >= 此值视为重要。
+            total_limit: 合并去重后总量上限。
+
+        Returns:
+            去重后的记忆列表，按层级优先级排序（相关 > 重要 > 近期）。
+        """
+        seen_ids: set[str] = set()
+        result: list[dict[str, Any]] = []
+
+        def _dedup_append(memories_in: list[dict[str, Any]]) -> None:
+            for memory in memories_in:
+                memory_id = memory.get("id", "")
+                if memory_id and memory_id not in seen_ids:
+                    seen_ids.add(memory_id)
+                    result.append(memory)
+
+        # Layer 1: 相关记忆 — 使用 search_memories 的关键词匹配逻辑
+        relevant = self.search_memories(
+            query,
+            query_terms=query_terms,
+            limit=relevant_limit,
+        )
+        _dedup_append(relevant)
+
+        # Layer 2: 重要记忆 — importance >= threshold 的 active 记忆
+        important_rows = self.recent_memories(limit=200)
+        important_memories = [
+            dict(row) for row in important_rows
+            if dict(row).get("importance", 0) >= important_threshold
+        ]
+        _dedup_append(important_memories[:important_limit])
+
+        # Layer 3: 近期记忆 — 最近更新的 active 记忆，按 updated_at DESC
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT id, category, subcategory, keywords, content, evidence,
+                       confidence, importance, status, updated_at
+                FROM memories
+                WHERE status = 'active'
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (recent_limit + len(seen_ids),),
+            )
+            recent_rows = [dict(row) for row in cursor.fetchall()]
+        recent_memories = [
+            row for row in recent_rows if row.get("id", "") not in seen_ids
+        ][:recent_limit]
+        _dedup_append(recent_memories)
+
+        return result[:total_limit]
+
     def memory_taxonomy_counts(self) -> list[dict[str, Any]]:
         memories = self.list_memories(limit=10000)
         counts: dict[tuple[str, str], int] = {}

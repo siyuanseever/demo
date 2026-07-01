@@ -887,10 +887,14 @@ class ConversationOrchestrator:
         knowledge_queries = []
         if route_plan:
             knowledge_queries = route_plan.get("knowledge_needs", []) + route_plan.get("knowledge_queries", [])
-        memories = self.store.search_memories(
+        memories = self.store.search_memories_hybrid(
             user_text,
             query_terms=memory_queries,
-            limit=8,
+            relevant_limit=5,
+            recent_limit=3,
+            important_limit=2,
+            important_threshold=7,
+            total_limit=10,
         )
         memory_keywords = []
         for memory in memories:
