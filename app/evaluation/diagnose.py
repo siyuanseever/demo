@@ -180,7 +180,7 @@ def print_diagnosis(report_path: str) -> None:
         "reply_quality": "回复质量",
         "functional": "功能",
         "api_resilience": "API 鲁棒性",
-        "framework": "准确率",
+        "framework": "框架自测",
     }
     for key, label in dimensions.items():
         for detail in data.get(key, {}).get("details", []):
