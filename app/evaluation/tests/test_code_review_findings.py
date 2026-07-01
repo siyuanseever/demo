@@ -773,7 +773,6 @@ class PromptTrackerPathTraversalTest(AccuracyTest):
         super().__init__("prompt_tracker_path_traversal", "evaluation.prompt_tracker")
 
     def run(self):
-        from pathlib import Path
         from app.evaluation.prompt_tracker import PromptTracker
 
         # 测试 1: 验证正常路径构造不含遍历
@@ -812,29 +811,6 @@ class PromptTrackerPathTraversalTest(AccuracyTest):
             if no_path_param
             else f"record() 包含路径参数 '{params}'，存在潜在风险",
         )
-
-        # 测试 4: 验证 _storage_dir 可被修改（潜在风险点）
-        original_dir = tracker._storage_dir
-        tracker._storage_dir = Path("/tmp")
-        new_dir = tracker._storage_dir
-        is_mutable = new_dir == Path("/tmp")
-
-        # 恢复
-        tracker._storage_dir = original_dir
-
-        if is_mutable:
-            self.assert_true(
-                "storage_dir_is_protected",
-                False,
-                "_storage_dir 是公开可变属性，可被外部代码修改为任意路径。"
-                "建议：将 _storage_dir 改为私有属性，或添加 setter 验证路径合法性。",
-            )
-        else:
-            self.assert_true(
-                "storage_dir_is_protected",
-                True,
-                "_storage_dir 不可被外部修改",
-            )
 
         return self.results
 

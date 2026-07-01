@@ -38,6 +38,8 @@ class ManualEvaluator:
         report = {
             "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "eval_type": "manual_experience",
+            "review_status": "pending_manual_review",
+            "high_risk_failures": None,
             "total_cases": len(results),
             "cases": results,
             "rubric": self.rubric,
@@ -99,7 +101,7 @@ def main():
     print("当前为半自动模式：输出结构化报告，实际评分需在真实对话后手工完成。\n")
 
     report = evaluator.run_all_cases()
-    print(f"\n✅ 评估完成，共 {report['total_cases']} 个用例")
+    print(f"\n📝 评估表已准备，共 {report['total_cases']} 个用例，仍需人工评分")
 
 
 if __name__ == "__main__":

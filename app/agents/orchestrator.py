@@ -933,15 +933,61 @@ class ConversationOrchestrator:
         llm_messages.append({"role": "user", "content": user_text})
 
         generation_started_at = time.monotonic()
-        response = self._chat(
-            llm_messages,
-            call_type="reply",
-            session_id=session_id,
-            temperature=0.75,
-            max_tokens=1100,
-            response_format={"type": "json_object"} if route_plan else None,
-            thinking="disabled",
-        )
+        try:
+            response = self._chat(
+                llm_messages,
+                call_type="reply",
+                session_id=session_id,
+                temperature=0.75,
+                max_tokens=1100,
+                response_format={"type": "json_object"} if route_plan else None,
+                thinking="disabled",
+            )
+        except Exception as error:
+            self.logger.exception(
+                "deep reply generation failed session=%s error=%s",
+                session_id,
+                error,
+            )
+            reply_content = (
+                "我暂时没能好好回应你。你可以稍后再试一次；"
+                "如果愿意，也可以先把此刻最难受的一点留在这里。"
+            )
+            expression_id = normalize_expression_id(character.id, None)
+            debug_trace["steps"].append({
+                "name": "generate_reply",
+                "status": "fallback",
+                "summary": "回复模型调用失败，已返回本地降级提示。",
+            })
+            self.store.add_message(
+                session_id,
+                "assistant",
+                reply_content,
+                model="fallback",
+                metadata={
+                    "character_id": character.id,
+                    "expression_id": expression_id,
+                    "route_plan": route_plan,
+                    "generation_error": type(error).__name__,
+                    **(extra_metadata or {}),
+                },
+            )
+            return {
+                "reply": reply_content,
+                "group_messages": [],
+                "knowledge_cards": knowledge_cards,
+                "character": character.to_public_dict(),
+                "expression": {
+                    "id": expression_id,
+                    **((character.expressions or {}).get(expression_id, {})),
+                },
+                "route_plan": route_plan,
+                "debug_trace": {
+                    **debug_trace,
+                    "total_elapsed_sec": round(time.monotonic() - started_at, 2),
+                    "llm_call_count": len(debug_trace["llm_calls"]),
+                },
+            }
         generation_call = {
             "name": "rabbit_response" if route_plan else "single_reply",
             "model": response.model,
@@ -1671,7 +1717,11 @@ class ConversationOrchestrator:
 
             memory_results = run_phase("memory_merge", self._merge_memories, session_id, candidates)
 
-            journal = journal_future.result()
+            try:
+                journal = journal_future.result()
+            except Exception:
+                self.logger.exception("journal generation failed session=%s", session_id)
+                journal = {}
 
             try:
                 state_profile_results = state_future.result()
@@ -1707,7 +1757,12 @@ class ConversationOrchestrator:
             max_tokens=800,
             response_format={"type": "json_object"},
         )
-        return json.loads(response.content)
+        try:
+            payload = json.loads(response.content)
+        except (TypeError, json.JSONDecodeError):
+            self.logger.exception("journal response is not valid JSON")
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
     def _extract_memories(self, transcript: str) -> list[dict]:
         prompt = read_prompt("memory_extract.md").replace(
@@ -1723,7 +1778,13 @@ class ConversationOrchestrator:
             max_tokens=600,
             response_format={"type": "json_object"},
         )
-        payload = json.loads(response.content)
+        try:
+            payload = json.loads(response.content)
+        except (TypeError, json.JSONDecodeError):
+            self.logger.exception("memory extraction response is not valid JSON")
+            return []
+        if not isinstance(payload, dict):
+            return []
         memories = payload.get("memories", [])
         valid = []
         for memory in memories[:3]:

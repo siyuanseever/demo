@@ -61,7 +61,7 @@ def load_rubric() -> dict[str, Any]:
         if not stripped:
             continue
 
-        if "评分" in stripped and "-" in stripped:
+        if stripped.startswith("#") and "评分" in stripped:
             section = "dimensions"
             continue
         if "失败类型" in stripped:

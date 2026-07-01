@@ -1,14 +1,14 @@
 """
-Layered checker runner for the local loop-engineering workflow.
+Layered checker runner for the local harness workflow.
 
-The goal is not to replace human review. It gives a maker/checker loop a
-deterministic first gate:
+The goal is not to replace human review. It gives code changes a deterministic
+first gate:
 - contract: backend event/data persistence contracts
 - ui: rendered browser script and UI-facing contracts
 - quality: low-cost product behavior sanity checks
 
 Run:
-    python3 -m app.evaluation.check_loop
+    python3 -m app.evaluation.check_harness
 """
 
 from __future__ import annotations
@@ -164,7 +164,7 @@ def main() -> None:
     report = run_all()
     output_dir = Path("eval_reports")
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"loop_check_{int(time.time())}.json"
+    output_path = output_dir / f"harness_check_{int(time.time())}.json"
     output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     for result in report["results"]:

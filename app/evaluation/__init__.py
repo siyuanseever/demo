@@ -1,7 +1,7 @@
 """
 评估框架 (Evaluation Framework)
 
-为 CodeX 生成的代码项目提供多维度评估能力：
+为 Codex 参与维护的项目提供多维度评估能力：
 - 耗时评估: 统计各模块调用耗时
 - 性能评估: 内存、CPU、吞吐量
 - 准确率评估: 功能正确性验证
@@ -17,7 +17,6 @@ from app.evaluation.accuracy import AccuracyTest, accuracy_suite
 from app.evaluation.robustness import RobustnessTest, robustness_suite
 from app.evaluation.completeness import CompletenessChecker
 from app.evaluation.reporter import ReportGenerator
-from app.evaluation.runner import EvaluationRunner
 
 __all__ = [
     "Timer",
@@ -30,5 +29,4 @@ __all__ = [
     "robustness_suite",
     "CompletenessChecker",
     "ReportGenerator",
-    "EvaluationRunner",
 ]

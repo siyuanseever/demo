@@ -26,6 +26,8 @@ class ApiResult:
     severity: str
     message: str
     details: dict = field(default_factory=dict)
+    blocking: bool = True
+    category: str = "product_bug"
 
 
 class ApiResilienceTest:
@@ -34,9 +36,25 @@ class ApiResilienceTest:
     def __init__(self):
         self.results: list[ApiResult] = []
 
-    def _record(self, name: str, severity: str, passed: bool, msg: str, details: dict | None = None):
+    def _record(
+        self,
+        name: str,
+        severity: str,
+        passed: bool,
+        msg: str,
+        details: dict | None = None,
+        *,
+        blocking: bool = True,
+        category: str = "product_bug",
+    ):
         self.results.append(ApiResult(
-            test_name=name, passed=passed, severity=severity, message=msg, details=details or {}
+            test_name=name,
+            passed=passed,
+            severity=severity,
+            message=msg,
+            details=details or {},
+            blocking=blocking,
+            category=category,
         ))
 
     # ------------------------------------------------------------------
@@ -218,12 +236,14 @@ class ApiResilienceTest:
 
         self._record(
             "frontend_sse_malformed_json_silent_skip",
-            "high",
-            False,  # 这是一个已知的产品缺陷
+            "info",
+            False,
             "代码审查发现：web.py listenSSE 中 JSON.parse 失败时静默跳过（catch (e) { /* skip malformed event */ }），"
             "当后端发送无效 JSON 时，用户不会收到任何错误提示，消息可能完全缺失。"
             "建议：至少记录错误到 console.error，或向前端用户显示 '消息解析失败' 提示。",
             {"file": "app/web.py", "line": "~2022", "current_code": "catch (e) { /* skip malformed event */ }"},
+            blocking=False,
+            category="observation",
         )
 
     # ------------------------------------------------------------------
@@ -298,12 +318,14 @@ class ApiResilienceTest:
                 is_empty_list = evidence == []
                 self._record(
                     "store_list_profiles_invalid_evidence_json",
-                    "medium",
-                    False,  # 这是一个观察项：静默丢弃数据而非记录错误
+                    "info",
+                    True,
                     f"无效 evidence JSON 被静默设置为 {evidence}。"
-                    f"{'数据被静默丢弃（设计如此但建议记录日志）' if is_empty_list else '意外结果'}，"
+                    f"{'已降级为空列表并记录日志' if is_empty_list else '意外结果'}，"
                     f"原始 evidence='invalid json ' + '{{{{{{'",
                     {"recovered_evidence": evidence, "original": "invalid json {{{"},
+                    blocking=False,
+                    category="observation",
                 )
             else:
                 self._record(
@@ -410,10 +432,12 @@ class ApiResilienceTest:
         return self.results
 
     def summary(self) -> dict[str, Any]:
-        total = len(self.results)
-        passed = sum(1 for r in self.results if r.passed)
+        checks = [result for result in self.results if result.blocking]
+        observations = [result for result in self.results if not result.blocking]
+        total = len(checks)
+        passed = sum(1 for result in checks if result.passed)
         by_severity: dict[str, list[ApiResult]] = {}
-        for r in self.results:
+        for r in checks:
             by_severity.setdefault(r.severity, []).append(r)
 
         return {
@@ -433,8 +457,20 @@ class ApiResilienceTest:
                     "severity": r.severity,
                     "message": r.message,
                     "details": r.details,
+                    "blocking": r.blocking,
+                    "category": r.category,
                 }
-                for r in self.results
+                for r in checks
+            ],
+            "observations": [
+                {
+                    "test_name": r.test_name,
+                    "severity": r.severity,
+                    "message": r.message,
+                    "details": r.details,
+                    "category": r.category,
+                }
+                for r in observations
             ],
         }
 
@@ -452,3 +488,5 @@ if __name__ == "__main__":
     for detail in result["details"]:
         status = "✅" if detail["passed"] else "❌"
         print(f"  {status} [{detail['severity']}] {detail['test_name']}: {detail['message'][:100]}")
+    if result["failed"]:
+        raise SystemExit(1)

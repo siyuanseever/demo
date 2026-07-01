@@ -1,6 +1,14 @@
-# Loop Engineering Plan
+# Loop Engineering Plan（已归档）
 
-这个项目里的 loop engineering 先按最小闭环实现，不先做复杂平台。
+> 本文仅保留历史设计思路。仓库当前没有 `app/loop/`、Ralph runner、自动任务选择或循环执行工作流，也不把这些内容作为验收标准。
+
+当前实际采用 Codex 单任务内的“修改 → Harness 检查 → 汇报”流程。分层检查入口为：
+
+```bash
+python3 -m app.evaluation.check_harness
+```
+
+以下内容是未来可能重新评估的设计草案。
 
 ## Roles
 
@@ -14,10 +22,10 @@
 2. UI checker：检查真实渲染后的前端脚本、关键 DOM/交互是否可运行。
 3. Quality checker：用少量稳定样例检查产品行为，例如 intent route 是否符合预期。
 
-当前入口：
+历史草案对应的检查入口现已改名：
 
 ```bash
-python3 -m app.evaluation.check_loop
+python3 -m app.evaluation.check_harness
 ```
 
 输出包含 `confidence` 和 `merge_recommendation`：
@@ -25,13 +33,13 @@ python3 -m app.evaluation.check_loop
 - `confidence == 1.0`：可以作为自动合并候选，但仍要看 diff 范围。
 - `confidence < 1.0`：需要人工 review，不能自动合并。
 
-## Worktree Flow
+## Worktree Flow（未实现）
 
 建议后续流程：
 
 1. 从主工作区创建 maker worktree，例如 `../demo-maker-intent-sse`。
 2. Maker 只在该 worktree 修改代码。
-3. Checker 在 maker worktree 运行 `python3 -m app.evaluation.check_loop` 和必要的额外检查。
+3. Checker 在 maker worktree 运行 `python3 -m app.evaluation.check_harness` 和必要的额外检查。
 4. Checker 写下结论：通过项、失败项、风险、建议。
 5. Merger 决定 cherry-pick、merge branch，或要求 maker 继续修。
 

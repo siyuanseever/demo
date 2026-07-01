@@ -1,6 +1,5 @@
 import json
 import logging
-import socket
 import time
 import urllib.error
 import urllib.request
@@ -96,10 +95,6 @@ class DeepSeekClient:
         except TimeoutError as error:
             self.logger.exception("deepseek timeout")
             raise RuntimeError(f"DeepSeek request timed out after {self.timeout}s") from error
-        except socket.timeout as error:
-            self.logger.exception("deepseek socket timeout")
-            raise RuntimeError(f"DeepSeek request timed out after {self.timeout}s") from error
-
         model = raw.get("model", self.model)
         elapsed = time.monotonic() - started_at
         self.logger.info(
@@ -120,7 +115,11 @@ class DeepSeekClient:
             data = line.removeprefix("data:").strip()
             if data == "[DONE]":
                 return "".join(chunks), last_payload
-            payload = json.loads(data)
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                self.logger.warning("deepseek stream skipped malformed data line")
+                continue
             last_payload = payload
             choice = payload.get("choices", [{}])[0]
             delta = choice.get("delta", {})

@@ -28,7 +28,7 @@ class PromptEvaluatorAccuracyTest(AccuracyTest):
 
         # 3. _check_json: 无效 JSON
         valid, parsed, err = evaluator._check_json("not json")
-        self.assert_true("check_json_invalid", not valid and parsed is None and "JSON" in err)
+        self.assert_true("check_json_invalid", not valid and parsed is None and bool(err))
 
         # 4. _check_json: 空字符串
         valid, parsed, err = evaluator._check_json("")

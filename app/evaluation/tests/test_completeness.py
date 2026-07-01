@@ -18,6 +18,7 @@ class CompletenessFrameworkAccuracyTest(AccuracyTest):
 
     def run(self):
         from app.evaluation.completeness import CompletenessChecker
+        from app.evaluation.cases import load_rubric, load_yaml_cases
 
         with tempfile.TemporaryDirectory() as tmpdir:
             checker = CompletenessChecker(tmpdir)
@@ -78,6 +79,23 @@ class CompletenessFrameworkAccuracyTest(AccuracyTest):
             self.assert_true("summary_has_pass_rate", "pass_rate" in summary)
             self.assert_true("summary_has_details", "details" in summary)
             self.assert_true("summary_total_gt_0", summary["total"] > 0)
+
+        cases = load_yaml_cases()
+        rubric = load_rubric()
+        self.assert_true("experience_cases_loaded", len(cases) >= 5)
+        self.assert_true(
+            "experience_cases_have_required_fields",
+            all(case.get("id") and case.get("title") and case.get("user") for case in cases),
+        )
+        self.assert_true(
+            "experience_rubric_dimensions_loaded",
+            len(rubric.get("dimensions", [])) == 6,
+            f"期望 6 个评分维度，实际 {len(rubric.get('dimensions', []))}",
+        )
+        self.assert_true(
+            "experience_rubric_failure_types_loaded",
+            len(rubric.get("failure_types", [])) >= 1,
+        )
 
         return self.results
 

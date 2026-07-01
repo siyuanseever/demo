@@ -11,8 +11,8 @@
 1. **完善记忆检索混合策略**：从单一检索升级为"相关 + 近期 + 重要"三层混合，控制总量避免 prompt 污染。
 2. **优化会话体验闭环**：清晰处理已结束 session 的继续对话状态，增加角色选择说明和群聊自动 UI 表达。
 3. **完善数据看板**：增加角色维度统计（回复次数、情绪-角色触发映射）。
-4. **建立 Harness + Loop 基础设施**：完成工程化工具链、验证门控和 Ralph 技术迭代机制。
-5. **搭建 Maker/Checker 双 Agent 架构方向**：产出架构设计文档，为未来代码自动生成和自动验证做准备。
+4. **完善 Harness 基础设施**：保证检查、门控、诊断和报告能够真实反映质量状态。
+5. **保留 Maker/Checker 架构研究**：仅作为未来方向，不纳入当前运行时和验收范围。
 
 ---
 
@@ -23,10 +23,10 @@
 | 门控 | 标准 | 验证命令 |
 |------|------|---------|
 | Gate 0 语法 | `compileall` 零错误 | `python3 -m compileall app` |
-| Gate 1 功能 | 综合通过率 >= 95% | `python3 -m app.evaluation.runner` |
+| Gate 1 功能 | 命令退出码 0；综合 >= 95%；关键维度 100% | `python3 -m app.evaluation.runner` |
 | Gate 2 结构 | 完整性 100% | 含在 runner 中 |
-| Gate 3 Prompt | JSON 有效率达到阈值 | 查看 `/prompt-inspector` |
-| Gate 4 体验 | 无高风险失败项 | `python3 -m app.evaluation.manual_eval` |
+| Gate 3 Prompt | JSON 有效率 >= 95%，记录样本范围 | 查看 `/prompt-inspector` |
+| Gate 4 体验 | 人工评分完成且无高风险失败项 | `python3 -m app.evaluation.manual_eval` 生成评分表 |
 
 ### 功能验收（本阶段完成时）
 
@@ -36,7 +36,6 @@
 - [ ] 数据看板增加角色维度统计（回复次数 + 情绪-角色映射）
 - [ ] 群聊自动 UI 优化（"小动物们商量了一下"提示）
 - [ ] Harness 文档（AGENTS.md）包含完整工具链、门控、编排规则
-- [ ] Loop 基础设施可正常运行（单次迭代、任务选择、记忆持久化）
 - [ ] Maker/Checker 架构设计文档完成
 
 ---
@@ -55,13 +54,14 @@
 - 优化群聊自动 UI 表达（"小动物们商量了一下，由 XX 来回应"）
 - 更新截图，保证 README 展示当前六角色 UI
 
-### 🏗️ 基础设施（已完成的 Harness + Loop）
+### 🏗️ 基础设施（Harness）
 
 - ✅ Evaluation 目录整合（app/evaluation/cases/）
 - ✅ 测试覆盖补充（completeness / prompt_eval / runner_integration / manual_eval）
 - ✅ AGENTS.md 升级为 Harness 工程文档
-- ✅ Loop 基础设施（state / task_selector / memory / runner）
-- ✅ Web UI API 路由（harness-status / loop-status / loop-memories）
+- ✅ Runner 门控可通过退出码阻止假通过
+- ✅ API 鲁棒性测试接入综合 Runner
+- ✅ Web/SSE 检查使用当前渲染脚本，不依赖陈旧临时文件
 
 ### 📋 待排期（后续阶段）
 
@@ -76,7 +76,6 @@
 ## 技术约束
 
 - **Python 3.12 兼容**，保持现有代码风格（4空格缩进、snake_case）
-- **Loop 模块纯标准库**，不引入新依赖
 - **UI 变更控制在 app/web.py 内**，超限则讨论 frontend 拆分
 - **API keys 只在 .env 中**，不硬编码
 - **对话数据（data/app.db、logs/app.log）不提交到版本控制**
@@ -90,5 +89,5 @@
 | 记忆混合策略增加 prompt 长度，导致 token 成本上升 | 设置记忆数量上限，优先保证"相关"层质量 |
 | 群聊自动 UI 增加系统提示，打断聊天流 | 控制提示频率，仅在角色切换时显示 |
 | iOS 方向与 Web 方向并行导致资源分散 | 当前阶段聚焦 Web 完善，iOS 仅做环境准备 |
-| Loop 迭代任务过多导致上下文膨胀 | Ralph 技术保障每次迭代重置，记忆持久化到磁盘 |
+| Harness 检查数量增长导致运行变慢 | 区分快速契约检查与完整 Runner，但两者都必须确定性退出 |
 | Maker/Checker 架构设计过于超前 | 当前仅产出设计文档，实现细节待后续迭代 |

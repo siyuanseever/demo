@@ -47,6 +47,8 @@ class ReportGenerator:
         reply_speed = data.get("reply_speed", {})
         reply_quality = data.get("reply_quality", {})
         functional = data.get("functional", {})
+        api_resilience = data.get("api_resilience", {})
+        framework = data.get("framework", {})
 
         def _card(title: str, content: str, color: str = "#3498db") -> str:
             return f"""
@@ -102,6 +104,7 @@ class ReportGenerator:
             {_badge("失败", str(overall.get("total_failed", 0)), overall.get("total_failed", 0) == 0)}
             {_badge("总耗时", f"{overall.get('elapsed_sec', 0):.2f}s")}
             {_badge("综合通过率", f"{overall.get('overall_pass_rate', 0)*100:.1f}%", overall.get("overall_pass_rate", 0) >= 0.95)}
+            {_badge("Gate 1", "通过" if overall.get("gate_passed") else "失败", bool(overall.get("gate_passed")))}
         </div>
         """
 
@@ -208,6 +211,41 @@ class ReportGenerator:
                 _table(["测试项", "类别", "说明"], func_rows),
             "#f39c12")
 
+        api_details = api_resilience.get("details", [])
+        if api_details:
+            api_total = api_resilience.get("total", 0)
+            api_passed = api_resilience.get("passed", 0)
+            api_rate = api_resilience.get("pass_rate", 0)
+            api_rows = []
+            for detail in api_details:
+                status = "✅" if detail.get("passed") else "❌"
+                api_rows.append([
+                    f"{status} {detail.get('test_name', '')}",
+                    detail.get("severity", ""),
+                    detail.get("message", "")[:100],
+                ])
+            sections += _card(
+                "🌐 API 鲁棒性评估",
+                f"<p>{_badge('通过数', f'{api_passed}/{api_total}', api_rate == 1.0)}</p>"
+                + _table(["测试项", "级别", "说明"], api_rows),
+                "#2980b9",
+            )
+
+        framework_modules = framework.get("by_module", {})
+        if framework_modules:
+            framework_rows = [
+                [name, str(values["total"]), str(values["passed"]), f"{values['pass_rate']*100:.1f}%"]
+                for name, values in framework_modules.items()
+            ]
+            framework_rate = framework.get("pass_rate", 0)
+            framework_count = f"{framework.get('passed', 0)}/{framework.get('total', 0)}"
+            sections += _card(
+                "🧰 Evaluation 框架自测",
+                f"<p>{_badge('通过数', framework_count, framework_rate == 1.0)}</p>"
+                + _table(["模块", "总数", "通过", "通过率"], framework_rows),
+                "#34495e",
+            )
+
         return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -223,7 +261,7 @@ class ReportGenerator:
 <body>
 <div class="container">
     <h1>🧪 项目评估报告</h1>
-    <div class="meta">生成时间: {timestamp} | 项目: 小动物夜谈会 / CodeX 生成代码评估</div>
+    <div class="meta">生成时间: {timestamp} | 项目: 小动物夜谈会 / Evaluation Harness</div>
     {_card("📋 总体概览", overall_content, "#2c3e50")}
     {sections}
 </div>

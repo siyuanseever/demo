@@ -22,6 +22,9 @@ tmp.md
 data/
 .trae/
 
-eval_reports/
+eval_reports/*
+!eval_reports/issues/
+eval_reports/issues/*
+!eval_reports/issues/README.md
 prompt-evaluation-report/
 project-architecture-visualization/

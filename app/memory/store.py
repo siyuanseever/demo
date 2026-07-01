@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sqlite3
 import uuid
@@ -6,6 +7,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.memory.schema import MEMORY_SUBCATEGORIES, STATE_PROFILE_DOMAINS
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 POSITIVE_MOOD_WORDS = {
@@ -422,7 +426,7 @@ class Store:
                     memory.get("subcategory", "general"),
                     json.dumps(memory.get("keywords", []), ensure_ascii=False),
                     memory["content"],
-                    memory["evidence"],
+                    memory.get("evidence") or "",
                     float(memory.get("confidence", 0.5)),
                     int(memory.get("importance", 3)),
                     memory.get("status", "active"),
@@ -565,6 +569,10 @@ class Store:
             try:
                 profile["evidence"] = json.loads(profile["evidence"])
             except (TypeError, json.JSONDecodeError):
+                LOGGER.warning(
+                    "invalid state profile evidence JSON profile_id=%s",
+                    profile.get("id", ""),
+                )
                 profile["evidence"] = []
         return profiles
 

@@ -51,10 +51,35 @@ def classify_failure(failure: dict, dimension: str) -> dict[str, Any]:
     message = failure.get("message", "")
     expected = failure.get("expected")
     actual = failure.get("actual")
+    explicit_category = failure.get("category", "")
+    module = failure.get("module", "")
+
+    if explicit_category == "test_bug" or failure.get("test_name", "").endswith(".suite_error"):
+        result["classification"] = "测试代码缺陷"
+        result["reason"] = message or "测试套件执行失败。"
+        result["action"] = "修复测试套件或测试环境后重跑门控。"
+        return result
+    if explicit_category == "product_bug":
+        result["classification"] = "产品代码缺陷"
+        result["is_product_bug"] = True
+        result["reason"] = message or "产品行为不符合测试契约。"
+        result["action"] = failure.get("suggested_fix") or f"检查 {module or '对应产品模块'} 的实现。"
+        return result
+    if explicit_category in ("observation", "needs_confirmation"):
+        result["reason"] = message or "该项需要人工确认。"
+        result["action"] = "确认产品契约后再决定修改产品还是测试。"
+        return result
+    if module.startswith("evaluation."):
+        result["reason"] = message or "Evaluation 框架或其自测失败。"
+        result["action"] = "先确认是评估实现缺陷还是测试断言缺陷，不能自动修改产品代码。"
+        return result
 
     # 规则 1: 异常堆栈指向产品代码文件路径
     product_paths = ["app/agents/", "app/memory/", "app/llm/", "app/knowledge/", "app/characters/"]
     stack_points_to_product = any(p in exception for p in product_paths)
+    product_module = module.startswith(
+        ("agents.", "memory.", "llm.", "knowledge.", "characters")
+    )
 
     # 规则 2: 准确率测试中，expected=True, actual=False → 产品功能未实现
     accuracy_mismatch = dimension in ("accuracy", "准确率") and expected is True and actual is False
@@ -83,7 +108,7 @@ def classify_failure(failure: dict, dimension: str) -> dict[str, Any]:
             result["action"] = "确认是产品逻辑错误还是测试断言写错。"
 
     elif dimension in ("robustness", "鲁棒性"):
-        if stack_points_to_product:
+        if stack_points_to_product or product_module:
             # 提取异常类型
             exc_type = "未知异常"
             if ":" in message:
@@ -107,6 +132,17 @@ def classify_failure(failure: dict, dimension: str) -> dict[str, Any]:
         result["is_product_bug"] = True
         result["reason"] = f"完整性检查失败: {message}"
         result["action"] = "补充缺失的文件、方法或依赖。"
+
+    elif dimension in ("api_resilience", "API 鲁棒性"):
+        if product_module or failure.get("details", {}).get("file", "").startswith("app/"):
+            result["classification"] = "产品代码缺陷"
+            result["is_product_bug"] = True
+            result["reason"] = message
+            result["action"] = "按失败用例中的产品契约修复对应模块。"
+
+    elif dimension in ("functional", "功能", "reply_speed", "回复速度", "reply_quality", "回复质量"):
+        result["reason"] = message or f"{dimension} 评估失败。"
+        result["action"] = "确认该断言属于稳定产品契约后再修复。"
 
     return result
 
@@ -136,17 +172,20 @@ def print_diagnosis(report_path: str) -> None:
     # 收集所有失败项
     failures = []
 
-    for detail in data.get("accuracy", {}).get("details", []):
-        if not detail.get("passed", True):
-            failures.append(classify_failure(detail, "准确率"))
-
-    for detail in data.get("robustness", {}).get("details", []):
-        if not detail.get("passed", True):
-            failures.append(classify_failure(detail, "鲁棒性"))
-
-    for detail in data.get("completeness", {}).get("details", []):
-        if not detail.get("passed", True):
-            failures.append(classify_failure(detail, "完整性"))
+    dimensions = {
+        "accuracy": "准确率",
+        "robustness": "鲁棒性",
+        "completeness": "完整性",
+        "reply_speed": "回复速度",
+        "reply_quality": "回复质量",
+        "functional": "功能",
+        "api_resilience": "API 鲁棒性",
+        "framework": "准确率",
+    }
+    for key, label in dimensions.items():
+        for detail in data.get(key, {}).get("details", []):
+            if not detail.get("passed", True):
+                failures.append(classify_failure(detail, label))
 
     # 按分类分组
     product_bugs = [f for f in failures if f["is_product_bug"]]

@@ -32,8 +32,9 @@ This repository is a Python stdlib demo for **小动物夜谈会**, a psychologi
 | 工具 | 命令 | 用途 |
 |------|------|------|
 | 语法校验 | `python3 -m compileall app` | Python 语法检查（Gate 0） |
-| JS 校验 | `node --check /private/tmp/xiaolu-web-check.js` | 提取 web.py 中 JS 后的语法检查 |
-| 综合评估 | `python3 -m app.evaluation.runner` | 五维度一键评估（Gate 1） |
+| Web/SSE 校验 | `python3 -m app.evaluation.check_sse_stream` | 渲染并校验最新 JS，同时验证 SSE 契约 |
+| 分层检查 | `python3 -m app.evaluation.check_harness` | Contract、UI、低成本质量检查 |
+| 综合评估 | `python3 -m app.evaluation.runner` | 八个测试维度一键评估（Gate 1） |
 | 自动诊断 | `python3 -m app.evaluation.diagnose` | 失败项自动分类（产品缺陷/测试缺陷） |
 | Prompt 追踪 | Web UI `/prompt-inspector` | 实时查看 LLM 调用详情、token 用量、质量评分 |
 | 体验评估 | `python3 -m app.evaluation.manual_eval` | 基于 cases 的手工/半自动评估 |
@@ -47,10 +48,10 @@ This repository is a Python stdlib demo for **小动物夜谈会**, a psychologi
 python3 -m compileall app && python3 -m app.evaluation.runner
 
 # web.py 变更（含 JS）
-python3 -m compileall app && node --check /private/tmp/xiaolu-web-check.js && python3 -m app.evaluation.runner
+python3 -m compileall app && python3 -m app.evaluation.check_sse_stream && python3 -m app.evaluation.runner
 
 # Prompt 文件变更
-python3 -m compileall app && python3 -m app.evaluation.manual_eval
+python3 -m compileall app && python3 -m app.evaluation.runner && python3 -m app.evaluation.manual_eval
 
 # 新增/删除模块
 python3 -m compileall app && python3 -m app.evaluation.runner
@@ -68,23 +69,28 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 
 ### Gate 1：功能门控
 
-- `python3 -m app.evaluation.runner` 综合通过率 >= 95%。
-- 当前基线：90 个测试中通过 90 个，综合通过率 100%。
+- `python3 -m app.evaluation.runner` 必须以退出码 0 结束。
+- 综合通过率必须 >= 95%。
+- `accuracy`、`robustness`、`completeness`、`functional`、`api_resilience`、`framework` 六个关键维度必须 100%。
+- 任一测试套件执行异常都视为失败，不允许以 0 项跳过。
+- 当前基线：236 个检查中通过 236 个，综合通过率 100%（2026-07-01）。
 
 ### Gate 2：结构门控
 
 - `evaluation.completeness` 100% 通过。
 - 关键文件、模块导入、AST 定义、依赖完整性全部检查通过。
 
-### Gate 3：Prompt 门控
+### Gate 3：Prompt 审查
 
-- Prompt JSON 有效率达到设定阈值（由 `prompt_evaluator` 自动评估）。
-- 在 `/prompt-inspector` 页面实时查看。
+- 相关结构化调用的 Prompt JSON 有效率应 >= 95%。
+- 在 `/prompt-inspector` 查看调用记录，并在汇报中记录样本范围和结果。
+- 当前没有独立 CLI 门控；不得把“打开过页面”写成自动验证通过。
 
-### Gate 4：体验门控
+### Gate 4：体验审查
 
-- `python3 -m app.evaluation.manual_eval` 无高风险失败项。
-- 心理陪伴产品的"被理解感"需通过 case-based 评估验证。
+- `python3 -m app.evaluation.manual_eval` 只生成待评分表，不代表体验审查通过。
+- 人工完成 case-based 评分后，必须确认所有用例已评分且无高风险失败项。
+- 未完成人工评分时，Gate 4 状态必须记为 `pending`，不能记为通过。
 
 ---
 
@@ -95,7 +101,7 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 | 变更类型 | 触发门控 |
 |---------|---------|
 | Python 代码变更 | Gate 0 + Gate 1 |
-| `app/web.py` 变更 | Gate 0 + JS 校验 + Gate 1 |
+| `app/web.py` 变更 | Gate 0 + Web/SSE 校验 + Gate 1 |
 | Prompt 文件变更 | Gate 3 + Gate 4（手工 case 验证） |
 | 新增/删除模块 | Gate 0 + Gate 1 + Gate 2 |
 | Evaluation 框架变更 | Gate 0 + Gate 1 + Gate 2 |
@@ -110,9 +116,9 @@ python3 -m compileall app && python3 -m app.evaluation.runner
     → 待人工确认 → 人工判断 → 修复对应方 → 重跑门控
 ```
 
-### 5.3 Maker-Checker 工作流（所有 Agent 必须遵循）
+### 5.3 修改—检查工作流（所有 Agent 必须遵循）
 
-本节定义了 Codex、Claude Code、TRAE 等所有 AI Agent 在本项目中修改代码时的**强制性工作流程**。
+本节定义所有 AI Agent 在本项目中修改代码时的强制流程。当前主要由 Codex 在同一任务中完成修改和检查，不假设存在独立 Loop、Ralph runner 或双 Agent 运行时。
 
 #### 第 1 步：修改前 — 读取上下文
 
@@ -135,13 +141,13 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 ```
 
 - Gate 0（compileall）必须零错误
-- Gate 1（runner）通过率必须 >= 95%
-- 若有 JS 变更，还需运行 `node --check`
+- Gate 1（runner）必须退出码为 0，并满足关键维度 100%
+- 若有 Web/JS 变更，还需运行 `python3 -m app.evaluation.check_sse_stream`
 
 #### 第 4 步：分析测试结果
 
-- 若全部通过 → 进入第 6 步
-- 若有失败项 → 运行 `python3 -m app.evaluation.diagnose` 自动诊断
+- 若 Gate 命令退出码为 0 且报告 `overall.gate_passed=true` → 进入第 6 步
+- 若命令非零或报告有失败项 → 运行 `python3 -m app.evaluation.diagnose`
 
 #### 第 5 步：诊断与修复
 
@@ -164,7 +170,7 @@ diagnose 工具将失败项自动分类为三类：
 - 涉及安全模块的策略调整
 - 调用方是否需要同步修改不确定
 
-修复后必须回到第 3 步重新运行测试，直到全部通过。
+修复后必须回到第 3 步重新运行测试。不能用总体通过率掩盖关键维度失败。
 
 #### 第 6 步：汇报结果
 
@@ -203,11 +209,11 @@ For character assets, use stable lowercase hyphenated filenames, for example `mi
 ### 7.1 快速验证层
 
 - `python3 -m compileall app` —— Python 语法校验
-- `node --check /private/tmp/xiaolu-web-check.js` —— JS 语法校验
+- `python3 -m app.evaluation.check_sse_stream` —— 最新渲染 JS 与 SSE 契约校验
 
 ### 7.2 单元/集成测试层
 
-- `python3 -m app.evaluation.runner` —— 五维度综合评估（耗时、性能、准确率、鲁棒性、完整性）
+- `python3 -m app.evaluation.runner` —— 八维度综合评估（准确率、鲁棒性、完整性、回复速度、回复质量、功能、API 鲁棒性、框架自测）
 - 涵盖模块：`memory.store`、`characters`、`safety`、`knowledge`、`llm.base`、`orchestrator`
 
 ### 7.3 框架自测层
@@ -219,7 +225,8 @@ For character assets, use stable lowercase hyphenated filenames, for example `mi
 ### 7.4 手工体验评估层
 
 - `python3 -m app.evaluation.manual_eval` —— 基于 cases.yaml 的半自动评估
-- 输出结构化报告到 `eval_reports/manual_eval_{timestamp}.json`
+- 输出待人工评分表到 `eval_reports/manual_eval_{timestamp}.json`
+- 所有 case 的 `status` 为 `pending_manual_review` 时，不构成 Gate 4 通过证据
 
 ### 7.5 Prompt 质量评估层
 

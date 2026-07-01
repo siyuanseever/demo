@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-06-30
+> 最后更新时间：2026-07-01
 
 ---
 
@@ -24,10 +24,11 @@
 | 指标 | 当前值 | 目标 |
 |------|--------|------|
 | Gate 1 综合通过率 | **100%** | >= 95% |
-| 总测试数 | 90 | - |
-| 通过 | 90 | - |
+| 总检查数 | 236 | - |
+| 通过 | 236 | - |
 | 失败 | 0 | - |
-| 最近验证命令 | `python3 -m compileall app && python3 -m app.evaluation.runner` | - |
+| 关键维度 | accuracy / robustness / completeness / functional / api_resilience / framework 全部 100% | 100% |
+| 最近验证命令 | `python3 -m compileall app`、`python3 -m app.evaluation.check_sse_stream`、`python3 -m app.evaluation.runner` | - |
 
 ---
 
@@ -45,10 +46,10 @@
 
 ## 最近完成（最近 3-5 项）
 
-1. ✅ 修复 4 个产品代码缺陷：安全模块危机检测漏检 + orchestrator JSON 解析异常（测试通过率从 95.6% 提升至 100%）
-2. ✅ 建立 Maker-Checker 工作流规范（写入 AGENTS.md 5.3 节，所有 Agent 必须遵循）
-3. ✅ 移除 `app/loop/` 空壳模块（无实际功能，Codex/Claude Code 本身即为完整 Loop）
-4. ✅ Harness 建设完成（evaluation 整合、测试补充、AGENTS.md 升级）
+1. ✅ 修复 Harness 假通过：套件异常计为失败，Gate 1 失败时返回非零退出码
+2. ✅ API 鲁棒性测试接入 Runner，观察项不再冒充产品缺陷
+3. ✅ 修复 DeepSeek 坏 JSON、会后总结/记忆 JSON、LLM 回复异常和 `None` evidence 等鲁棒性问题
+4. ✅ 清理 Loop 运行时相关陈述；当前只保留 Codex 修改—检查流程
 5. ✅ 长期状态画像：跨会话追踪用户心理状态，支持版本历史
 
 ---
@@ -79,7 +80,7 @@
 1. **确定记忆混合策略的参数**：先设定一个合理初值（如相关 5 条 + 近期 3 条 + 重要 2 条），在真实对话中验证后调优
 2. **选择 session 继续方案**：在方案 A（允许追加）和方案 B（分支新 session）中做决策
 3. **实施角色选择说明**：在 assistant 消息中增加一行简短的角色选择理由
-4. **运行 manual_eval**：完成近期功能后，运行体验评估验证"被理解感"
+4. **完成人工体验评分**：`manual_eval` 只准备评分表，需人工填写后才能判定体验审查
 
 ---
 
@@ -87,7 +88,7 @@
 
 | 时间 | 验证项 | 结果 |
 |------|--------|------|
-| 2026-06-30 | compileall | 通过 |
-| 2026-06-30 | evaluation.runner | **100% 通过（90/90）** |
-| 2026-06-30 | evaluation.diagnose | 0 产品缺陷，0 测试缺陷 |
-| 2026-06-30 | manual_eval | 正常（5 用例输出） |
+| 2026-07-01 | compileall | 通过 |
+| 2026-07-01 | check_sse_stream | 通过（渲染 JS + deep/quick SSE 契约） |
+| 2026-07-01 | evaluation.runner | **100% 通过（236/236），Gate 1 通过** |
+| 2026-07-01 | manual_eval | 5 个用例待人工评分，不计为 Gate 4 通过 |
