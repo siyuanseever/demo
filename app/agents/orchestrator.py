@@ -60,20 +60,24 @@ def render_memories(memories: list) -> str:
         return "暂无长期记忆。"
     lines = []
     for memory in memories:
-        keywords = memory["keywords"]
+        keywords = memory.get("keywords", [])
         if isinstance(keywords, str):
             try:
                 keywords = json.loads(keywords)
             except json.JSONDecodeError:
                 keywords = []
-            evidence = memory.get('evidence', '')
+        if not isinstance(keywords, list):
+            keywords = []
+
+        evidence = memory.get("evidence", "")
         if isinstance(evidence, list):
-            evidence = '、'.join(str(e) for e in evidence)
+            evidence = "、".join(str(item) for item in evidence)
         elif not isinstance(evidence, str):
             evidence = str(evidence)
+
         lines.append(
             f"- [{memory['category']}/{memory['subcategory']}] {memory['content']}"
-            f"（关键词：{'、'.join(keywords)}；证据：{evidence}）"
+            f"（关键词：{'、'.join(str(keyword) for keyword in keywords)}；证据：{evidence}）"
         )
     return "\n".join(lines)
 
