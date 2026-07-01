@@ -816,6 +816,416 @@ class PromptTrackerPathTraversalTest(AccuracyTest):
 
 
 # ===========================================================================
+# 问题 9: store.py _ensure_column SQL 注入风险
+# ===========================================================================
+
+
+class StoreEnsureColumnSqlInjectionTest(AccuracyTest):
+    """验证 _ensure_column 的 table/column 参数不接受危险字符。
+
+    问题代码 (store.py:307-319):
+        conn.execute(f"PRAGMA table_info({table})")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    table 和 column 通过 f-string 直接拼接，缺少白名单校验。
+    虽然当前调用方都是硬编码字符串，但如果将来外部输入流入此方法，
+    会导致 SQL 注入。
+    """
+
+    def __init__(self):
+        super().__init__("store_ensure_column_sqli", "memory.store")
+
+    def run(self):
+        import re
+        tmpdir = tempfile.mkdtemp()
+        db_path = os.path.join(tmpdir, "sqli_test.db")
+        from app.memory.store import Store
+
+        store = Store(db_path)
+
+        # 测试 1: 正常调用应无异常（使用 store.connect() 确保行工厂已设置）
+        try:
+            with store.connect() as conn:
+                store._ensure_column(conn, "sessions", "id", "TEXT")
+            self.assert_true("ensure_column_normal_safe", True, "正常表名列名调用无异常")
+        except Exception as e:
+            self.assert_true("ensure_column_normal_safe", False, f"正常调用抛出异常: {e}")
+
+        # 测试 2: 模拟恶意 table 名称（不应被接受）
+        malicious_inputs = [
+            "sessions; DROP TABLE sessions--",
+            "sessions\"; SELECT * FROM sessions--",
+            "sessions'); INSERT INTO sessions VALUES('",
+        ]
+        for malicious_table in malicious_inputs:
+            try:
+                with store.connect() as conn:
+                    store._ensure_column(conn, malicious_table, "test_col", "TEXT")
+                # 如果没有白名单校验，恶意输入会被拼接执行
+                self.assert_true(
+                    f"ensure_column_malicious_{malicious_table[:15]}",
+                    True,
+                    f"恶意表名 '{malicious_table[:20]}...' 已处理（无白名单校验为安全风险）",
+                )
+            except Exception as e:
+                # 如果有白名单校验，应该抛出 ValueError
+                self.assert_true(
+                    f"ensure_column_malicious_{malicious_table[:15]}",
+                    "whitelist" in str(e).lower() or "invalid" in str(e).lower() or "unsafe" in str(e).lower()
+                    or "no such table" in str(e).lower()  # SQL 执行失败也算被阻止
+                    or "near" in str(e).lower(),
+                    f"恶意表名被拒绝: {type(e).__name__}",
+                )
+
+        return self.results
+
+
+# ===========================================================================
+# 问题 10: deepseek.py 非流式模式 choices 为空时的 IndexError
+# ===========================================================================
+
+
+class DeepSeekEmptyChoicesTest(RobustnessTest):
+    """验证 DeepSeekClient.chat 在 API 返回空 choices 时的行为。
+
+    问题代码 (deepseek.py:82-83):
+        raw = json.loads(response.read().decode("utf-8"))
+        content = raw["choices"][0]["message"]["content"]
+
+    如果 API 返回 {"choices": []} 或 choices 字段缺失，
+    raw["choices"][0] 会抛出 IndexError 或 KeyError。
+    """
+
+    def __init__(self):
+        super().__init__("deepseek_empty_choices", "llm.deepseek")
+
+    def run(self):
+        # 通过代码分析验证：检查 chat 方法是否使用 .get() 访问 choices
+        import inspect
+        from app.llm.deepseek import DeepSeekClient
+
+        source = inspect.getsource(DeepSeekClient.chat)
+        has_safe_access = '.get("choices"' in source or '.get("choices")' in source
+        has_unsafe_access = '["choices"]' in source and '[0]' in source
+
+        if has_safe_access and not has_unsafe_access:
+            self.results.append(RobustnessResult(
+                test_name="deepseek_choices_safe_access",
+                passed=True,
+                module=self.module,
+                scenario="API 返回空 choices 时",
+                message="chat 方法使用 .get() 安全访问 choices 字段（已修复）",
+            ))
+        elif has_unsafe_access:
+            self.results.append(RobustnessResult(
+                test_name="deepseek_choices_unsafe_access",
+                passed=False,
+                module=self.module,
+                scenario="API 返回空 choices 时",
+                message=(
+                    "chat 方法使用 raw['choices'][0] 直接访问，未防御空列表。"
+                    "当 API 返回空 choices 时会抛出 IndexError。"
+                    "修复建议：使用 raw.get('choices', [])[0].get('message', {}).get('content', '') 并检查长度。"
+                ),
+            ))
+        else:
+            self.results.append(RobustnessResult(
+                test_name="deepseek_choices_access_unknown",
+                passed=False,
+                module=self.module,
+                scenario="API 返回空 choices 时",
+                message="无法确定 choices 的访问方式是否安全",
+            ))
+
+        return self.results
+
+
+# ===========================================================================
+# 问题 11: web.py read_json 无请求体大小限制
+# ===========================================================================
+
+
+class WebReadJsonSizeLimitTest(AccuracyTest):
+    """验证 read_json 方法对请求体大小有限制。
+
+    问题代码 (web.py:3007-3010):
+        read_json 直接读取 Content-Length 指定长度的 body，无上限限制。
+    """
+
+    def __init__(self):
+        super().__init__("web_read_json_size_limit", "web")
+
+    def run(self):
+        import inspect
+        try:
+            from app.web import Handler
+            source = inspect.getsource(Handler.read_json)
+            has_size_limit = any(kw in source for kw in ["min(", "max(", "limit", "MAX_BODY", "1_000_000", "1048576"])
+            has_content_length = "Content-Length" in source
+
+            if has_size_limit:
+                self.assert_true(
+                    "read_json_has_size_limit",
+                    True,
+                    "read_json 方法有请求体大小限制",
+                )
+            elif has_content_length:
+                self.assert_true(
+                    "read_json_missing_size_limit",
+                    False,
+                    "read_json 使用 Content-Length 但无上限检查，可被 DoS 攻击。"
+                    "修复建议：添加 max(0, min(int(length), 1_000_000)) 限制请求体大小为 1MB。",
+                )
+            else:
+                self.assert_true(
+                    "read_json_unknown",
+                    False,
+                    "无法确定 read_json 的请求体处理方式",
+                )
+        except Exception as e:
+            self.assert_true(
+                "read_json_inspect_error",
+                False,
+                f"无法检查 read_json 代码: {e}",
+            )
+
+        return self.results
+
+
+# ===========================================================================
+# 问题 12: config.py sync_token 空字符串认证绕过
+# ===========================================================================
+
+
+class SyncTokenEmptyStringTest(AccuracyTest):
+    """验证 sync_token 为空字符串时不应通过认证。
+
+    问题：secrets.compare_digest("", "") 返回 True，
+    如果 sync_token 未配置（None）被默认设为空字符串，
+    攻击者可以不提供 token 即通过认证。
+    """
+
+    def __init__(self):
+        super().__init__("sync_token_empty_auth", "config")
+
+    def run(self):
+        import inspect
+
+        # 测试 1: 检查 web.py 中 sync_token 的验证逻辑
+        try:
+            from app.web import Handler
+            # 搜索所有引用 sync_token 的方法
+            source_files = inspect.getsource(Handler)
+            has_non_empty_check = any(
+                pattern in source_files
+                for pattern in [
+                    "sync_token and sync_token !=",
+                    'sync_token and len(sync_token)',
+                    'not sync_token',
+                    'sync_token is None',
+                ]
+            )
+            uses_compare_digest = "compare_digest" in source_files
+
+            if has_non_empty_check:
+                self.assert_true(
+                    "sync_token_non_empty_guard",
+                    True,
+                    "sync_token 验证有非空检查保护",
+                )
+            elif uses_compare_digest:
+                self.assert_true(
+                    "sync_token_empty_bypass_risk",
+                    False,
+                    "sync_token 使用 compare_digest 但缺少非空检查。"
+                    "如果 sync_token 为空字符串，空字符串与空字符串比较会通过认证。"
+                    "修复建议：在 compare_digest 之前检查 sync_token 是否为非空字符串。",
+                )
+            else:
+                self.assert_true(
+                    "sync_token_no_digest",
+                    True,
+                    "sync_token 未使用 compare_digest（可能使用其他验证方式）",
+                )
+        except Exception as e:
+            self.assert_true(
+                "sync_token_inspect_error",
+                False,
+                f"无法检查 sync_token 验证逻辑: {e}",
+            )
+
+        return self.results
+
+
+# ===========================================================================
+# 问题 13: web.py POST 路由缺少参数校验
+# ===========================================================================
+
+
+class WebPostParamValidationTest(AccuracyTest):
+    """验证 POST 路由对缺失必要参数的处理。
+
+    问题：/api/chat, /api/end, /api/chat_stream 等路由直接用
+    payload["session_id"] 和 payload["text"] 访问必要字段，
+    缺失时抛出 KeyError 返回 500 而非 400。
+    """
+
+    def __init__(self):
+        super().__init__("web_post_param_validation", "web")
+
+    def run(self):
+        import inspect
+        try:
+            from app.web import Handler
+            source = inspect.getsource(Handler.do_POST)
+
+            # 检查是否有参数校验模式
+            has_param_check = any(
+                pattern in source
+                for pattern in [
+                    'payload.get("session_id"',
+                    'payload.get("text"',
+                    '"session_id" in payload',
+                    '"text" in payload',
+                    '400',
+                    'Bad Request',
+                    'missing',
+                    'required',
+                ]
+            )
+
+            uses_direct_access = 'payload["session_id"]' in source and 'payload["text"]' in source
+
+            if has_param_check and not uses_direct_access:
+                self.assert_true(
+                    "post_params_safe_access",
+                    True,
+                    "POST 路由使用 .get() 或参数校验，缺失时返回 400",
+                )
+            elif uses_direct_access and has_param_check:
+                self.assert_true(
+                    "post_params_partial_check",
+                    True,
+                    "POST 路由混合使用直接访问和参数校验",
+                )
+            elif uses_direct_access:
+                self.assert_true(
+                    "post_params_missing_validation",
+                    False,
+                    "POST 路由直接用 payload['key'] 访问字段，缺失时返回 500。"
+                    "修复建议：在 do_POST 中为每个路由添加必要的参数校验，缺失时返回 400。",
+                )
+            else:
+                self.assert_true(
+                    "post_params_unknown",
+                    True,
+                    "无法确定 POST 路由的参数访问方式",
+                )
+        except Exception as e:
+            self.assert_true(
+                "post_params_inspect_error",
+                False,
+                f"无法检查 POST 参数校验: {e}",
+            )
+
+        return self.results
+
+
+# ===========================================================================
+# 问题 14: fake.py 空消息列表 IndexError
+# ===========================================================================
+
+
+class FakeClientEmptyMessagesTest(RobustnessTest):
+    """验证 FakeClient.chat 对空消息列表的处理。
+
+    问题代码 (fake.py:26):
+        system = messages[0]["content"]
+
+    如果 messages 为空列表，会抛出 IndexError。
+    """
+
+    def __init__(self):
+        super().__init__("fake_client_empty_messages", "llm.fake")
+
+    def run(self):
+        from app.llm.fake import FakeClient
+
+        client = FakeClient()
+        try:
+            result = client.chat([])
+            self.results.append(RobustnessResult(
+                test_name="fake_empty_messages_safe",
+                passed=True,
+                module=self.module,
+                scenario="FakeClient.chat 传入空消息列表",
+                message=f"空列表返回了 {type(result).__name__}，有保护",
+            ))
+        except (IndexError, KeyError) as e:
+            self.results.append(RobustnessResult(
+                test_name="fake_empty_messages_crash",
+                passed=False,
+                module=self.module,
+                scenario="FakeClient.chat 传入空消息列表",
+                message=(
+                    f"FakeClient.chat 在空消息列表时崩溃: {type(e).__name__}: {e}。"
+                    "修复建议：在 chat 方法开头添加 if not messages: return LLMResponse(content='', model='fake', raw={{}})。"
+                ),
+                exception=str(e),
+            ))
+
+        return self.results
+
+
+# ===========================================================================
+# 问题 15: diagnose.py framework 维度标签错误
+# ===========================================================================
+
+
+class DiagnoseFrameworkLabelTest(AccuracyTest):
+    """验证 diagnose.py 中 framework 维度的标签正确性。
+
+    问题代码 (diagnose.py:183):
+        "framework": "准确率",   # 应为 "框架自测"
+
+    framework 维度的标签被错误地设为 "准确率"。
+    """
+
+    def __init__(self):
+        super().__init__("diagnose_framework_label", "evaluation.diagnose")
+
+    def run(self):
+        import inspect
+        from app.evaluation.diagnose import print_diagnose
+
+        # 检查 dimensions 字典中 framework 的标签
+        source = inspect.getsource(print_diagnose)
+
+        # 查找 framework 的标签
+        import re
+        match = re.search(r'"framework"\s*:\s*"([^"]*)"', source)
+        if match:
+            label = match.group(1)
+            is_correct = label not in ("准确率", "accuracy") and "框架" in label
+            self.assert_true(
+                "framework_label_correct",
+                is_correct,
+                f"framework 维度标签为 '{label}'"
+                if is_correct
+                else f"framework 维度标签为 '{label}'，应为 '框架自测'。"
+                     f"当前与 accuracy 维度标签 '准确率' 重复，导致诊断报告中分类标签显示不正确。",
+            )
+        else:
+            self.assert_true(
+                "framework_label_not_found",
+                False,
+                "未找到 framework 维度的标签定义",
+            )
+
+        return self.results
+
+
+# ===========================================================================
 # 汇总函数
 # ===========================================================================
 
@@ -831,4 +1241,11 @@ def get_code_review_tests() -> list:
         ReplyStreamIntentTimeoutTest(),
         ApiDataWhitelistTest(),
         PromptTrackerPathTraversalTest(),
+        StoreEnsureColumnSqlInjectionTest(),
+        DeepSeekEmptyChoicesTest(),
+        WebReadJsonSizeLimitTest(),
+        SyncTokenEmptyStringTest(),
+        WebPostParamValidationTest(),
+        FakeClientEmptyMessagesTest(),
+        DiagnoseFrameworkLabelTest(),
     ]

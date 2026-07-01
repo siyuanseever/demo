@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import OSLog
 
 @MainActor
 final class CompanionStore: ObservableObject {
@@ -43,6 +44,7 @@ final class CompanionStore: ObservableObject {
     @Published var isMacSyncTokenConfigured = false
     @Published var moodAnalytics: RemoteMoodAnalytics?
     @Published var isMoodRefreshing = false
+    @Published var chatOperationStatus: String?
 
     private let chatService = ChatService()
     private let localDeepSeekService = LocalDeepSeekService()
@@ -54,6 +56,11 @@ final class CompanionStore: ObservableObject {
     private let bailanDiaryStorageKey = "sensen.bailanDiaryEntries.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
     private var lastHomeEncouragementRefreshAt: Date?
+    private var hasAttemptedFlowInsightLoad = false
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "SensenStory",
+        category: "conversation"
+    )
 
     var selectedCharacter: CompanionCharacter {
         character(id: selectedCharacterID) ?? CompanionFixtures.characters[0]
@@ -126,6 +133,9 @@ final class CompanionStore: ObservableObject {
 
     func refreshStarMapInsight(forceRefresh: Bool = false) async {
         guard !isFlowInsightRefreshing else { return }
+        if !forceRefresh {
+            hasAttemptedFlowInsightLoad = true
+        }
         isFlowInsightRefreshing = true
         flowInsightNotice = forceRefresh ? "正在重新提炼心流导航..." : "正在检查本月心流导航..."
         let insight = await fetchOrGenerateStarMapInsight(forceRefresh: forceRefresh)
@@ -134,6 +144,12 @@ final class CompanionStore: ObservableObject {
             ? "暂时没有取得真实分析，当前仅显示结构占位。"
             : "已根据记忆、单次总结、近期情绪和长期状态生成。"
         isFlowInsightRefreshing = false
+    }
+
+    func loadStarMapInsightIfNeeded() async {
+        guard !hasAttemptedFlowInsightLoad else { return }
+        hasAttemptedFlowInsightLoad = true
+        await refreshStarMapInsight()
     }
 
     func openSession(_ sessionID: String) {
@@ -815,7 +831,17 @@ final class CompanionStore: ObservableObject {
         )
         isSending = true
         chatNotice = nil
+        chatOperationStatus = "正在连接本机后端…"
+        logger.info("chat request started mode=\(self.isGroupMode ? "auto" : "manual", privacy: .public)")
 
+        #if targetEnvironment(macCatalyst)
+        await sendBackendChatText(
+            text,
+            character: character,
+            fallbackReply: fallbackReply,
+            shouldSuggestCheckIn: shouldSuggestCheckIn
+        )
+        #else
         if let apiKey = secureSettings.deepSeekAPIKey(), !apiKey.isEmpty {
             await sendLocalChatText(
                 text,
@@ -827,12 +853,43 @@ final class CompanionStore: ObservableObject {
             return
         }
 
-        let response = await chatService.send(
+        await sendBackendChatText(
+            text,
+            character: character,
+            fallbackReply: fallbackReply,
+            shouldSuggestCheckIn: shouldSuggestCheckIn
+        )
+        #endif
+    }
+
+    private func sendBackendChatText(
+        _ text: String,
+        character: CompanionCharacter,
+        fallbackReply: String?,
+        shouldSuggestCheckIn: Bool
+    ) async {
+        let streamResult = await chatService.sendStreaming(
             text: text,
             character: character,
             isGroupMode: true,
             fallbackReply: fallbackReply
+        ) { [weak self] update in
+            guard let self else { return }
+            self.applyStreamUpdate(update)
+        }
+        let response = streamResult.response
+        if streamResult.deliveredStageCount == 0 {
+            appendAssistantResponse(response, fallbackCharacter: character)
+        } else if let responseCharacter = self.character(id: response.characterID) {
+            selectedCharacterID = responseCharacter.id
+        }
+        chatOperationStatus = nil
+        logger.info(
+            "chat request completed stages=\(streamResult.deliveredStageCount, privacy: .public) fallback=\(response.usedFallback, privacy: .public)"
         )
+        if let errorDetail = response.errorDetail, !errorDetail.isEmpty {
+            logger.error("chat request detail: \(errorDetail, privacy: .public)")
+        }
         backendStatus = BackendConnectionStatus(
             state: response.usedFallback ? .fallback : .online,
             baseURL: response.backendURL,
@@ -841,6 +898,33 @@ final class CompanionStore: ObservableObject {
                 : "这轮消息来自本地 Web 后端。",
             lastCheckedAt: Date()
         )
+        chatNotice = response.notice
+        isChatCheckInVisible = shouldSuggestCheckIn && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + response.reply)
+        refreshInteractionOffers()
+        isSending = false
+        if !response.usedFallback, let sessionID = response.sessionID {
+            Task {
+                await syncSessionFromBackend(sessionID)
+            }
+        }
+    }
+
+    private func applyStreamUpdate(_ update: ChatServiceStreamUpdate) {
+        switch update.stage {
+        case .quick:
+            chatOperationStatus = "已收到快速回应，正在继续识别意图并深入理解…"
+            logger.info("chat quick reply received")
+        case .deep:
+            chatOperationStatus = "深度回应已生成，正在收尾…"
+            logger.info("chat deep reply received")
+        }
+        appendAssistantResponse(update.response, fallbackCharacter: selectedCharacter)
+    }
+
+    private func appendAssistantResponse(
+        _ response: ChatServiceResponse,
+        fallbackCharacter: CompanionCharacter
+    ) {
         if response.groupMessages.isEmpty {
             if let responseCharacter = self.character(id: response.characterID) {
                 selectedCharacterID = responseCharacter.id
@@ -850,42 +934,34 @@ final class CompanionStore: ObservableObject {
                     id: UUID().uuidString,
                     role: .assistant,
                     content: response.reply,
-                    characterID: response.characterID ?? character.id,
+                    characterID: response.characterID ?? fallbackCharacter.id,
                     createdAt: "",
                     expressionID: response.expressionID ?? "",
                     routeSummary: response.routeSummary,
                     knowledgeCards: response.knowledgeCards
                 )
             )
-        } else {
-            for (index, groupMessage) in response.groupMessages.enumerated() {
-                messages.append(
-                    ChatMessage(
-                        id: UUID().uuidString,
-                        role: .assistant,
-                        content: groupMessage.text,
-                        characterID: groupMessage.characterID ?? response.characterID ?? character.id,
-                        createdAt: "",
-                        groupRole: groupMessage.role,
-                        action: groupMessage.action,
-                        expressionID: groupMessage.expressionID ?? response.expressionID ?? "",
-                        routeSummary: index == 0 ? response.routeSummary : nil,
-                        knowledgeCards: groupMessage.knowledgeCards
-                    )
-                )
-            }
-            if let responseCharacter = self.character(id: response.characterID) {
-                selectedCharacterID = responseCharacter.id
-            }
+            return
         }
-        chatNotice = response.notice
-        isChatCheckInVisible = shouldSuggestCheckIn && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + response.reply)
-        refreshInteractionOffers()
-        isSending = false
-        if !response.usedFallback, let sessionID = response.sessionID {
-            Task {
-                await syncSessionFromBackend(sessionID)
-            }
+
+        for (index, groupMessage) in response.groupMessages.enumerated() {
+            messages.append(
+                ChatMessage(
+                    id: UUID().uuidString,
+                    role: .assistant,
+                    content: groupMessage.text,
+                    characterID: groupMessage.characterID ?? response.characterID ?? fallbackCharacter.id,
+                    createdAt: "",
+                    groupRole: groupMessage.role,
+                    action: groupMessage.action,
+                    expressionID: groupMessage.expressionID ?? response.expressionID ?? "",
+                    routeSummary: index == 0 ? response.routeSummary : nil,
+                    knowledgeCards: groupMessage.knowledgeCards
+                )
+            )
+        }
+        if let responseCharacter = self.character(id: response.characterID) {
+            selectedCharacterID = responseCharacter.id
         }
     }
 
@@ -919,7 +995,9 @@ final class CompanionStore: ObservableObject {
             )
             messages.append(fallbackMessage)
             chatNotice = error.localizedDescription
+            logger.error("local chat failed: \(error.localizedDescription, privacy: .public)")
         }
+        chatOperationStatus = nil
         isChatCheckInVisible = shouldSuggestCheckIn
             && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + (messages.last?.content ?? ""))
         refreshInteractionOffers()

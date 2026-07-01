@@ -222,7 +222,10 @@ private struct MacConversationWorkspace: View {
                             }
 
                             if store.isSending {
-                                MacThinkingRow(character: store.selectedCharacter)
+                                MacThinkingRow(
+                                    character: store.selectedCharacter,
+                                    status: store.chatOperationStatus
+                                )
                             }
                         }
                         .padding(.horizontal, 28)
@@ -706,6 +709,7 @@ private struct MacCloseSection<Content: View>: View {
 
 private struct MacThinkingRow: View {
     let character: CompanionCharacter
+    let status: String?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -720,6 +724,11 @@ private struct MacThinkingRow: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(character.bubbleColor, in: Capsule())
+            if let status, !status.isEmpty {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
         }
     }
@@ -810,10 +819,14 @@ private struct MacConversationInspector: View {
 
                 MacInspectorSection(title: "这次夜谈") {
                     Label("\(store.messages.count) 条消息", systemImage: "text.bubble")
+                    #if targetEnvironment(macCatalyst)
+                    Label("本机后端双阶段模式", systemImage: "brain")
+                    #else
                     Label(
                         store.isLocalAIConfigured ? "本机 API 模式" : "后端服务模式",
                         systemImage: "brain"
                     )
+                    #endif
                 }
 
                 if let notice = store.sessionNotice {
@@ -924,7 +937,7 @@ private struct MacFlowWorkspace: View {
             }
         }
         .task {
-            await store.refreshStarMapInsight()
+            await store.loadStarMapInsightIfNeeded()
         }
     }
 }

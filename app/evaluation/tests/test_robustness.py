@@ -7,7 +7,7 @@
 import tempfile
 import os
 
-from app.evaluation.robustness import RobustnessTest
+from app.evaluation.robustness import RobustnessTest, RobustnessResult
 
 
 class MemoryStoreRobustnessTest(RobustnessTest):
@@ -176,6 +176,196 @@ class OrchestratorHelpersRobustnessTest(RobustnessTest):
         return self.results
 
 
+class ConfigRobustnessTest(RobustnessTest):
+    """config 模块鲁棒性测试"""
+
+    def __init__(self):
+        super().__init__("config", "config")
+
+    def run(self):
+        import os
+        from app.config import get_settings
+
+        # 备份原始环境变量
+        original_values = {}
+        env_keys = [
+            "WEB_TIMEOUT_MS", "WEB_PORT", "DEEPSEEK_TIMEOUT",
+            "INTENT_CONFIDENCE_THRESHOLD", "QUICK_REPLY_MAX_TOKENS",
+        ]
+        for key in env_keys:
+            original_values[key] = os.environ.get(key)
+
+        try:
+            # 边界: 无效的整数环境变量
+            os.environ["WEB_TIMEOUT_MS"] = "not_a_number"
+            try:
+                get_settings()
+                self.results.append(RobustnessResult(
+                    test_name="config_invalid_int_fallback",
+                    passed=False,
+                    module=self.module,
+                    scenario="无效整数环境变量",
+                    message="get_settings() 在 WEB_TIMEOUT_MS='not_a_number' 时没有抛出异常，"
+                            "可能静默使用了错误值或默认值处理不一致",
+                ))
+            except ValueError:
+                self.results.append(RobustnessResult(
+                    test_name="config_invalid_int_fallback",
+                    passed=True,
+                    module=self.module,
+                    scenario="无效整数环境变量",
+                    message="get_settings() 在无效整数环境变量时正确抛出 ValueError",
+                ))
+
+            # 边界: 无效浮点数环境变量
+            os.environ["DEEPSEEK_TIMEOUT"] = "invalid_float"
+            try:
+                get_settings()
+                self.results.append(RobustnessResult(
+                    test_name="config_invalid_float_fallback",
+                    passed=False,
+                    module=self.module,
+                    scenario="无效浮点数环境变量",
+                    message="get_settings() 在 DEEPSEEK_TIMEOUT='invalid_float' 时没有抛出异常",
+                ))
+            except ValueError:
+                self.results.append(RobustnessResult(
+                    test_name="config_invalid_float_fallback",
+                    passed=True,
+                    module=self.module,
+                    scenario="无效浮点数环境变量",
+                    message="get_settings() 在无效浮点数环境变量时正确抛出 ValueError",
+                ))
+
+            # 边界: 空字符串环境变量
+            os.environ["WEB_PORT"] = ""
+            try:
+                get_settings()
+                self.results.append(RobustnessResult(
+                    test_name="config_empty_string_port",
+                    passed=False,
+                    module=self.module,
+                    scenario="空字符串端口环境变量",
+                    message="get_settings() 在 WEB_PORT='' 时没有抛出异常",
+                ))
+            except ValueError:
+                self.results.append(RobustnessResult(
+                    test_name="config_empty_string_port",
+                    passed=True,
+                    module=self.module,
+                    scenario="空字符串端口环境变量",
+                    message="get_settings() 在空字符串端口时正确抛出 ValueError",
+                ))
+        finally:
+            # 恢复环境变量
+            for key, value in original_values.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+        return self.results
+
+
+class IntentAgentRobustnessTest(RobustnessTest):
+    """intent.agent 模块鲁棒性测试"""
+
+    def __init__(self):
+        super().__init__("intent_agent", "intent.agent")
+
+    def run(self):
+        from app.intent.agent import IntentAgent
+        from app.llm.fake import FakeClient
+
+        llm = FakeClient()
+        agent = IntentAgent(llm=llm)
+
+        # 边界: None 作为 conversation_history
+        self.test_edge_case("recognize_none_history", agent.recognize, "测试", None)
+
+        # 边界: 空列表作为 conversation_history
+        self.test_edge_case("recognize_empty_history", agent.recognize, "测试", [])
+
+        # 边界: 包含异常格式项的 history
+        bad_history = [
+            {"role": "user"},  # 缺少 content
+            {"content": "hello"},  # 缺少 role
+            None,  # None 项
+            "not a dict",  # 字符串项
+        ]
+        self.test_edge_case("recognize_bad_history_items", agent.recognize, "测试", bad_history)
+
+        # 边界: 超长用户输入
+        self.test_edge_case("recognize_long_input", agent.recognize, "x" * 10000, [])
+
+        # 边界: _render_history 中 max_history_turns 被异常设置
+        original_turns = agent.max_history_turns
+        try:
+            agent.max_history_turns = None
+            self.test_edge_case("render_history_none_turns", agent._render_history, [])
+        finally:
+            agent.max_history_turns = original_turns
+
+        return self.results
+
+
+class WebBoundaryRobustnessTest(RobustnessTest):
+    """web.py 边界条件鲁棒性测试"""
+
+    def __init__(self):
+        super().__init__("web_boundary", "web")
+
+    def run(self):
+        # 测试 URL 参数解析的边界情况
+        from urllib.parse import urlparse
+
+        # 边界: 空 query
+        query = ""
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        self.results.append(RobustnessResult(
+            test_name="parse_empty_query",
+            passed=params == {},
+            module=self.module,
+            scenario="空 query 参数解析",
+            message=f"空 query 解析结果: {params}",
+        ))
+
+        # 边界: 重复 key
+        query = "type=messages&type=sessions&limit=10"
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        self.results.append(RobustnessResult(
+            test_name="parse_duplicate_keys",
+            passed=params.get("type") == "sessions",
+            module=self.module,
+            scenario="重复 key 参数解析",
+            message=f"重复 key 解析结果: {params}（后面的值覆盖前面的）",
+        ))
+
+        # 边界: 特殊字符在 query 中
+        query = "type=mem%6Fries&limit=5"
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        self.results.append(RobustnessResult(
+            test_name="parse_encoded_query",
+            passed=params.get("type") == "mem%6Fries",
+            module=self.module,
+            scenario="URL 编码参数解析",
+            message=f"编码参数解析结果: {params}（未自动解码，符合预期）",
+        ))
+
+        # 边界: 无等号的参数片段
+        query = "type=messages&invalid_fragment&limit=10"
+        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        self.results.append(RobustnessResult(
+            test_name="parse_invalid_fragment",
+            passed="invalid_fragment" not in params and params.get("type") == "messages",
+            module=self.module,
+            scenario="无效参数片段过滤",
+            message=f"无效片段过滤结果: {params}",
+        ))
+
+        return self.results
+
+
 def get_robustness_tests() -> list[RobustnessTest]:
     """返回所有鲁棒性测试实例"""
     from app.evaluation.tests.test_code_review_findings import get_code_review_tests
@@ -185,5 +375,8 @@ def get_robustness_tests() -> list[RobustnessTest]:
         SafetyRobustnessTest(),
         KnowledgeRobustnessTest(),
         OrchestratorHelpersRobustnessTest(),
+        ConfigRobustnessTest(),
+        IntentAgentRobustnessTest(),
+        WebBoundaryRobustnessTest(),
         *get_code_review_tests(),
     ]

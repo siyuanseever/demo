@@ -2211,17 +2211,13 @@ HTML = """<!doctype html>
               const d = event.data;
               hasDeepReply = true;
               if (quickReplyNode) {
-                replaceMessageContent(quickReplyNode, d.reply, d.knowledge_cards || [],
-                  d.character?.id || activeCharacterId,
-                  { expressionId: d.expression?.id || "" }
-                );
+                markMessageFinal(quickReplyNode);
                 quickReplyNode = null;
-              } else {
-                addMessage("deer", d.reply, d.knowledge_cards || [],
-                  d.character?.id || activeCharacterId,
-                  { expressionId: d.expression?.id || "" }
-                );
               }
+              addMessage("deer", d.reply, d.knowledge_cards || [],
+                d.character?.id || activeCharacterId,
+                { expressionId: d.expression?.id || "" }
+              );
               if (d.character?.id) {
                 activeCharacterId = d.character.id;
                 updateAnimalState(d.character.id, d.reply);

@@ -66,6 +66,16 @@ def check_rendered_web_script() -> None:
         "rendered browser script must pass node --check",
         result.stderr or result.stdout,
     )
+    script = script_path.read_text(encoding="utf-8")
+    check(
+        "replaceMessageContent(quickReplyNode" not in script,
+        "deep reply must not overwrite the quick reply node",
+    )
+    check(
+        'markMessageFinal(quickReplyNode);' in script
+        and 'addMessage("deer", d.reply, d.knowledge_cards || []' in script,
+        "web UI must preserve quick reply and append deep reply",
+    )
 
 
 def check_sse_deep_reply_contract() -> None:

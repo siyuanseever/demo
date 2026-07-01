@@ -14,6 +14,21 @@ struct ChatServiceResponse {
     let errorDetail: String?
 }
 
+struct ChatServiceStreamUpdate {
+    enum Stage {
+        case quick
+        case deep
+    }
+
+    let stage: Stage
+    let response: ChatServiceResponse
+}
+
+struct ChatServiceStreamResult {
+    let response: ChatServiceResponse
+    let deliveredStageCount: Int
+}
+
 struct ChatServiceGroupMessage {
     let role: String
     let text: String
@@ -445,33 +460,7 @@ final class ChatService {
                 )
             )
             let response: ChatResponseBody = try await decode(request)
-            let knowledgeCards = response.knowledgeCards.map(\.knowledgeCard)
-            let groupMessages = response.groupMessages ?? []
-            let cardTargetIndex = groupMessages.firstIndex {
-                $0.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "main"
-            } ?? max(0, groupMessages.count - 1)
-            return ChatServiceResponse(
-                sessionID: sessionID,
-                reply: response.reply,
-                characterID: response.character?.id ?? character.id,
-                expressionID: response.expression?.id ?? response.routePlan?.expressionID,
-                groupMessages: groupMessages.enumerated().map { index, item in
-                    ChatServiceGroupMessage(
-                        role: item.role,
-                        text: item.text,
-                        action: item.action ?? "",
-                        characterID: item.character?.id,
-                        expressionID: item.expression?.id ?? item.expressionID,
-                        knowledgeCards: index == cardTargetIndex ? knowledgeCards : []
-                    )
-                },
-                knowledgeCards: knowledgeCards,
-                routeSummary: Self.routeSummary(response.routePlan),
-                usedFallback: false,
-                notice: nil,
-                backendURL: backendURLDescription,
-                errorDetail: nil
-            )
+            return makeResponse(sessionID: sessionID, body: response, fallbackCharacter: character)
         } catch {
             return ChatServiceResponse(
                 sessionID: nil,
@@ -485,6 +474,137 @@ final class ChatService {
                 notice: "本地 Web 服务暂时没有回应，先用 iOS 原型陪你接住这一轮。",
                 backendURL: backendURLDescription,
                 errorDetail: Self.describe(error)
+            )
+        }
+    }
+
+    func sendStreaming(
+        text: String,
+        character: CompanionCharacter,
+        isGroupMode: Bool = false,
+        fallbackReply: String? = nil,
+        onUpdate: @escaping (ChatServiceStreamUpdate) async -> Void
+    ) async -> ChatServiceStreamResult {
+        var deliveredStageCount = 0
+        var latestResponse: ChatServiceResponse?
+
+        do {
+            let sessionID = try await currentSessionID()
+            var request = try makeJSONRequest(
+                path: "/api/chat_stream",
+                body: ChatRequestBody(
+                    sessionID: sessionID,
+                    text: text,
+                    characterID: isGroupMode ? "auto" : character.id
+                )
+            )
+            request.timeoutInterval = 90
+
+            let (bytes, urlResponse) = try await session.bytes(for: request)
+            guard let httpResponse = urlResponse as? HTTPURLResponse else {
+                throw ChatServiceError.invalidResponse
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw ChatServiceError.httpStatus(httpResponse.statusCode)
+            }
+
+            var eventType = "message"
+            var dataLines: [String] = []
+            streamLoop: for try await line in bytes.lines {
+                if line.hasPrefix("event:") {
+                    eventType = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                    continue
+                }
+                if line.hasPrefix("data:") {
+                    dataLines.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+                    continue
+                }
+                guard line.isEmpty, !dataLines.isEmpty else { continue }
+
+                let currentEventType = eventType
+                let data = Data(dataLines.joined(separator: "\n").utf8)
+                eventType = "message"
+                dataLines.removeAll(keepingCapacity: true)
+
+                switch currentEventType {
+                case "quick_reply":
+                    let body = try JSONDecoder().decode(QuickReplyResponseBody.self, from: data)
+                    let response = ChatServiceResponse(
+                        sessionID: sessionID,
+                        reply: body.text,
+                        characterID: body.character?.id ?? character.id,
+                        expressionID: body.expression?.id ?? character.defaultExpressionID,
+                        groupMessages: [],
+                        knowledgeCards: [],
+                        routeSummary: nil,
+                        usedFallback: false,
+                        notice: nil,
+                        backendURL: backendURLDescription,
+                        errorDetail: nil
+                    )
+                    latestResponse = response
+                    deliveredStageCount += 1
+                    await onUpdate(ChatServiceStreamUpdate(stage: .quick, response: response))
+                case "deep_reply":
+                    let body = try JSONDecoder().decode(ChatResponseBody.self, from: data)
+                    let response = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)
+                    latestResponse = response
+                    deliveredStageCount += 1
+                    await onUpdate(ChatServiceStreamUpdate(stage: .deep, response: response))
+                case "final":
+                    let body = try JSONDecoder().decode(ChatResponseBody.self, from: data)
+                    latestResponse = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)
+                case "error":
+                    let body = try JSONDecoder().decode(StreamErrorResponseBody.self, from: data)
+                    throw ChatServiceError.stream(body.error)
+                case "done":
+                    break streamLoop
+                default:
+                    continue
+                }
+            }
+
+            guard let latestResponse else {
+                throw ChatServiceError.invalidResponse
+            }
+            return ChatServiceStreamResult(
+                response: latestResponse,
+                deliveredStageCount: deliveredStageCount
+            )
+        } catch {
+            if let latestResponse {
+                return ChatServiceStreamResult(
+                    response: ChatServiceResponse(
+                        sessionID: latestResponse.sessionID,
+                        reply: latestResponse.reply,
+                        characterID: latestResponse.characterID,
+                        expressionID: latestResponse.expressionID,
+                        groupMessages: latestResponse.groupMessages,
+                        knowledgeCards: latestResponse.knowledgeCards,
+                        routeSummary: latestResponse.routeSummary,
+                        usedFallback: false,
+                        notice: "快速回应已显示，但后续分析没有完成。",
+                        backendURL: backendURLDescription,
+                        errorDetail: Self.describe(error)
+                    ),
+                    deliveredStageCount: deliveredStageCount
+                )
+            }
+            return ChatServiceStreamResult(
+                response: ChatServiceResponse(
+                    sessionID: nil,
+                    reply: fallbackReply ?? Self.fallbackReply(for: text, character: character),
+                    characterID: character.id,
+                    expressionID: character.defaultExpressionID,
+                    groupMessages: [],
+                    knowledgeCards: [],
+                    routeSummary: nil,
+                    usedFallback: true,
+                    notice: "本地后端暂时没有完成这轮回复，已使用原型兜底。",
+                    backendURL: backendURLDescription,
+                    errorDetail: Self.describe(error)
+                ),
+                deliveredStageCount: deliveredStageCount
             )
         }
     }
@@ -612,7 +732,7 @@ final class ChatService {
     func fetchStarMapInsight() async throws -> StarMapInsight {
         var request = URLRequest(url: baseURL.appendingPathComponent("api/star_map_insight"))
         request.httpMethod = "GET"
-        request.timeoutInterval = 20
+        request.timeoutInterval = 60
         let response: StarMapInsightResponseBody = try await decode(request)
         return response.starMapInsight
     }
@@ -670,6 +790,40 @@ final class ChatService {
             throw ChatServiceError.httpStatus(httpResponse.statusCode)
         }
         return try JSONDecoder().decode(Response.self, from: data)
+    }
+
+    private func makeResponse(
+        sessionID: String,
+        body: ChatResponseBody,
+        fallbackCharacter: CompanionCharacter
+    ) -> ChatServiceResponse {
+        let knowledgeCards = body.knowledgeCards.map(\.knowledgeCard)
+        let groupMessages = body.groupMessages ?? []
+        let cardTargetIndex = groupMessages.firstIndex {
+            $0.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "main"
+        } ?? max(0, groupMessages.count - 1)
+        return ChatServiceResponse(
+            sessionID: sessionID,
+            reply: body.reply,
+            characterID: body.character?.id ?? fallbackCharacter.id,
+            expressionID: body.expression?.id ?? body.routePlan?.expressionID,
+            groupMessages: groupMessages.enumerated().map { index, item in
+                ChatServiceGroupMessage(
+                    role: item.role,
+                    text: item.text,
+                    action: item.action ?? "",
+                    characterID: item.character?.id,
+                    expressionID: item.expression?.id ?? item.expressionID,
+                    knowledgeCards: index == cardTargetIndex ? knowledgeCards : []
+                )
+            },
+            knowledgeCards: knowledgeCards,
+            routeSummary: Self.routeSummary(body.routePlan),
+            usedFallback: false,
+            notice: nil,
+            backendURL: backendURLDescription,
+            errorDetail: nil
+        )
     }
 
     private static func fallbackReply(for text: String, character: CompanionCharacter) -> String {
@@ -1056,6 +1210,16 @@ private struct ChatResponseBody: Decodable {
         knowledgeCards = try container.decodeIfPresent([KnowledgeCardResponseBody].self, forKey: .knowledgeCards) ?? []
         routePlan = try container.decodeIfPresent(RoutePlanResponseBody.self, forKey: .routePlan)
     }
+}
+
+private struct QuickReplyResponseBody: Decodable {
+    let text: String
+    let character: ResponseCharacter?
+    let expression: ResponseExpression?
+}
+
+private struct StreamErrorResponseBody: Decodable {
+    let error: String
 }
 
 private struct GroupMessageResponseBody: Decodable {
@@ -1559,6 +1723,7 @@ private enum ChatServiceError: Error, CustomStringConvertible {
     case invalidResponse
     case httpStatus(Int)
     case noActiveSession
+    case stream(String)
 
     var description: String {
         switch self {
@@ -1568,6 +1733,8 @@ private enum ChatServiceError: Error, CustomStringConvertible {
             return "HTTP \(status)"
         case .noActiveSession:
             return "还没有正在进行的会话"
+        case .stream(let message):
+            return "流式回复失败：\(message)"
         }
     }
 }
