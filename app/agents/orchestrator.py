@@ -66,9 +66,14 @@ def render_memories(memories: list) -> str:
                 keywords = json.loads(keywords)
             except json.JSONDecodeError:
                 keywords = []
+            evidence = memory.get('evidence', '')
+        if isinstance(evidence, list):
+            evidence = '、'.join(str(e) for e in evidence)
+        elif not isinstance(evidence, str):
+            evidence = str(evidence)
         lines.append(
             f"- [{memory['category']}/{memory['subcategory']}] {memory['content']}"
-            f"（关键词：{'、'.join(keywords)}；证据：{memory['evidence']}）"
+            f"（关键词：{'、'.join(keywords)}；证据：{evidence}）"
         )
     return "\n".join(lines)
 
@@ -1538,8 +1543,8 @@ class ConversationOrchestrator:
         lines = []
         budget = max(0, self.quick_reply_history_chars)
         for item in items:
-            role = item["role"] if isinstance(item, dict) else item["role"]
-            content = item["content"] if isinstance(item, dict) else item["content"]
+            role = item["role"]
+            content = item["content"]
             label = "用户" if role == "user" else "助手"
             line = f"{label}：{str(content).strip()}"
             if budget and len(line) > budget:
