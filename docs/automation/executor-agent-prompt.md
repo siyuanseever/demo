@@ -21,7 +21,7 @@
 3. `status.md`
 4. `docs/automation/automation-orchestration.md`
 5. `pm_runs.jsonl` 中最新一份尚未处理的 PM run 的 `coordination.json`
-6. 该 coordination 引用的所有 PTR 文档（`docs/automation/ptr/*.md`）
+6. 该 PM run 目录下的 `pm_report.md`（与 `coordination.json` 同目录，从中读取"今日任务详情"章节的详细需求）
 7. Executor 自身 state
 
 ## 2. 前置步骤（每次运行必须先执行）
@@ -199,7 +199,7 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
     {
       "task_id": "PM-T-001",
       "title": "...",
-      "ptr_ref": "YYYYMMDD_ptr.md#section",
+      "ptr_ref": "ptr.md#section",
       "status": "completed | partial | failed | skipped",
       "product_files_changed": [],
       "commit": "SHA or null",

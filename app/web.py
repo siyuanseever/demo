@@ -3184,21 +3184,35 @@ class Handler(BaseHTTPRequestHandler):
                 self._handle_chat_stream(payload)
                 return
             if path == "/api/chat":
+                session_id = payload.get("session_id")
+                text = payload.get("text")
+                if not session_id or not text:
+                    self.respond_json({"error": "missing required fields: session_id and text"}, status=400)
+                    return
                 result = self.app.orchestrator.reply_detail(
-                    payload["session_id"],
-                    payload["text"],
+                    session_id,
+                    text,
                     character_id=payload.get("character_id"),
                 )
                 self.respond_json(result)
                 return
             if path == "/api/end":
-                result = self.app.orchestrator.close_session(payload["session_id"])
+                session_id = payload.get("session_id")
+                if not session_id:
+                    self.respond_json({"error": "missing required field: session_id"}, status=400)
+                    return
+                result = self.app.orchestrator.close_session(session_id)
                 self.respond_json(result)
                 return
             if path == "/api/home_hint_feedback":
+                hint_id = payload.get("hint_id")
+                text = payload.get("text")
+                if not hint_id or not text:
+                    self.respond_json({"error": "missing required fields: hint_id and text"}, status=400)
+                    return
                 self.app.orchestrator.record_home_hint_feedback(
-                    hint_id=payload["hint_id"],
-                    text=payload["text"],
+                    hint_id=hint_id,
+                    text=text,
                     liked=bool(payload.get("liked")),
                     source=payload.get("source", ""),
                     context=payload.get("context") if isinstance(payload.get("context"), dict) else {},
@@ -3222,6 +3236,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.respond_json({"ok": True, "merged": result})
                 return
             self.send_error(404)
+        except ValueError as error:
+            self.respond_json({"error": str(error)}, status=400)
         except Exception as error:
             self.logger.exception("http error path=%s", path)
             self.respond_json({"error": str(error)}, status=500)
@@ -3233,8 +3249,12 @@ class Handler(BaseHTTPRequestHandler):
             )
 
     def read_json(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length).decode("utf-8")
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except (ValueError, TypeError):
+            length = 0
+        length = max(0, min(length, 1_000_000))  # 限制请求体大小为 1MB，防止 DoS
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
         return json.loads(body or "{}")
 
     def do_GET(self) -> None:

@@ -45,9 +45,9 @@
 
 ### 允许
 - 读取全部项目代码、文档和 Git 历史
-- 修改规划类文档：`status.md`（仅进度概述、下一步建议和已知问题部分）、`docs/automation/ptr/**`
+- 修改规划类文档：`status.md`（仅进度概述、下一步建议和已知问题部分）
 - 在 `TODO.md` 的"近期 TODO"和"待排期"区域追加新条目（不得删除、修改已有条目）
-- 生成 PTR 产品需求文档
+- 生成 PTR 产品需求文档（放在 Agent 交接目录）
 - 生成协调指令给 Executor Agent
 - 分析 Checker/Fixer 报告并纳入产品决策
 
@@ -111,11 +111,11 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
 
 必须包含：
 - `pm_report.json` —— 结构化报告
-- `pm_report.md` —— 人类可读报告
+- `pm_report.md` —— 唯一 Markdown 报告（人类和执行 Agent 共用）。内容包含：执行摘要、项目快照、进度分析、今日任务推荐（含详细需求）、Checker/Fixer 问题、待确认事项、下一步行动
 - `pm_report.html` —— 带样式的报告
 - `coordination.json` —— 给 Executor Agent 的协调指令
 
-PTR 文档：`docs/automation/ptr/YYYYMMDD_ptr.md`
+注意：不再单独生成 `ptr.md`。详细产品需求直接作为 `pm_report.md` 中"今日任务详情"章节，Executor 从同一文件读取需求细节。
 
 完成后原子更新：
 1. 在 run 目录写临时文件
@@ -154,7 +154,7 @@ PTR 文档：`docs/automation/ptr/YYYYMMDD_ptr.md`
     "check_pattern_summary": ""
   },
   "ptr_updates": {
-    "new_or_updated": ["YYYYMMDD_ptr.md"],
+    "new_or_updated": ["ptr.md"],
     "ptr_commit": "SHA or null"
   },
   "coordination": {
@@ -163,7 +163,7 @@ PTR 文档：`docs/automation/ptr/YYYYMMDD_ptr.md`
       {
         "task_id": "PM-T-001",
         "title": "...",
-        "ptr_ref": "YYYYMMDD_ptr.md#section",
+        "ptr_ref": "ptr.md#section",
         "priority": "high | medium | low",
         "estimated_scope": "small | medium | large",
         "acceptance_criteria": [],
@@ -179,7 +179,7 @@ PTR 文档：`docs/automation/ptr/YYYYMMDD_ptr.md`
   "document_changes": {
     "status_md_updated": false,
     "todo_md_appended": [],
-    "ptr_created": []
+    "ptr_in_handoff": false
   },
   "handoff": { "target": "executor", "action_required": true, "task_ids": [] }
 }
@@ -201,9 +201,9 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 ## 9. 提交规范
 
 若修改了规划文档，允许提交：
-- diff 只含 `status.md`、`TODO.md`、`docs/automation/ptr/**`
-- 不得包含 `docs/automation/automation-orchestration.md`、Checker/Fixer Prompt 文件
-- message：`docs(pm): daily plan update <pm_run_id>` 或 `docs(pm): PTR <task_id>`
+- diff 只含 `status.md`、`TODO.md`
+- 不得包含 `docs/automation/automation-orchestration.md`、Checker/Fixer/Executor Prompt 文件、任何 `app/**` 代码
+- message：`docs(pm): daily plan update <pm_run_id>`
 - 提交到 worktree 的 `automation/quality-loop` 分支
 - 不 push、不合并到 main
 

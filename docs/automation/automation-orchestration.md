@@ -46,10 +46,10 @@ Checker、Fixer、PM 和 Executor 轮流在该分支提交：
 角色隔离由每个 commit 的路径白名单保证，而不是为每轮创建互不相连的 branch。这样一天四轮测试不会产生四条无法汇合的分支。
 
 各 Agent 的 commit 路径白名单：
-- PM：`status.md`、`TODO.md`、`docs/automation/ptr/**`
+- PM：`status.md`、`TODO.md`（人类可读规划文档）
 - Checker：`app/evaluation/**`、`eval_reports/agent_handoffs/**`
 - Fixer：`app/**`（不含 evaluation）、`docs/**`（不含 automation 协议）
-- Executor：`app/**`（不含 evaluation）、`docs/**`（不含 automation 协议和 PTR）
+- Executor：`app/**`（不含 evaluation）、`docs/**`（不含 automation 协议）
 
 ### 合并到 main
 
