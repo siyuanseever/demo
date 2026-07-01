@@ -3197,7 +3197,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             self.logger.exception("SSE stream error")
             try:
-                error_chunk = json.dumps({"error": str(error)}).encode("utf-8")
+                error_chunk = json.dumps({"error": "服务暂时不可用，请稍后重试"}).encode("utf-8")
                 self.wfile.write(f"event: error\ndata: {error_chunk.decode()}\n\n".encode("utf-8"))
                 self.wfile.flush()
             except Exception:

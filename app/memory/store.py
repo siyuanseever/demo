@@ -311,6 +311,11 @@ class Store:
         column: str,
         definition: str,
     ) -> None:
+        import re as _re
+        if not _re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', table):
+            raise ValueError(f'Invalid table name: {table!r}')
+        if not _re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', column):
+            raise ValueError(f'Invalid column name: {column!r}')
         existing = {
             row["name"]
             for row in conn.execute(f"PRAGMA table_info({table})").fetchall()

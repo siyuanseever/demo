@@ -80,7 +80,12 @@ class DeepSeekClient:
                     content, raw = self._read_stream(response)
                 else:
                     raw = json.loads(response.read().decode("utf-8"))
-                    content = raw["choices"][0]["message"]["content"]
+                    choices = raw.get("choices")
+                    if not choices or not isinstance(choices, list):
+                        raise RuntimeError(
+                            f"DeepSeek returned empty or invalid choices: {json.dumps(raw)[:200]}"
+                        )
+                    content = choices[0]["message"]["content"]
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")
             self.logger.exception("deepseek http error status=%s", error.code)
