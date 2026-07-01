@@ -5,6 +5,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
 from app.characters import (
@@ -1730,6 +1731,7 @@ class ConversationOrchestrator:
                 state_profile_results = []
 
         self.store.add_journal(session_id, journal)
+        self._auto_mental_status_record(session_id, journal)
         self.store.end_session(session_id)
         self.logger.info(
             "close_session done session=%s elapsed=%.2fs memory_results=%s state_profile_results=%s",
@@ -1744,6 +1746,53 @@ class ConversationOrchestrator:
             "memory_events": self.store.list_memory_events(session_id=session_id),
             "state_profiles": state_profile_results,
         }
+
+    def _auto_mental_status_record(
+        self,
+        session_id: str,
+        journal: dict[str, Any],
+    ) -> None:
+        if not journal or not journal.get("summary"):
+            return
+        try:
+            from app.memory.schema import MENTAL_STATUS_MOODS
+            prompt = read_prompt("mental_status_extract.md").format(
+                moods="、".join(MENTAL_STATUS_MOODS),
+            )
+            journal_text = json.dumps(journal, ensure_ascii=False, indent=2)
+            response = self._chat(
+                [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": journal_text},
+                ],
+                call_type="mental_status_extract",
+                temperature=0.3,
+                max_tokens=600,
+                response_format={"type": "json_object"},
+            )
+            status = parse_json_object(response.content)
+            if not status.get("mood"):
+                self.logger.warning("mental status extraction returned empty mood session=%s", session_id)
+                return
+            now = datetime.now(timezone.utc)
+            self.store.add_mental_status_record({
+                "record_date": now.date().isoformat(),
+                "record_time": now.strftime("%H:%M"),
+                "source_type": "session_generated",
+                "source_id": session_id,
+                "mood": status.get("mood", ""),
+                "mood_intensity": status.get("mood_intensity"),
+                "emotions": status.get("emotions", {}),
+                "energy_level": status.get("energy_level"),
+                "sleep_quality": status.get("sleep_quality"),
+                "social_drive": status.get("social_drive"),
+                "focus_level": status.get("focus_level"),
+                "triggers": status.get("triggers", ""),
+                "coping": status.get("coping", ""),
+                "notes": status.get("notes", ""),
+            })
+        except Exception:
+            self.logger.exception("auto mental status record failed session=%s", session_id)
 
     def _write_journal(self, transcript: str) -> dict:
         prompt = read_prompt("journal.md")

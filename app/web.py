@@ -971,6 +971,135 @@ HTML = """<!doctype html>
       margin: 4px 0;
       font-weight: 700;
     }
+    .mental-summary {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .mental-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .mental-stat {
+      text-align: center;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255, 252, 247, 0.78);
+      border: 1px solid rgba(200, 188, 176, 0.28);
+    }
+    .mental-stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #5a3e36;
+    }
+    .mental-stat-label {
+      font-size: 12px;
+      color: #8c7b70;
+      margin-top: 4px;
+    }
+    .mental-dist {
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(255, 252, 247, 0.78);
+      border: 1px solid rgba(200, 188, 176, 0.28);
+    }
+    .mental-dist-bars {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mental-dist-bar {
+      display: grid;
+      grid-template-columns: 80px 1fr 30px;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .mental-dist-track {
+      height: 8px;
+      background: rgba(200, 188, 176, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .mental-dist-fill {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(139, 115, 85, 0.55), rgba(118, 148, 128, 0.55));
+      border-radius: 4px;
+    }
+    .mental-timeline {
+      padding: 14px;
+      border-radius: 10px;
+      background: rgba(255, 252, 247, 0.78);
+      border: 1px solid rgba(200, 188, 176, 0.28);
+    }
+    .mental-trend-chart {
+      display: flex;
+      gap: 2px;
+      margin-top: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .mental-trend-bar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 18px;
+    }
+    .mental-trend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #c8bcb0;
+    }
+    .mental-trend-dot.high {
+      background: #c45c4a;
+    }
+    .mental-trend-dot.mid {
+      background: #d4a84b;
+    }
+    .mental-trend-dot.low {
+      background: #76a878;
+    }
+    .mental-trend-dot.none {
+      background: #e0ddd8;
+    }
+    .mental-trend-date {
+      font-size: 9px;
+      color: #8c7b70;
+      transform: rotate(-45deg);
+      transform-origin: center;
+      white-space: nowrap;
+    }
+    .mental-records {
+      padding: 14px 0;
+    }
+    .mental-record-card {
+      padding: 14px;
+    }
+    .mental-record-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .mental-record-date {
+      font-weight: 700;
+      color: #5a3e36;
+    }
+    .mental-emotions {
+      margin: 6px 0;
+    }
+    .mental-dimensions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 6px 0;
+    }
     @media (max-width: 760px) {
       .state-overview {
         grid-template-columns: 1fr;
@@ -1430,6 +1559,7 @@ HTML = """<!doctype html>
     <section id="dashboard" class="view hidden">
       <div class="toolbar">
         <button data-view="state" class="active" type="button">心理地图</button>
+        <button data-view="mental" type="button">心理状态</button>
         <button data-view="sessions" type="button">Sessions</button>
         <button data-view="memories" type="button">Memories</button>
         <button data-view="knowledge" type="button">Knowledge</button>
@@ -2607,6 +2737,107 @@ HTML = """<!doctype html>
       `;
     }
 
+    function renderMentalStatus(data) {
+      const records = data.records || [];
+      const trend = data.trend || [];
+      const distribution = data.mood_distribution || {};
+      const avgIntensity = data.avg_intensity;
+      dataList.className = "stack";
+      if (!records.length) {
+        dataList.innerHTML = `
+          <section class="state-overview">
+            <div><h2>心理状态时间线</h2><div class="meta">还没有心理状态记录。结束会话后会自动生成，或从外部资料导入。</div></div>
+          </section>
+        `;
+        return;
+      }
+      const distItems = Object.entries(distribution).sort((a, b) => b[1] - a[1]);
+      dataList.innerHTML = `
+        <section class="state-overview">
+          <div>
+            <h2>心理状态时间线</h2>
+            <div class="meta">最近90天的心理状态记录与趋势</div>
+          </div>
+          <div class="state-coverage">
+            <strong>${records.length}</strong>
+            <span class="meta">条记录</span>
+          </div>
+        </section>
+        <section class="mental-summary">
+          <div class="mental-stats">
+            <div class="mental-stat">
+              <div class="mental-stat-value">${avgIntensity !== null ? avgIntensity : "-"}</div>
+              <div class="mental-stat-label">平均情绪强度</div>
+            </div>
+            <div class="mental-stat">
+              <div class="mental-stat-value">${distItems.length ? distItems[0][0] : "-"}</div>
+              <div class="mental-stat-label">主导情绪</div>
+            </div>
+            <div class="mental-stat">
+              <div class="mental-stat-value">${trend.length}</div>
+              <div class="mental-stat-label">有记录天数</div>
+            </div>
+          </div>
+          ${distItems.length ? `
+            <div class="mental-dist">
+              <div class="meta">情绪分布</div>
+              <div class="mental-dist-bars">
+                ${distItems.map(([mood, count]) => `
+                  <div class="mental-dist-bar">
+                    <span class="mental-dist-label">${escapeHtml(mood)}</span>
+                    <span class="mental-dist-track"><span class="mental-dist-fill" style="width:${Math.min(100, (count / records.length) * 100)}%"></span></span>
+                    <span class="mental-dist-count">${count}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          ` : ""}
+        </section>
+        <section class="mental-timeline">
+          <h3>趋势</h3>
+          ${trend.length ? `
+            <div class="mental-trend-chart">
+              ${trend.slice(-30).map(t => `
+                <div class="mental-trend-bar" title="${escapeHtml(t.date)}: ${escapeHtml(t.mood)} ${t.avg_intensity !== null ? '(' + t.avg_intensity + ')' : ''}">
+                  <div class="mental-trend-dot ${t.avg_intensity !== null ? (t.avg_intensity >= 7 ? 'high' : t.avg_intensity >= 4 ? 'mid' : 'low') : 'none'}"></div>
+                  <div class="mental-trend-date">${t.date.slice(5)}</div>
+                </div>
+              `).join("")}
+            </div>
+          ` : '<div class="meta">暂无趋势数据</div>'}
+        </section>
+        <section class="mental-records">
+          <h3>详细记录</h3>
+          <div class="grid">
+            ${records.map(r => `
+              <article class="card mental-record-card">
+                <div class="mental-record-header">
+                  <span class="mental-record-date">${escapeHtml(r.record_date)}</span>
+                  <span class="pill">${escapeHtml(r.mood || "未标注")}</span>
+                  ${r.mood_intensity !== null ? `<span class="pill">强度 ${r.mood_intensity}</span>` : ""}
+                  <span class="meta">${r.source_type === "session_generated" ? "会话生成" : r.source_type === "imported" ? "外部导入" : "手动记录"}</span>
+                </div>
+                ${Object.keys(r.emotions || {}).length ? `
+                  <div class="mental-emotions">
+                    ${Object.entries(r.emotions).map(([k, v]) => `<span class="pill">${escapeHtml(k)} ${v}</span>`).join("")}
+                  </div>
+                ` : ""}
+                <div class="mental-dimensions">
+                  ${r.energy_level !== null ? `<span class="meta">能量 ${r.energy_level}/10</span>` : ""}
+                  ${r.sleep_quality !== null ? `<span class="meta">睡眠 ${r.sleep_quality}/10</span>` : ""}
+                  ${r.social_drive !== null ? `<span class="meta">社交 ${r.social_drive}/10</span>` : ""}
+                  ${r.focus_level !== null ? `<span class="meta">专注 ${r.focus_level}/10</span>` : ""}
+                </div>
+                ${r.triggers ? `<div class="content"><b>触发因素</b> ${escapeHtml(r.triggers)}</div>` : ""}
+                ${r.coping ? `<div class="content"><b>应对方式</b> ${escapeHtml(r.coping)}</div>` : ""}
+                ${r.notes ? `<div class="content">${escapeHtml(r.notes)}</div>` : ""}
+              </article>
+            `).join("")}
+          </div>
+        </section>
+      `;
+    }
+
     function renderKnowledge(items) {
       renderList(items, item => `
         <article class="card clickable" onclick="showKnowledgeDetail('${escapeHtml(item.id)}')">
@@ -2746,6 +2977,7 @@ HTML = """<!doctype html>
         if (view === "sessions") renderSessions(data.items);
         if (view === "memories") renderMemories(data.items);
         if (view === "state") renderStateProfiles(data.items);
+        if (view === "mental") renderMentalStatus(data.items);
         if (view === "knowledge") renderKnowledge(data.items);
         if (view === "content") renderContentLibrary(data.items);
         if (view === "journals") renderJournals(data.items);
@@ -3085,6 +3317,8 @@ class Handler(BaseHTTPRequestHandler):
             items = store.list_memories(limit=requested_limit or 200)
         elif data_type == "state":
             items = store.state_profile_overview()
+        elif data_type == "mental":
+            items = store.mental_status_analytics(days=90)
         elif data_type == "journals":
             items = store.list_journals(limit=requested_limit or 100)
         elif data_type == "messages":

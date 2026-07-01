@@ -96,6 +96,24 @@ STATE_PROFILE_TRENDS = (
 )
 
 
+MENTAL_STATUS_MOODS = (
+    "平静",
+    "愉悦",
+    "焦虑",
+    "抑郁",
+    "愤怒",
+    "悲伤",
+    "疲惫",
+    "麻木",
+    "恐惧",
+    "羞耻",
+    "兴奋",
+    "不安",
+    "孤独",
+    "希望",
+)
+
+
 @dataclass(frozen=True)
 class Memory:
     category: str

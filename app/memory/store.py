@@ -230,6 +230,44 @@ class Store:
             self._ensure_column(conn, "memories", "merge_note", "TEXT NOT NULL DEFAULT ''")
             self._ensure_column(conn, "journals", "mood_score", "INTEGER")
             self._ensure_column(conn, "journals", "dominant_emotion", "TEXT NOT NULL DEFAULT ''")
+            self._ensure_table(conn, "mental_status_records",
+                """
+                CREATE TABLE IF NOT EXISTS mental_status_records (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    record_date TEXT NOT NULL,
+                    record_time TEXT,
+                    source_type TEXT NOT NULL,
+                    source_id TEXT,
+                    mood TEXT,
+                    mood_intensity INTEGER,
+                    emotions TEXT NOT NULL DEFAULT '{}',
+                    energy_level INTEGER,
+                    sleep_quality INTEGER,
+                    social_drive INTEGER,
+                    focus_level INTEGER,
+                    triggers TEXT,
+                    coping TEXT,
+                    notes TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(user_id, record_date, record_time)
+                )
+                """)
+            self._ensure_table(conn, "user_document_sources",
+                """
+                CREATE TABLE IF NOT EXISTS user_document_sources (
+                    id TEXT PRIMARY KEY,
+                    source_type TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    file_hash TEXT NOT NULL,
+                    extracted_memory_ids TEXT,
+                    extracted_record_ids TEXT,
+                    last_imported_at TEXT,
+                    document_date TEXT,
+                    UNIQUE(file_path)
+                )
+                """)
 
     def record_home_hint_feedback(
         self,
@@ -317,6 +355,19 @@ class Store:
         }
         if column not in existing:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    def _ensure_table(
+        self,
+        conn: sqlite3.Connection,
+        table: str,
+        ddl: str,
+    ) -> None:
+        existing = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table,),
+        ).fetchone()
+        if not existing:
+            conn.executescript(ddl)
 
     def create_session(self) -> str:
         session_id = str(uuid.uuid4())
@@ -1334,4 +1385,133 @@ class Store:
             "points": points,
             "daily": sorted(daily_rows, key=lambda item: item["date"]),
             "weekly": sorted(weekly_rows, key=lambda item: item["week"], reverse=True),
+        }
+
+    def add_mental_status_record(
+        self,
+        record: dict[str, Any],
+        *,
+        user_id: str = "default",
+    ) -> str:
+        record_id = str(uuid.uuid4())
+        now = utc_now()
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO mental_status_records (
+                    id, user_id, record_date, record_time, source_type, source_id,
+                    mood, mood_intensity, emotions, energy_level, sleep_quality,
+                    social_drive, focus_level, triggers, coping, notes,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id, record_date, record_time) DO UPDATE SET
+                    source_type = excluded.source_type,
+                    source_id = excluded.source_id,
+                    mood = excluded.mood,
+                    mood_intensity = excluded.mood_intensity,
+                    emotions = excluded.emotions,
+                    energy_level = excluded.energy_level,
+                    sleep_quality = excluded.sleep_quality,
+                    social_drive = excluded.social_drive,
+                    focus_level = excluded.focus_level,
+                    triggers = excluded.triggers,
+                    coping = excluded.coping,
+                    notes = excluded.notes,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    record_id,
+                    user_id,
+                    record.get("record_date", now[:10]),
+                    record.get("record_time"),
+                    record.get("source_type", "manual"),
+                    record.get("source_id", ""),
+                    record.get("mood", ""),
+                    record.get("mood_intensity"),
+                    json.dumps(record.get("emotions", {}), ensure_ascii=False),
+                    record.get("energy_level"),
+                    record.get("sleep_quality"),
+                    record.get("social_drive"),
+                    record.get("focus_level"),
+                    record.get("triggers", ""),
+                    record.get("coping", ""),
+                    record.get("notes", ""),
+                    now,
+                    now,
+                ),
+            )
+        return record_id
+
+    def list_mental_status_records(
+        self,
+        *,
+        user_id: str = "default",
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT
+                    id, user_id, record_date, record_time, source_type, source_id,
+                    mood, mood_intensity, emotions, energy_level, sleep_quality,
+                    social_drive, focus_level, triggers, coping, notes,
+                    created_at, updated_at
+                FROM mental_status_records
+                WHERE user_id = ?
+                ORDER BY record_date DESC, record_time DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            )
+            records = [row_to_dict(row) for row in cursor.fetchall()]
+        for record in records:
+            try:
+                record["emotions"] = json.loads(record["emotions"])
+            except (TypeError, json.JSONDecodeError):
+                record["emotions"] = {}
+        return records
+
+    def mental_status_analytics(
+        self,
+        *,
+        user_id: str = "default",
+        days: int = 30,
+    ) -> dict[str, Any]:
+        records = self.list_mental_status_records(user_id=user_id, limit=10000)
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+        recent = [r for r in records if r["record_date"] >= cutoff]
+        if not recent:
+            return {"records": [], "trend": [], "mood_distribution": {}, "avg_intensity": None}
+        mood_counts: dict[str, int] = {}
+        intensity_sum = 0
+        intensity_count = 0
+        for r in recent:
+            mood = r.get("mood") or "未标注"
+            mood_counts[mood] = mood_counts.get(mood, 0) + 1
+            if r.get("mood_intensity") is not None:
+                intensity_sum += r["mood_intensity"]
+                intensity_count += 1
+        by_date: dict[str, list[dict[str, Any]]] = {}
+        for r in recent:
+            by_date.setdefault(r["record_date"], []).append(r)
+        trend = []
+        for date in sorted(by_date):
+            day_records = by_date[date]
+            avg_intensity = None
+            intensities = [r["mood_intensity"] for r in day_records if r.get("mood_intensity") is not None]
+            if intensities:
+                avg_intensity = round(sum(intensities) / len(intensities), 1)
+            trend.append({
+                "date": date,
+                "count": len(day_records),
+                "avg_intensity": avg_intensity,
+                "mood": day_records[0].get("mood", "未标注"),
+            })
+        return {
+            "records": recent[:days],
+            "trend": trend,
+            "mood_distribution": mood_counts,
+            "avg_intensity": round(intensity_sum / intensity_count, 1) if intensity_count else None,
         }
