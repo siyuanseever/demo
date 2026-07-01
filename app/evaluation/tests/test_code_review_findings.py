@@ -1021,7 +1021,7 @@ class SyncTokenEmptyStringTest(AccuracyTest):
                 for pattern in [
                     "sync_token and sync_token !=",
                     'sync_token and len(sync_token)',
-                    'not sync_token',
+                    'not settings.sync_token',
                     'sync_token is None',
                 ]
             )
