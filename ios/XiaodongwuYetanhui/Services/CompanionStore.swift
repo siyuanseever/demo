@@ -45,6 +45,8 @@ final class CompanionStore: ObservableObject {
     @Published var moodAnalytics: RemoteMoodAnalytics?
     @Published var isMoodRefreshing = false
     @Published var chatOperationStatus: String?
+    @Published var flowContext = FlowContext.empty
+    @Published var todayPlanItems: [PlanItem] = []
 
     private let chatService = ChatService()
     private let localDeepSeekService = LocalDeepSeekService()
@@ -55,6 +57,7 @@ final class CompanionStore: ObservableObject {
     private let flowMomentsStorageKey = "sensen.flowMoments.v1"
     private let bailanDiaryStorageKey = "sensen.bailanDiaryEntries.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
+    private let todayPlanStorageKey = "sensen.todayPlanItems.v1"
     private var lastHomeEncouragementRefreshAt: Date?
     private var hasAttemptedFlowInsightLoad = false
     private let logger = Logger(
@@ -76,6 +79,7 @@ final class CompanionStore: ObservableObject {
         bailanDiaryEntries = loadBailanDiaryEntries()
         recommendationHistory = loadRecommendations()
         latestRecommendation = recommendationHistory.first
+        todayPlanItems = loadTodayPlanItems()
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         load()
     }
@@ -105,7 +109,27 @@ final class CompanionStore: ObservableObject {
                 messages = [Self.greetingMessage(characterID: selectedCharacterID)]
             }
         }
+        buildFlowContext()
         refreshInteractionOffers()
+    }
+
+    func buildFlowContext() {
+        let dontCare = UserDefaults.standard
+            .string(forKey: "bailan.dontCareItems")?
+            .split(separator: "\n")
+            .map(String.init)
+            .filter { !$0.isEmpty } ?? []
+        flowContext = FlowContext(
+            id: UUID().uuidString,
+            primaryGoal: starMapInsight.primaryGoalTitle,
+            emotionWeather: starMapInsight.recentEmotionSummary,
+            recentPattern: starMapInsight.recentPatternTitle,
+            gentleReminder: starMapInsight.gentleReminder,
+            dontCareItems: dontCare,
+            todayPlanItems: todayPlanItems,
+            latestBailanDiary: bailanDiaryEntries.first,
+            latestFlowMoment: flowMoments.first
+        )
     }
 
     func fetchOrGenerateStarMapInsight(forceRefresh: Bool = false) async -> StarMapInsight {
@@ -140,6 +164,7 @@ final class CompanionStore: ObservableObject {
         flowInsightNotice = forceRefresh ? "正在重新提炼心流导航..." : "正在检查本月心流导航..."
         let insight = await fetchOrGenerateStarMapInsight(forceRefresh: forceRefresh)
         starMapInsight = insight
+        buildFlowContext()
         flowInsightNotice = insight.isMockInsight
             ? "暂时没有取得真实分析，当前仅显示结构占位。"
             : "已根据记忆、单次总结、近期情绪和长期状态生成。"
@@ -676,6 +701,7 @@ final class CompanionStore: ObservableObject {
             flowMoments = Array(flowMoments.prefix(12))
         }
         saveFlowMoments()
+        buildFlowContext()
     }
 
     func recordBailanDiary(content: String, response: String) {
@@ -694,6 +720,7 @@ final class CompanionStore: ObservableObject {
             bailanDiaryEntries = Array(bailanDiaryEntries.prefix(24))
         }
         saveBailanDiaryEntries()
+        buildFlowContext()
     }
 
     private func recordCareMoment(_ careMoment: CareMoment) {
@@ -811,6 +838,30 @@ final class CompanionStore: ObservableObject {
         } catch {
             UserDefaults.standard.removeObject(forKey: recommendationStorageKey)
         }
+    }
+
+    private func loadTodayPlanItems() -> [PlanItem] {
+        guard let data = UserDefaults.standard.data(forKey: todayPlanStorageKey) else {
+            return defaultTodayPlanItems()
+        }
+        do {
+            return try JSONDecoder().decode([PlanItem].self, from: data)
+        } catch {
+            return defaultTodayPlanItems()
+        }
+    }
+
+    func saveTodayPlanItems() {
+        guard let data = try? JSONEncoder().encode(todayPlanItems) else { return }
+        UserDefaults.standard.set(data, forKey: todayPlanStorageKey)
+    }
+
+    private func defaultTodayPlanItems() -> [PlanItem] {
+        [
+            PlanItem(id: "plan-1", title: "起床", isDone: false),
+            PlanItem(id: "plan-2", title: "活着", isDone: false),
+            PlanItem(id: "plan-3", title: "其他", isDone: false),
+        ]
     }
 
     private func sendChatText(

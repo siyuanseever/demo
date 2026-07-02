@@ -967,6 +967,87 @@ private struct SectionTitle: View {
     }
 }
 
+private struct FlowContextBar: View {
+    @EnvironmentObject private var store: CompanionStore
+    @State private var isExpanded = false
+    @AppStorage("flowContextBar.dismissedToday") private var dismissedToday: String = ""
+
+    private var isDismissed: Bool {
+        let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
+        return dismissedToday == String(today)
+    }
+
+    var body: some View {
+        Group {
+            if store.starMapInsight.isMockInsight && store.flowContext.dontCareItems.isEmpty {
+                EmptyView()
+            } else if isDismissed {
+                EmptyView()
+            } else {
+                VStack(spacing: 0) {
+                    HStack(spacing: 10) {
+                        if !store.starMapInsight.primaryGoalTitle.isEmpty {
+                            Label(store.starMapInsight.primaryGoalTitle, systemImage: "sparkles")
+                                .font(.custom("HannotateSC-W5", size: 13))
+                                .lineLimit(1)
+                                .foregroundStyle(Color.nightInk)
+                        }
+                        Spacer()
+                        HStack(spacing: 8) {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isExpanded.toggle()
+                                }
+                            } label: {
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.warmBrown)
+                            }
+                            .buttonStyle(.plain)
+                            Button {
+                                let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
+                                dismissedToday = String(today)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color(hex: 0x625d57).opacity(0.5))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+
+                    if isExpanded {
+                        VStack(alignment: .leading, spacing: 6) {
+                            if !store.flowContext.dontCareItems.isEmpty {
+                                Text("不想管：\(store.flowContext.dontCareItems.prefix(3).joined(separator: " · "))")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.nightInk.opacity(0.8))
+                            }
+                            if let plan = store.flowContext.todayPlanItems.first(where: { !$0.isDone }) {
+                                Text("今日计划：\(plan.title)")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.nightInk.opacity(0.8))
+                            }
+                            if !store.starMapInsight.gentleReminder.isEmpty {
+                                Text(store.starMapInsight.gentleReminder)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                .background(Color(hex: 0xf8f2e9).opacity(0.82), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+    }
+}
+
 private struct CompanionChatPage: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: CompanionStore
@@ -1024,6 +1105,9 @@ private struct CompanionChatPage: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
+
+                FlowContextBar()
+                    .padding(.horizontal, 18)
 
                 BundleImage(
                     name: currentExpressionAssetName,

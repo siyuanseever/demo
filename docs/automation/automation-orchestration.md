@@ -8,8 +8,8 @@
 
 | 任务 | 时间 | 说明 |
 |---|---|---|
-| PM | 01:00 | 每日扫描项目、分析进度、撰写 PTR、生成协调指令 |
-| Checker | 02:00、08:00、14:00、20:00 | 每 6 小时增量审查、写测试、运行 Harness |
+| PM | 01:00 | 每日扫描项目、核对 Mac 主线、生成一项协调指令 |
+| Checker | 02:00、08:00、14:00、20:00 | 每 6 小时增量审查、写测试、运行可用 Harness |
 | Fixer | 05:00 | 每天批量消费上次 Fixer 之后的所有 Checker run |
 | Executor | 06:00 | 读取 PM 协调指令、执行开发任务、提交产品代码 |
 
@@ -31,11 +31,11 @@
 - branch：`automation/quality-loop`
 - worktree：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`（在 TRAE 操作白名单内）
 
-Checker、Fixer、PM 和 Executor 轮流在该分支提交：
+Checker、Fixer、PM 和 Executor 轮流在该分支提交。当前产品方向以 `ROADMAP.md` 和 `plan.md` 中的 Mac 主线为准；自动化 Agent 不得自行切回 Web 主线或扩展新的产品方向。
 
 ```text
 产品基线
-  → PM 规划文档 commit（status.md、TODO.md、PTR）
+  → PM 规划文档 commit（status.md、TODO.md）
   → Checker 测试 commit
   → Checker 测试 commit
   → Fixer 产品 commit
@@ -48,8 +48,8 @@ Checker、Fixer、PM 和 Executor 轮流在该分支提交：
 各 Agent 的 commit 路径白名单：
 - PM：`status.md`、`TODO.md`（人类可读规划文档）
 - Checker：`app/evaluation/**`、`eval_reports/agent_handoffs/**`
-- Fixer：`app/**`（不含 evaluation）、`docs/**`（不含 automation 协议）
-- Executor：`app/**`（不含 evaluation）、`docs/**`（不含 automation 协议）
+- Fixer：`app/**`（不含 evaluation）、`ios/**`、`docs/**`（不含 automation 协议和规划文档）
+- Executor：`app/**`（不含 evaluation）、`ios/**`、`docs/**`（不含 automation 协议和规划文档）
 
 ### 合并到 main
 
@@ -67,14 +67,11 @@ git merge automation/quality-loop --no-ff
 
 ## 互斥
 
-调度器启动任务前获取对应锁；锁已存在时，本轮写入 `skipped_due_to_lock` 调度记录并退出。
+调度器启动任务前获取共享锁；锁已存在时，本轮写入 `skipped_due_to_lock` 调度记录并退出。
 
-- **代码修改锁**：`/private/tmp/xiaodongwu-quality-loop.lock`
-  - 共享者：Checker、Fixer、Executor
-  - 三者共享同一个 worktree，必须互斥
-- **规划文档锁**：`/private/tmp/xiaodongwu-pm.lock`
-  - 独享者：PM
-  - PM 只修改文档，可与代码修改 Agent 并发
+- **共享 worktree 锁**：`/private/tmp/xiaodongwu-quality-loop.lock`
+  - 共享者：PM、Checker、Fixer、Executor
+  - 四者会在同一分支/worktree 读写或提交，全部必须互斥。文件类型不同不代表 Git index、HEAD 和 merge 操作可以安全并发。
 
 锁必须包含启动时间、任务类型和进程标识，并设置陈旧锁处理策略（30 分钟过期）。Agent 自己不得强行删除无法确认归属的锁。
 
@@ -120,7 +117,7 @@ eval_reports/agent_handoffs/
 
 PM 拥有：
 - `last_pm_run_id`
-- `last_ptr_commit`
+- `last_requirements_commit`
 - `executor_tasks_issued`
 
 Executor 拥有：
@@ -131,6 +128,7 @@ Executor 拥有：
 Checker 拥有：
 - `last_reviewed_commit`
 - `processed_fixer_run_ids`
+- `processed_executor_run_ids`
 - `last_checker_run_id`
 
 Fixer 拥有：
@@ -164,8 +162,8 @@ Executor 读取单份 PM 协调指令（而非多份聚合）：
 1. 读取 `coordination.json` 中的 `today_tasks` 列表
 2. 按 `priority` 排序，跳过 `forbidden=true` 的任务
 3. 验证 `dependencies` 是否已满足（检查 `completed_task_ids`）
-4. 每次最多执行 1-2 个任务，保持变更范围小
-5. 每个任务独立验证 Gate 0 + Gate 1
+4. 当前 Mac 阶段每次最多执行 1 个任务，保持变更范围和验收证据可控
+5. 按变更平台执行对应门控；Python Gate 不能替代 Xcode/Mac 验证
 6. 一个任务一个 commit
 7. 完成后一次性把该 PM run 写入 `processed_pm_run_ids`
 
@@ -176,10 +174,21 @@ Executor 读取单份 PM 协调指令（而非多份聚合）：
 PM 每天生成一份报告和协调指令：
 
 1. 扫描项目状态后不直接消费任何 Agent 报告，只做只读分析
-2. `coordination.json` 中的 `today_tasks` 必须对应 PTR 文档中的具体章节
+2. `coordination.json` 中的 `today_tasks` 必须对应同一 run 的 `pm_report.md` 具体章节
 3. 任务粒度控制：小任务（<50 行变更）、中任务（50-200 行）、大任务（>200 行）需拆分为多个小任务
 4. 涉及安全策略、危机回复、架构方向变更的任务必须标记 `forbidden=true` 并附 `reason_if_forbidden`
 5. PM 的 `no_change` 报告仍需生成，用于记录"今日无新任务"状态
+6. 当前每天最多下发 1 个 Mac 任务，且必须包含 `workstream`、`target_surface`、`data_source`、`non_goals`、`acceptance_criteria` 和 `evidence_required`
+7. PM 只能依据用户已经确认的 `ROADMAP.md` / `plan.md` 排序和拆解，不得自行修改战略方向
+
+## Mac 阶段验证规则
+
+- Swift/Mac 改动必须记录 Xcode 或 `xcodebuild` 的 target、命令和退出码。
+- 性能任务必须记录复现场景、数据规模、修改前后证据；“感觉更快”不是完成证据。
+- 数据展示任务必须提供 `SQLite/API → model → store → view` 映射和完整/缺失数据场景。
+- 心流与夜谈任务必须验证触发规则、每屏上限、点击路径、来源/更新时间、空状态和返回路径。
+- 自动化环境没有 Xcode、目标 Mac 或性能工具时，相关任务状态只能是 `blocked` 或 `pending_manual_validation`。
+- Python `compileall` / evaluation runner 仅验证后端兼容性，不得用于宣称 Mac 构建、交互或性能通过。
 
 ## 报告层次
 
