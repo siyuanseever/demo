@@ -41,6 +41,7 @@
 ## 近期 TODO
 
 - [ ] **P0 自动化治理**：让所有定时任务实际加载 v3 Prompt；拒绝旧协议、重复 slot、错误分支和同一任务重复执行。
+- [ ] **P0 分支分歧紧急处理**（PM-OBS-001）：main 和 automation/quality-loop 分支已 diverged，Fixer 无法处理 Checker 报告。需要用户手动解决分支分歧，确保 automation/quality-loop 重新成为 main 的后代或与 main 一致。
 - [ ] **P0 调度降频**：PM 改为每日一次；Executor 改为每日主执行 + 仅重试 slot；Checker/Fixer 在 P0 期间每 6 小时错峰。
 - [ ] **P0 Worktree 保护**：三个代码 Agent 只验证固定 worktree，缺失即报告，绝不自行删除、创建 branch 或换路径。
 - [ ] **P0 性能**：关键路径无可复现卡死，无超过 1 秒的主线程停顿；保留优化前后同场景证据。
