@@ -13,13 +13,11 @@
 		000000000000000000000104 /* SQLiteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* SQLiteDatabase.swift */; };
 		000000000000000000000105 /* CompanionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000205 /* CompanionStore.swift */; };
 		000000000000000000000106 /* SharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000206 /* SharedViews.swift */; };
-		C00000000000000000000101 /* MacPrototypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000201 /* MacPrototypeView.swift */; };
 		000000000000000000000107 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000207 /* ChatView.swift */; };
 		000000000000000000000108 /* StateOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000208 /* StateOverviewView.swift */; };
 		000000000000000000000109 /* MemoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000209 /* MemoryListView.swift */; };
 		000000000000000000000110 /* CompanionGardenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000210 /* CompanionGardenView.swift */; };
 		000000000000000000000111 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000301 /* libsqlite3.tbd */; };
-		000000000000000000000112 /* app.db in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000302 /* app.db */; };
 		000000000000000000000113 /* mianmian-sheep-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000303 /* mianmian-sheep-alpha.webp */; };
 		000000000000000000000114 /* shishi-turtle-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000304 /* shishi-turtle-alpha.webp */; };
 		000000000000000000000115 /* momo-crow-alpha.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000305 /* momo-crow-alpha.webp */; };
@@ -32,6 +30,12 @@
 		000000000000000000000122 /* youyou-rabbit-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000312 /* youyou-rabbit-showcase.png */; };
 		000000000000000000000123 /* shanshan-butterfly-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000313 /* shanshan-butterfly-showcase.png */; };
 		000000000000000000000124 /* gangan-tiger-showcase.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000314 /* gangan-tiger-showcase.png */; };
+		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
+		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
+		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
+		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
+		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
+		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
 		000000000000000000000131 /* nighttalk-home-bg-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000321 /* nighttalk-home-bg-v1.png */; };
 		000000000000000000000132 /* nighttalk-home-bg-v2.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000322 /* nighttalk-home-bg-v2.png */; };
 		000000000000000000000133 /* nighttalk-home-bg-v3.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000323 /* nighttalk-home-bg-v3.png */; };
@@ -79,6 +83,7 @@
 		000000000000000000000175 /* sensen-scene-sunset-lake.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000365 /* sensen-scene-sunset-lake.png */; };
 		000000000000000000000176 /* sensen-scene-cloud-observatory.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000366 /* sensen-scene-cloud-observatory.png */; };
 		000000000000000000000177 /* sensen-home-cloud-observatory-full.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000367 /* sensen-home-cloud-observatory-full.png */; };
+		000000000000000000000178 /* StarMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000368 /* StarMapView.swift */; };
 		000000000000000000000179 /* home_background_cloud.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000369 /* home_background_cloud.png */; };
 		000000000000000000000180 /* starmap_background_cloud.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000370 /* starmap_background_cloud.png */; };
 		000000000000000000000181 /* forest_map_background.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000371 /* forest_map_background.png */; };
@@ -110,15 +115,9 @@
 		A00000000000000000000207 /* sensen-healing-sunny-rest.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000397 /* sensen-healing-sunny-rest.png */; };
 		A00000000000000000000208 /* sensen-healing-blue-balcony.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000398 /* sensen-healing-blue-balcony.png */; };
 		A00000000000000000000209 /* sensen-healing-sunset-field.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000399 /* sensen-healing-sunset-field.png */; };
-		000000000000000000000125 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
-		000000000000000000000126 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000316 /* SettingsView.swift */; };
-		000000000000000000000127 /* EmotionCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000317 /* EmotionCheckInView.swift */; };
-		000000000000000000000128 /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000318 /* InteractionService.swift */; };
-		000000000000000000000129 /* InteractionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000319 /* InteractionViews.swift */; };
-		000000000000000000000130 /* RecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000320 /* RecommendationService.swift */; };
 		B00000000000000000000101 /* SecureSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000201 /* SecureSettingsStore.swift */; };
 		B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000202 /* LocalDeepSeekService.swift */; };
-		000000000000000000000178 /* StarMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000368 /* StarMapView.swift */; };
+		C00000000000000000000101 /* MacPrototypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000201 /* MacPrototypeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -128,14 +127,12 @@
 		000000000000000000000204 /* SQLiteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SQLiteDatabase.swift; sourceTree = "<group>"; };
 		000000000000000000000205 /* CompanionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionStore.swift; sourceTree = "<group>"; };
 		000000000000000000000206 /* SharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViews.swift; sourceTree = "<group>"; };
-		C00000000000000000000201 /* MacPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPrototypeView.swift; sourceTree = "<group>"; };
 		000000000000000000000207 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		000000000000000000000208 /* StateOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateOverviewView.swift; sourceTree = "<group>"; };
 		000000000000000000000209 /* MemoryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryListView.swift; sourceTree = "<group>"; };
 		000000000000000000000210 /* CompanionGardenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionGardenView.swift; sourceTree = "<group>"; };
 		000000000000000000000211 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000301 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
-		000000000000000000000302 /* app.db */ = {isa = PBXFileReference; lastKnownFileType = file; name = app.db; path = ../data/app.db; sourceTree = SOURCE_ROOT; };
 		000000000000000000000303 /* mianmian-sheep-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "mianmian-sheep-alpha.webp"; path = "../app/static/mianmian-sheep-alpha.webp"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000304 /* shishi-turtle-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "shishi-turtle-alpha.webp"; path = "../app/static/shishi-turtle-alpha.webp"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000305 /* momo-crow-alpha.webp */ = {isa = PBXFileReference; lastKnownFileType = image.webp; name = "momo-crow-alpha.webp"; path = "../app/static/momo-crow-alpha.webp"; sourceTree = SOURCE_ROOT; };
@@ -148,6 +145,12 @@
 		000000000000000000000312 /* youyou-rabbit-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "youyou-rabbit-showcase.png"; path = "../app/static/youyou-rabbit-showcase.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000313 /* shanshan-butterfly-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "shanshan-butterfly-showcase.png"; path = "../app/static/shanshan-butterfly-showcase.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000314 /* gangan-tiger-showcase.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "gangan-tiger-showcase.png"; path = "../app/static/gangan-tiger-showcase.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
+		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
+		000000000000000000000318 /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
+		000000000000000000000319 /* InteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionViews.swift; sourceTree = "<group>"; };
+		000000000000000000000320 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
 		000000000000000000000321 /* nighttalk-home-bg-v1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v1.png"; path = "../app/static/nighttalk-home-bg-v1.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000322 /* nighttalk-home-bg-v2.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v2.png"; path = "../app/static/nighttalk-home-bg-v2.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000323 /* nighttalk-home-bg-v3.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "nighttalk-home-bg-v3.png"; path = "../app/static/nighttalk-home-bg-v3.png"; sourceTree = SOURCE_ROOT; };
@@ -195,9 +198,10 @@
 		000000000000000000000365 /* sensen-scene-sunset-lake.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-sunset-lake.png"; path = "../app/static/sensen-scene-sunset-lake.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000366 /* sensen-scene-cloud-observatory.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-scene-cloud-observatory.png"; path = "../app/static/sensen-scene-cloud-observatory.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000367 /* sensen-home-cloud-observatory-full.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-home-cloud-observatory-full.png"; path = "../app/static/sensen-home-cloud-observatory-full.png"; sourceTree = SOURCE_ROOT; };
-		000000000000000000000369 /* home_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "home_background_cloud.png"; path = "../app/static/home_background_cloud.png"; sourceTree = SOURCE_ROOT; };
-		000000000000000000000370 /* starmap_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "starmap_background_cloud.png"; path = "../app/static/starmap_background_cloud.png"; sourceTree = SOURCE_ROOT; };
-		000000000000000000000371 /* forest_map_background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "forest_map_background.png"; path = "../app/static/forest_map_background.png"; sourceTree = SOURCE_ROOT; };
+		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
+		000000000000000000000369 /* home_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = home_background_cloud.png; path = ../app/static/home_background_cloud.png; sourceTree = SOURCE_ROOT; };
+		000000000000000000000370 /* starmap_background_cloud.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = starmap_background_cloud.png; path = ../app/static/starmap_background_cloud.png; sourceTree = SOURCE_ROOT; };
+		000000000000000000000371 /* forest_map_background.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = forest_map_background.png; path = ../app/static/forest_map_background.png; sourceTree = SOURCE_ROOT; };
 		000000000000000000000372 /* bailan-rabbit-couch.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-rabbit-couch.png"; path = "../app/static/bailan-rabbit-couch.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000373 /* bailan-destroy-button.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-destroy-button.png"; path = "../app/static/bailan-destroy-button.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000374 /* bailan-world-destroyed.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "bailan-world-destroyed.png"; path = "../app/static/bailan-world-destroyed.png"; sourceTree = SOURCE_ROOT; };
@@ -226,16 +230,10 @@
 		000000000000000000000397 /* sensen-healing-sunny-rest.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-sunny-rest.png"; path = "../app/static/sensen-healing-sunny-rest.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000398 /* sensen-healing-blue-balcony.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-blue-balcony.png"; path = "../app/static/sensen-healing-blue-balcony.png"; sourceTree = SOURCE_ROOT; };
 		000000000000000000000399 /* sensen-healing-sunset-field.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "sensen-healing-sunset-field.png"; path = "../app/static/sensen-healing-sunset-field.png"; sourceTree = SOURCE_ROOT; };
-		000000000000000000000368 /* StarMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarMapView.swift; sourceTree = "<group>"; };
-		000000000000000000000315 /* ChatService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatService.swift; sourceTree = "<group>"; };
-		000000000000000000000316 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		000000000000000000000317 /* EmotionCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionCheckInView.swift; sourceTree = "<group>"; };
-		000000000000000000000318 /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
-		000000000000000000000319 /* InteractionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionViews.swift; sourceTree = "<group>"; };
-		000000000000000000000320 /* RecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationService.swift; sourceTree = "<group>"; };
+		000000000000000000000401 /* XiaodongwuYetanhui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XiaodongwuYetanhui.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B00000000000000000000201 /* SecureSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureSettingsStore.swift; sourceTree = "<group>"; };
 		B00000000000000000000202 /* LocalDeepSeekService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDeepSeekService.swift; sourceTree = "<group>"; };
-		000000000000000000000401 /* XiaodongwuYetanhui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XiaodongwuYetanhui.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C00000000000000000000201 /* MacPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPrototypeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -324,7 +322,6 @@
 		000000000000000000000610 /* Linked Resources */ = {
 			isa = PBXGroup;
 			children = (
-				000000000000000000000302 /* app.db */,
 				000000000000000000000303 /* mianmian-sheep-alpha.webp */,
 				000000000000000000000304 /* shishi-turtle-alpha.webp */,
 				000000000000000000000305 /* momo-crow-alpha.webp */,
@@ -462,7 +459,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2650;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					000000000000000000000701 = {
 						CreatedOnToolsVersion = 26.5;
@@ -493,7 +490,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				000000000000000000000112 /* app.db in Resources */,
 				000000000000000000000113 /* mianmian-sheep-alpha.webp in Resources */,
 				000000000000000000000114 /* shishi-turtle-alpha.webp in Resources */,
 				000000000000000000000115 /* momo-crow-alpha.webp in Resources */,
@@ -624,6 +620,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -654,6 +651,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 644NS7Y9Z3;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -676,6 +674,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -685,6 +684,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -715,6 +715,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 644NS7Y9Z3;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -730,6 +731,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -742,7 +744,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = 644NS7Y9Z3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = XiaodongwuYetanhui/App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -768,7 +769,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = 644NS7Y9Z3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = XiaodongwuYetanhui/App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
