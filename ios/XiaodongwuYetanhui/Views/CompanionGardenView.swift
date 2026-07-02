@@ -58,10 +58,7 @@ struct CompanionGardenView: View {
     ]
 
     private var dontCareItems: [String] {
-        savedDontCareItems
-            .split(separator: "\n")
-            .map(String.init)
-            .filter { !$0.isEmpty }
+        store.flowContext.dontCareItems
     }
 
     var body: some View {
@@ -75,6 +72,9 @@ struct CompanionGardenView: View {
                 ScrollView {
                     VStack(spacing: 30) {
                         pageHeader
+                            .padding(.horizontal, horizontalInset)
+
+                        nightTalkContext
                             .padding(.horizontal, horizontalInset)
 
                         hero(imageWidth: geometry.size.width)
@@ -116,6 +116,57 @@ struct CompanionGardenView: View {
                 .foregroundStyle(Color(hex: 0x625d57).opacity(0.78))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var nightTalkContext: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !store.starMapInsight.primaryGoalTitle.isEmpty,
+               !store.starMapInsight.isMockInsight {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.caption)
+                        .foregroundStyle(Color.warmBrown)
+                    Text(store.starMapInsight.primaryGoalTitle)
+                        .font(.custom("HannotateSC-W5", size: 13))
+                        .foregroundStyle(Color.nightInk)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(hex: 0xf0ddd4).opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+            }
+            if !store.starMapInsight.gentleReminder.isEmpty,
+               store.starMapInsight.gentleReminder != StarMapInsight.mock.gentleReminder {
+                HStack(spacing: 8) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.warmBrown)
+                    Text(store.starMapInsight.gentleReminder)
+                        .font(.custom("HannotateSC-W5", size: 13))
+                        .foregroundStyle(Color.nightInk)
+                        .lineLimit(2)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(hex: 0xf0ddd4).opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+            }
+            if let latestDiary = store.bailanDiaryEntries.first {
+                HStack(spacing: 8) {
+                    Image(systemName: "book.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.warmBrown)
+                    Text(latestDiary.content)
+                        .font(.custom("HannotateSC-W5", size: 13))
+                        .foregroundStyle(Color.nightInk)
+                        .lineLimit(2)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(hex: 0xe4ddd3).opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
     }
 
     private func hero(imageWidth: CGFloat) -> some View {
@@ -179,14 +230,23 @@ struct CompanionGardenView: View {
     private var todayPlan: some View {
         BailanSection(title: "今日计划", subtitle: nil) {
             VStack(alignment: .leading, spacing: 12) {
-                BailanPlanRow(title: "起床", isDone: true)
-                BailanPlanRow(title: "活着", isDone: true)
-                Button {
-                    showOtherAlert = true
-                } label: {
-                    BailanPlanRow(title: "其他", isDone: false)
+                ForEach($store.todayPlanItems) { $item in
+                    HStack(spacing: 10) {
+                        Button {
+                            item.isDone.toggle()
+                            store.saveTodayPlanItems()
+                        } label: {
+                            Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(item.isDone ? Color(hex: 0x9a9d78) : Color(hex: 0x716b64))
+                        }
+                        .buttonStyle(.plain)
+                        Text(item.title)
+                            .font(.custom("HannotateSC-W5", size: 15))
+                            .foregroundStyle(item.isDone ? Color(hex: 0x625d57).opacity(0.5) : Color.nightInk)
+                            .strikethrough(item.isDone)
+                        Spacer()
+                    }
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -288,7 +348,9 @@ struct CompanionGardenView: View {
         let item = dontCareText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !item.isEmpty else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        savedDontCareItems = (dontCareItems + [item]).joined(separator: "\n")
+        let updated = (dontCareItems + [item]).joined(separator: "\n")
+        UserDefaults.standard.set(updated, forKey: "bailan.dontCareItems")
+        store.buildFlowContext()
         dontCareText = ""
         focusedField = nil
     }
@@ -299,7 +361,8 @@ struct CompanionGardenView: View {
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         items.remove(at: index)
         withAnimation(.easeOut(duration: 0.2)) {
-            savedDontCareItems = items.joined(separator: "\n")
+            UserDefaults.standard.set(items.joined(separator: "\n"), forKey: "bailan.dontCareItems")
+            store.buildFlowContext()
         }
     }
 }

@@ -19,7 +19,7 @@ struct StateOverviewView: View {
         ZStack {
             WarmBackground()
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                LazyVStack(alignment: .leading, spacing: 18) {
                     PersonalOverviewHeader()
                     CurrentStateSnapshotPanel(
                         journals: store.journals,
@@ -3268,7 +3268,7 @@ private struct RecentJournalList: View {
             } else {
                 ForEach(journals.prefix(5)) { journal in
                     SoftPanel {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 Text(journal.dominantEmotion.isEmpty ? "会话总结" : journal.dominantEmotion)
                                     .font(.subheadline.weight(.semibold))
@@ -3277,14 +3277,44 @@ private struct RecentJournalList: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
+
+                            // 情绪曲线 mini 图
+                            if journal.emotionCurve.count >= 2 {
+                                HStack(alignment: .bottom, spacing: 4) {
+                                    ForEach(journal.emotionCurve.indices, id: \.self) { i in
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(colorForMoodScore(journal.emotionCurve[i]))
+                                            .frame(width: 8, height: CGFloat(max(4, 24 + journal.emotionCurve[i] * 6)))
+                                    }
+                                }
+                                .frame(height: 40, alignment: .bottom)
+                            }
+
                             Text(journal.summary)
                                 .font(.callout)
                                 .foregroundStyle(Color.nightInk)
                                 .lineLimit(4)
+
+                            if !journal.insights.isEmpty {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    ForEach(journal.insights.prefix(3), id: \.self) { insight in
+                                        Label(insight, systemImage: "lightbulb.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(Color.warmBrown)
+                                    }
+                                }
+                            }
+
+                            if !journal.keywords.isEmpty {
+                                Text(journal.keywords.prefix(5).joined(separator: " · "))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary.opacity(0.72))
+                            }
+
                             if !journal.suggestedNextStep.isEmpty {
-                                Text(journal.suggestedNextStep)
+                                Label(journal.suggestedNextStep, systemImage: "arrow.right.circle.fill")
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Color.warmBrown)
                             }
                         }
                     }
@@ -3292,4 +3322,10 @@ private struct RecentJournalList: View {
             }
         }
     }
+}
+
+private func colorForMoodScore(_ score: Int) -> Color {
+    if score > 0 { return .fieldGreen }
+    if score < 0 { return .duskRose }
+    return Color(hex: 0xd8cbbb)
 }

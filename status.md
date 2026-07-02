@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-01
+> 最后更新时间：2026-07-02（PM Agent 更新）
 
 ---
 
@@ -23,33 +23,37 @@
 
 | 指标 | 当前值 | 目标 |
 |------|--------|------|
-| Gate 1 综合通过率 | **100%** | >= 95% |
-| 总检查数 | 236 | - |
-| 通过 | 236 | - |
-| 失败 | 0 | - |
-| 关键维度 | accuracy / robustness / completeness / functional / api_resilience / framework 全部 100% | 100% |
-| 最近验证命令 | `python3 -m compileall app`、`python3 -m app.evaluation.check_sse_stream`、`python3 -m app.evaluation.runner` | - |
+| Gate 1 综合通过率 | **100%** (262/262) | >= 95% |
+| 总检查数 | 262 | - |
+| 通过 | 262 | - |
+| 失败 | 0 | 0 |
+| 关键维度 | accuracy / completeness / functional / api_resilience / framework / robustness 100% | 全部 100% |
+| 最近验证命令 | `python3 -m compileall app`、`python3 -m app.evaluation.runner` | - |
+
+> CHK-006（sync_token 空字符串认证绕过）已修复：本地地址白名单（127.0.0.1/localhost/::1）无需 token，远程调用必须提供非空 sync_token。
 
 ---
 
 ## 进行中项
 
-### 记忆检索改成混合策略
+### Mac 应用三大需求开发
 
-- **当前进展**：已规划四层结构（相关记忆 + 近期记忆 + 重要记忆 + 合并去重），尚未实现
+- **心流 ↔ 夜谈互融**：CompanionGardenView 已展示心流目标/温柔提醒/摆烂日记；ChatView 已新增 FlowContextBar
+- **性能优化**：MemoryListView / StateOverviewView 已改为 LazyVStack；SQLiteDatabase 已加事务封装和 SQL 层过滤；contextMemories 已优化
+- **UI 内容完整性**：MemoryCard 已补全 subcategory / updatedAt；Journal 已补全情绪曲线/insights/keywords；StateProfile 字段已确认完整
 - **阻塞/待决策**：
-  - 每层记忆的权重和数量上限如何设定？
-  - 重要记忆的"高重要性"标准如何量化？
-  - 合并去重的相似度阈值如何确定？
+  - CompanionStore.load() 异步化需 Xcode 真机验证，暂不实施
+  - syncAllFromBackend 批量写入事务优化需 Xcode 验证，暂不实施
+  - StateOverviewView 计算属性缓存改动影响面广，作为后续优化
 
 ---
 
 ## 最近完成（最近 3-5 项）
 
-1. ✅ 修复 Harness 假通过：套件异常计为失败，Gate 1 失败时返回非零退出码
-2. ✅ API 鲁棒性测试接入 Runner，观察项不再冒充产品缺陷
-3. ✅ 修复 DeepSeek 坏 JSON、会后总结/记忆 JSON、LLM 回复异常和 `None` evidence 等鲁棒性问题
-4. ✅ 清理 Loop 运行时相关陈述；当前只保留 Codex 修改—检查流程
+1. ✅ Mac 应用三大需求第一阶段：心流 ↔ 夜谈互融 + 性能优化 + UI 内容完整性
+2. ✅ 修复 CHK-006：sync_token 本地白名单 + 非空校验，Gate 1 恢复 100%（262/262）
+3. ✅ 修复 CHK-005/007：请求体 1MB 限制 + POST 参数缺失返回 400
+4. ✅ 自动化 Agent 体系：PM Agent + Executor Agent + Checker + Fixer 四角色 + Schedule 调度
 5. ✅ 长期状态画像：跨会话追踪用户心理状态，支持版本历史
 
 ---
@@ -77,10 +81,11 @@
 
 ## 下一步建议
 
-1. **确定记忆混合策略的参数**：先设定一个合理初值（如相关 5 条 + 近期 3 条 + 重要 2 条），在真实对话中验证后调优
-2. **选择 session 继续方案**：在方案 A（允许追加）和方案 B（分支新 session）中做决策
-3. **实施角色选择说明**：在 assistant 消息中增加一行简短的角色选择理由
-4. **完成人工体验评分**：`manual_eval` 只准备评分表，需人工填写后才能判定体验审查
+1. **Xcode 编译验证**：在 Xcode 中编译 iOS 项目，确认 Swift 语法无错误
+2. **Mac Catalyst 真机测试**：验证 CompanionGardenView 心流展示、ChatView FlowContextBar、MemoryListView 字段补全
+3. **CompanionStore.load() 异步化**：验证后台线程数据库查询不会导致界面冻结
+4. **确定记忆混合策略的参数**：先设定一个合理初值（如相关 5 条 + 近期 3 条 + 重要 2 条），在真实对话中验证后调优
+5. **选择 session 继续方案**：在方案 A（允许追加）和方案 B（分支新 session）中做决策
 
 ---
 
@@ -92,3 +97,7 @@
 | 2026-07-01 | check_sse_stream | 通过（渲染 JS + deep/quick SSE 契约） |
 | 2026-07-01 | evaluation.runner | **100% 通过（236/236），Gate 1 通过** |
 | 2026-07-01 | manual_eval | 5 个用例待人工评分，不计为 Gate 4 通过 |
+| 2026-07-02 00:00 | compileall | 通过 |
+| 2026-07-02 00:00 | check_harness | 通过 |
+| 2026-07-02 00:00 | evaluation.runner | **99.62% 通过（263/264），Gate 1 未通过（robustness CHK-006）** |
+| 2026-07-02 00:00 | diagnose | 1 项 needs_confirmation |

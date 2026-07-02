@@ -341,6 +341,38 @@ struct BailanDiaryEntry: Identifiable, Hashable, Codable {
     let createdAt: Date
 }
 
+struct PlanItem: Identifiable, Hashable, Codable {
+    let id: String
+    var title: String
+    var isDone: Bool
+}
+
+struct FlowContext: Identifiable, Hashable {
+    let id: String
+    var primaryGoal: String
+    var emotionWeather: String
+    var recentPattern: String
+    var gentleReminder: String
+    var dontCareItems: [String]
+    var todayPlanItems: [PlanItem]
+    var latestBailanDiary: BailanDiaryEntry?
+    var latestFlowMoment: FlowMoment?
+
+    static var empty: FlowContext {
+        FlowContext(
+            id: UUID().uuidString,
+            primaryGoal: "",
+            emotionWeather: "",
+            recentPattern: "",
+            gentleReminder: "",
+            dontCareItems: [],
+            todayPlanItems: [],
+            latestBailanDiary: nil,
+            latestFlowMoment: nil
+        )
+    }
+}
+
 enum RecommendationMedium: String, Codable, CaseIterable {
     case book
     case music

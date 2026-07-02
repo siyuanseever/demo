@@ -344,44 +344,46 @@ final class SQLiteDatabase {
     }
 
     func contextMemories(queryTerms: [String], limit: Int = 8) -> [MemoryEntry] {
-        let all = memories(limit: 120)
         let terms = queryTerms
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .filter { !$0.isEmpty }
-        var scoredMemories: [(memory: MemoryEntry, score: Int)] = []
-        for memory in all {
-            let textParts = [memory.content, memory.evidence] + memory.keywords
-            let searchableText = textParts.joined(separator: " ").lowercased()
-            var score = 0
-            for term in terms {
-                if searchableText.contains(term) {
-                    score += 4
-                } else if memory.keywords.contains(where: { term.contains($0.lowercased()) }) {
-                    score += 1
-                }
-            }
-            scoredMemories.append((memory: memory, score: score))
+        guard !terms.isEmpty else { return [] }
+
+        // SQL 层过滤：使用 LIKE 匹配 content 和 evidence
+        let conditions = terms.map { _ in "LOWER(content) LIKE ? OR LOWER(evidence) LIKE ?" }.joined(separator: " OR ")
+        let likeBindings = terms.flatMap { ["%\($0)%", "%\($0)%"] }
+        let sql = """
+            SELECT id, category, subcategory, content, evidence, keywords, source_session_id, importance, updated_at
+            FROM memories
+            WHERE status = 'active' AND (\(conditions))
+            ORDER BY importance DESC, updated_at DESC
+            LIMIT ?
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else {
+            return []
         }
-        let related = scoredMemories
-            .filter { $0.1 > 0 }
-            .sorted {
-                $0.1 == $1.1 ? $0.0.importance > $1.0.importance : $0.1 > $1.1
-            }
-            .map(\.0)
-        let recent = all.sorted { $0.updatedAt > $1.updatedAt }
-        let important = all.sorted {
-            $0.importance == $1.importance ? $0.updatedAt > $1.updatedAt : $0.importance > $1.importance
+        defer { sqlite3_finalize(statement) }
+        for (index, value) in likeBindings.enumerated() {
+            sqlite3_bind_text(statement, Int32(index + 1), value, -1, SQLITE_TRANSIENT)
         }
-        var selected: [MemoryEntry] = []
-        for memory in Array(related.prefix(5)) + Array(recent.prefix(2)) + Array(important.prefix(2)) {
-            if !selected.contains(where: { $0.id == memory.id }) {
-                selected.append(memory)
-            }
-            if selected.count == limit {
-                break
-            }
+        sqlite3_bind_int(statement, Int32(likeBindings.count + 1), Int32(limit))
+        var results: [MemoryEntry] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            results.append(MemoryEntry(
+                id: String(cString: sqlite3_column_text(statement, 0)),
+                category: String(cString: sqlite3_column_text(statement, 1)),
+                subcategory: String(cString: sqlite3_column_text(statement, 2)),
+                content: String(cString: sqlite3_column_text(statement, 3)),
+                evidence: String(cString: sqlite3_column_text(statement, 4)),
+                keywords: String(cString: sqlite3_column_text(statement, 5)).split(separator: ",").map(String.init),
+                sourceSessionID: String(cString: sqlite3_column_text(statement, 6)),
+                importance: Int(sqlite3_column_int(statement, 7)),
+                updatedAt: String(cString: sqlite3_column_text(statement, 8)),
+                isDeleted: false
+            ))
         }
-        return selected
+        return results
     }
 
     func upsertRemoteSession(_ session: RemoteSessionSummary) {
@@ -959,6 +961,12 @@ final class SQLiteDatabase {
             result.append(row)
         }
         return result
+    }
+
+    func inTransaction(_ block: () -> Void) {
+        execute(sql: "BEGIN TRANSACTION")
+        block()
+        execute(sql: "COMMIT")
     }
 
     @discardableResult
