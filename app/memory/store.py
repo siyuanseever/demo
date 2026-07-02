@@ -1592,3 +1592,24 @@ class Store:
             "mood_distribution": mood_counts,
             "avg_intensity": round(intensity_sum / intensity_count, 1) if intensity_count else None,
         }
+
+    def character_analytics(self) -> dict[str, Any]:
+        messages = self.list_messages(limit=10000)
+        character_counts: dict[str, int] = {}
+        total_assistant = 0
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+            total_assistant += 1
+            metadata = msg.get("metadata", {})
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except json.JSONDecodeError:
+                    metadata = {}
+            character_id = metadata.get("character_id", "")
+            character_counts[character_id] = character_counts.get(character_id, 0) + 1
+        return {
+            "character_counts": character_counts,
+            "total_assistant_messages": total_assistant,
+        }

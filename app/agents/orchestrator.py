@@ -1391,6 +1391,7 @@ class ConversationOrchestrator:
                     "text": final_result["reply"],
                     "character": final_result["character"],
                     "expression": final_result.get("expression", {}),
+                    "route_plan": final_result.get("route_plan"),
                 }
                 if quick_reply_payload is not None:
                     final_result["quick_reply"] = quick_reply_payload
@@ -1415,6 +1416,7 @@ class ConversationOrchestrator:
                     "text": final_result["reply"],
                     "character": final_result["character"],
                     "expression": final_result.get("expression", {}),
+                    "route_plan": final_result.get("route_plan"),
                 }
                 if quick_reply_payload is not None:
                     final_result["quick_reply"] = quick_reply_payload
@@ -1432,6 +1434,7 @@ class ConversationOrchestrator:
                         "text": final_result["reply"],
                         "character": final_result["character"],
                         "expression": final_result.get("expression", {}),
+                        "route_plan": final_result.get("route_plan"),
                     }
                     attach_deep_reply(final_result)
                     yield self._sse_event("deep_reply", final_result)
@@ -1468,6 +1471,7 @@ class ConversationOrchestrator:
                     "text": final_result["reply"],
                     "character": final_result["character"],
                     "expression": final_result.get("expression", {}),
+                    "route_plan": final_result.get("route_plan"),
                 }
                 attach_deep_reply(final_result)
                 yield self._sse_event("deep_reply", final_result)

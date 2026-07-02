@@ -605,6 +605,44 @@ HTML = """<!doctype html>
       color: #69483a;
       font-size: 12px;
     }
+    .message-reason {
+      margin-top: 6px;
+      padding: 5px 10px;
+      border-radius: 12px;
+      background: rgba(245, 237, 226, 0.75);
+      color: #8a6c58;
+      font-size: 11px;
+      line-height: 1.45;
+      font-style: italic;
+    }
+    .character-stat {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .character-avatar {
+      font-size: 28px;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: rgba(245, 237, 226, 0.75);
+    }
+    .progress-bar {
+      height: 6px;
+      background: rgba(226, 190, 166, 0.34);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #8fb996, #a8d4b0);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
     .user .bubble {
       background: rgba(255, 255, 255, 0.46);
       color: rgba(61, 45, 39, 0.62);
@@ -1567,6 +1605,7 @@ HTML = """<!doctype html>
         <button data-view="mood" type="button">Mood</button>
         <button data-view="journals" type="button">Journals</button>
         <button data-view="messages" type="button">Messages</button>
+        <button data-view="characters" type="button">角色统计</button>
         <button id="refreshData" type="button">刷新</button>
         <button id="cleanupSessions" type="button">清理空 Sessions</button>
       </div>
@@ -2029,6 +2068,7 @@ HTML = """<!doctype html>
       const expression = role === "user" ? null : expressionFor(character, options.expressionId || options.expression_id || "");
       const groupRole = options.groupRole || "";
       const action = options.action || "";
+      const reason = options.reason || "";
       const row = document.createElement("div");
       row.className = "row " + (role === "user" ? "user" : "deer");
       if (groupRole) row.classList.add("group-" + groupRole);
@@ -2089,6 +2129,12 @@ HTML = """<!doctype html>
         bubble.appendChild(head);
       }
       bubble.appendChild(body);
+      if (role !== "user" && reason) {
+        const reasonEl = document.createElement("div");
+        reasonEl.className = "message-reason";
+        reasonEl.textContent = reason;
+        bubble.appendChild(reasonEl);
+      }
       const shouldCollapse = !compactGroupRole && (text.length > 80 || text.includes("\\n"));
       if (shouldCollapse) {
         body.classList.add("collapsed");
@@ -2346,7 +2392,7 @@ HTML = """<!doctype html>
               }
               addMessage("deer", d.reply, d.knowledge_cards || [],
                 d.character?.id || activeCharacterId,
-                { expressionId: d.expression?.id || "" }
+                { expressionId: d.expression?.id || "", reason: d.route_plan?.reason || "" }
               );
               if (d.character?.id) {
                 activeCharacterId = d.character.id;
@@ -2951,6 +2997,40 @@ HTML = """<!doctype html>
       `;
     }
 
+    function renderCharacters(data) {
+      const counts = data.character_counts || {};
+      const total = data.total_assistant_messages || 0;
+      if (!total) {
+        dataList.className = "";
+        dataList.innerHTML = '<div class="empty">还没有 assistant 消息，进行几次对话后这里会显示角色统计。</div>';
+        return;
+      }
+      const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1]);
+      const cards = sorted.map(([charId, count]) => {
+        const char = characterById(charId);
+        const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+        return `
+          <article class="card character-stat">
+            <div class="character-avatar">${char ? char.emoji : "?"}</div>
+            <div>
+              <h3>${escapeHtml(char ? char.name : charId || "未知")}</h3>
+              <div class="meta">${count} 条消息 · ${percent}%</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:${percent}%"></div></div>
+            </div>
+          </article>
+        `;
+      }).join("");
+      dataList.className = "stack";
+      dataList.innerHTML = `
+        <section>
+          <h2 class="group-title">角色维度统计</h2>
+          <div class="meta">共 ${total} 条 assistant 消息</div>
+          <div class="grid">${cards}</div>
+        </section>
+      `;
+    }
+
     function renderMessages(items) {
       renderList(items, item => `
         <article class="card">
@@ -2971,6 +3051,11 @@ HTML = """<!doctype html>
         if (view === "mood") {
           const mood = await get("/api/mood_analytics");
           renderMood(mood);
+          return;
+        }
+        if (view === "characters") {
+          const data = await get("/api/character_analytics");
+          renderCharacters(data);
           return;
         }
         const data = await get("/api/data?type=" + encodeURIComponent(view));
@@ -3286,6 +3371,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/mood_analytics":
                 self.respond_json(self.app.orchestrator.store.journal_analytics())
+                return
+            if path == "/api/character_analytics":
+                self.respond_json(self.app.orchestrator.store.character_analytics())
                 return
             if path == "/api/home_hint":
                 self.respond_home_hint()
