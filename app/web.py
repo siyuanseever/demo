@@ -3225,13 +3225,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/sync/merge":
                 settings = get_settings()
+                sync_token = settings.sync_token
                 supplied_token = self.headers.get("X-Sensen-Sync-Token", "")
-                if not settings.sync_token:
-                    self.respond_json({"error": "sync is not configured on this Mac"}, status=503)
-                    return
-                if not secrets.compare_digest(supplied_token, settings.sync_token):
-                    self.respond_json({"error": "invalid sync token"}, status=401)
-                    return
+                # 本地地址白名单：同一台机器的直接调用不需要 token
+                client_host = self.client_address[0] if self.client_address else ""
+                is_local = client_host in ("127.0.0.1", "localhost", "::1")
+                if not is_local:
+                    if not sync_token:
+                        self.respond_json({"error": "sync is not configured on this Mac"}, status=503)
+                        return
+                    if not supplied_token:
+                        self.respond_json({"error": "sync token required"}, status=401)
+                        return
+                    if not secrets.compare_digest(supplied_token, sync_token):
+                        self.respond_json({"error": "invalid sync token"}, status=401)
+                        return
                 result = self.app.orchestrator.store.merge_sync_bundle(payload)
                 self.respond_json({"ok": True, "merged": result})
                 return
