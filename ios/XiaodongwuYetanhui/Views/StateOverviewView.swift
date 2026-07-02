@@ -3280,14 +3280,16 @@ private struct RecentJournalList: View {
 
                             // 情绪曲线 mini 图
                             if journal.emotionCurve.count >= 2 {
-                                HStack(alignment: .bottom, spacing: 4) {
-                                    ForEach(journal.emotionCurve.indices, id: \.self) { i in
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(colorForMoodScore(journal.emotionCurve[i]))
-                                            .frame(width: 8, height: CGFloat(max(4, 24 + journal.emotionCurve[i] * 6)))
+                                HStack(alignment: .center, spacing: 4) {
+                                    ForEach(journal.emotionCurve.prefix(8).indices, id: \.self) { i in
+                                        Text(journal.emotionCurve[i])
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 3)
+                                            .background(Color(hex: 0xf0ddd4).opacity(0.7), in: Capsule())
+                                            .lineLimit(1)
                                     }
                                 }
-                                .frame(height: 40, alignment: .bottom)
                             }
 
                             Text(journal.summary)
@@ -3322,10 +3324,4 @@ private struct RecentJournalList: View {
             }
         }
     }
-}
-
-private func colorForMoodScore(_ score: Int) -> Color {
-    if score > 0 { return .fieldGreen }
-    if score < 0 { return .duskRose }
-    return Color(hex: 0xd8cbbb)
 }

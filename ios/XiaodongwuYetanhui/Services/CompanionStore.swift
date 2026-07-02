@@ -851,7 +851,7 @@ final class CompanionStore: ObservableObject {
         }
     }
 
-    private func saveTodayPlanItems() {
+    func saveTodayPlanItems() {
         guard let data = try? JSONEncoder().encode(todayPlanItems) else { return }
         UserDefaults.standard.set(data, forKey: todayPlanStorageKey)
     }

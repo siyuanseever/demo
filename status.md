@@ -7,97 +7,81 @@
 
 ## 当前阶段
 
-`ROADMAP.md` Phase 3：做出可演示 demo + Harness 基础设施建设
+Mac 应用体验整合与稳定化：M0 基线与盘点。
+
+当前主线已经从 Web demo 完善切换为 Mac 应用。Web/Python 保留为数据和兼容性基线。
 
 ---
 
-## 总体进度
+## 工程基线
 
-- **已完成任务**：25 项（见 `TODO.md` ## 已完成）
-- **进行中任务**：1 项
-- **近期待办**：5 项
-- **iOS 方向**：待启动
-- **Agent 方向（Maker/Checker）**：架构设计阶段
-
-### 工程基线
+### Python / Web
 
 | 指标 | 当前值 | 目标 |
-|------|--------|------|
-| Gate 1 综合通过率 | **100%** (262/262) | >= 95% |
-| 总检查数 | 262 | - |
-| 通过 | 262 | - |
+|---|---|---|
+| Gate 1 综合通过率 | **100%**（262/262） | >= 95% |
 | 失败 | 0 | 0 |
 | 关键维度 | accuracy / completeness / functional / api_resilience / framework / robustness 100% | 全部 100% |
-| 最近验证命令 | `python3 -m compileall app`、`python3 -m app.evaluation.runner` | - |
+| 最近记录的验证 | `python3 -m compileall app`、`python3 -m app.evaluation.runner` | 保持通过 |
 
-> CHK-006（sync_token 空字符串认证绕过）已修复：本地地址白名单（127.0.0.1/localhost/::1）无需 token，远程调用必须提供非空 sync_token。
+### Mac
 
----
+| 指标 | 当前状态 |
+|---|---|
+| 首轮三主线实现 | 已提交：`9c08a7a` |
+| Xcode / Mac 构建证据 | 待补 |
+| 关键路径性能基线 | 待补 |
+| 真实数据字段矩阵 | 待补 |
+| 双向互融端到端验收 | 待补 |
 
-## 进行中项
-
-### Mac 应用三大需求开发
-
-- **心流 ↔ 夜谈互融**：CompanionGardenView 已展示心流目标/温柔提醒/摆烂日记；ChatView 已新增 FlowContextBar
-- **性能优化**：MemoryListView / StateOverviewView 已改为 LazyVStack；SQLiteDatabase 已加事务封装和 SQL 层过滤；contextMemories 已优化
-- **UI 内容完整性**：MemoryCard 已补全 subcategory / updatedAt；Journal 已补全情绪曲线/insights/keywords；StateProfile 字段已确认完整
-- **阻塞/待决策**：
-  - CompanionStore.load() 异步化需 Xcode 真机验证，暂不实施
-  - syncAllFromBackend 批量写入事务优化需 Xcode 验证，暂不实施
-  - StateOverviewView 计算属性缓存改动影响面广，作为后续优化
+> Python Gate 通过不构成 Mac 构建、性能或交互验收证据。
 
 ---
 
-## 最近完成（最近 3-5 项）
+## 已实现但待验收
 
-1. ✅ Mac 应用三大需求第一阶段：心流 ↔ 夜谈互融 + 性能优化 + UI 内容完整性
-2. ✅ 修复 CHK-006：sync_token 本地白名单 + 非空校验，Gate 1 恢复 100%（262/262）
-3. ✅ 修复 CHK-005/007：请求体 1MB 限制 + POST 参数缺失返回 400
-4. ✅ 自动化 Agent 体系：PM Agent + Executor Agent + Checker + Fixer 四角色 + Schedule 调度
-5. ✅ 长期状态画像：跨会话追踪用户心理状态，支持版本历史
+- **心流 ↔ 夜谈**：`CompanionGardenView` 已展示部分心流内容，`ChatView` 已加入 `FlowContextBar`。
+- **性能首轮修改**：`MemoryListView` / `StateOverviewView` 使用惰性列表；SQLite 增加事务和 SQL 层过滤；`contextMemories` 已优化。
+- **UI 内容首轮补齐**：`MemoryCard` 增加 subcategory / updatedAt；Journal 增加情绪曲线、insights、keywords；StateProfile 字段已复核。
+
+这些条目只表示代码已经存在，不表示目标 Mac 上已经构建、数据完整或性能达标。
 
 ---
 
-## 已知问题 / 技术债务
+## 当前 P0
+
+1. 在目标 Mac 环境构建并启动当前工程，记录 target、命令和退出码。
+2. 对启动、页面切换、夜谈发送、长期记忆、心流页和同步建立性能基线。
+3. 建立 `SQLite / API → Swift model → Store → View` 字段矩阵。
+4. 用代表性脱敏数据检查长期记忆全部类别、核心字段、会后总结和三篇关联日记。
+5. 复现并定位 `CompanionStore.load()`、`syncAllFromBackend`、数据库查询和视图计算中的卡顿。
+
+---
+
+## 已知问题与风险
 
 ### 高优先级
 
-- **记忆检索仍为单一策略**：未实现混合检索，可能导致无关记忆污染 prompt 或关键记忆遗漏
-- **已结束 session 继续对话状态不清晰**：用户可能困惑当前是"追加"还是"新 session"
+- Mac 应用存在卡死和点击反应缓慢，尚无统一复现场景和性能证据。
+- 首轮 Swift 改动尚缺 Xcode/Mac 构建验证。
+- 长期记忆类别/字段和三篇关联日记是否完整进入 UI 尚未经过字段矩阵验证。
 
 ### 中优先级
 
-- **群聊自动 UI 表达生硬**：当前仅靠关键词规则，缺少角色切换的过渡提示
-- **数据看板缺少角色维度**：无法分析"哪个角色在什么情绪下被触发"
-- **README 截图过时**：展示的不是当前六角色 UI
+- 心流与夜谈已有初步入口，但选择规则、点击详情、来源、更新和空状态尚未完整验收。
+- `CompanionStore.load()` 异步化、`syncAllFromBackend` 批量事务和 `StateOverviewView` 计算缓存仍待基线支持后决定。
 
-### 低优先级 / 长期
+### 暂缓
 
-- **iOS 方向尚未启动**：Xcode、SwiftUI、STT/TTS 均未开始
-- **意图识别系统重构待排期**：`intent-routing-integration.md` 有计划但未实施
-- **Agent 方向（Maker/Checker）仅完成架构设计**：尚未拆分实现
+- Web 记忆混合检索、session 继续策略、角色统计和 README 截图。
+- 移动端语音、账号、支付、云同步和新互动内容。
 
 ---
 
-## 下一步建议
+## 下一步
 
-1. **Xcode 编译验证**：在 Xcode 中编译 iOS 项目，确认 Swift 语法无错误
-2. **Mac Catalyst 真机测试**：验证 CompanionGardenView 心流展示、ChatView FlowContextBar、MemoryListView 字段补全
-3. **CompanionStore.load() 异步化**：验证后台线程数据库查询不会导致界面冻结
-4. **确定记忆混合策略的参数**：先设定一个合理初值（如相关 5 条 + 近期 3 条 + 重要 2 条），在真实对话中验证后调优
-5. **选择 session 继续方案**：在方案 A（允许追加）和方案 B（分支新 session）中做决策
-
----
-
-## 最近验证记录
-
-| 时间 | 验证项 | 结果 |
-|------|--------|------|
-| 2026-07-01 | compileall | 通过 |
-| 2026-07-01 | check_sse_stream | 通过（渲染 JS + deep/quick SSE 契约） |
-| 2026-07-01 | evaluation.runner | **100% 通过（236/236），Gate 1 通过** |
-| 2026-07-01 | manual_eval | 5 个用例待人工评分，不计为 Gate 4 通过 |
-| 2026-07-02 00:00 | compileall | 通过 |
-| 2026-07-02 00:00 | check_harness | 通过 |
-| 2026-07-02 00:00 | evaluation.runner | **99.62% 通过（263/264），Gate 1 未通过（robustness CHK-006）** |
-| 2026-07-02 00:00 | diagnose | 1 项 needs_confirmation |
+1. 完成 M0 构建、性能和字段盘点，不继续凭代码 diff 宣告完成。
+2. 按复现证据处理 M1 稳定性问题。
+3. 再完成 M2 双向互融的规则、导航和状态闭环。
+4. 完成 M3 长期记忆和关联日记的数据展示闭环。
+5. 使用脱敏真实数据进行 M4 人工体验验收。

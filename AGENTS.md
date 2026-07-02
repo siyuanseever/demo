@@ -2,11 +2,12 @@
 
 ## 1. 项目定位与边界
 
-This repository is a Python stdlib demo for **小动物夜谈会**, a psychological companion chat app.
+This repository contains the Python stdlib backend/Web demo and the SwiftUI Apple-platform app for **小动物夜谈会**, a psychological companion chat app.
 
 - 核心目标：帮用户整理情绪、身体感受、内在冲突和关系模式，形成稳定、温和、可追溯的长期记忆。
 - 非目标：不做诊断，不替代心理咨询、精神科治疗或危机干预。
-- 第一版范围：本地 Web demo，核心是"对话体验 + 心理记忆 + 会后总结"。
+- 当前开发主线：Mac 应用体验整合与稳定化，核心是“心流 ↔ 夜谈互融 + 性能鲁棒性 + 数据/UI 完整性”。
+- Web/Python 当前作为数据、模型和兼容性基线维护，不主动扩展无关功能。
 
 ---
 
@@ -20,6 +21,7 @@ This repository is a Python stdlib demo for **小动物夜谈会**, a psychologi
 - `app/prompts/` contains prompts sent to the LLM.
 - `app/evaluation/` contains the evaluation framework, test cases, and prompt quality assessment.
 - `app/static/` stores avatars, cozy status images, and UI background assets.
+- `ios/XiaodongwuYetanhui/` contains the SwiftUI app currently used for the Mac product direction.
 - `docs/`, `TODO.md`, and `ROADMAP.md` document product direction and implementation notes.
 - Runtime files live in `data/app.db` and `logs/app.log`; avoid committing private data.
 
@@ -38,6 +40,8 @@ This repository is a Python stdlib demo for **小动物夜谈会**, a psychologi
 | 自动诊断 | `python3 -m app.evaluation.diagnose` | 失败项自动分类（产品缺陷/测试缺陷） |
 | Prompt 追踪 | Web UI `/prompt-inspector` | 实时查看 LLM 调用详情、token 用量、质量评分 |
 | 体验评估 | `python3 -m app.evaluation.manual_eval` | 基于 cases 的手工/半自动评估 |
+| Mac 构建 | Xcode 或目标 scheme 的 `xcodebuild` | Swift 编译、链接和目标平台验证 |
+| Mac 性能 | Instruments / Time Profiler / 可复现场景计时 | 主线程停顿、数据库和视图刷新证据 |
 
 ### 快速验证组合
 
@@ -73,7 +77,18 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - 综合通过率必须 >= 95%。
 - `accuracy`、`robustness`、`completeness`、`functional`、`api_resilience`、`framework` 六个关键维度必须 100%。
 - 任一测试套件执行异常都视为失败，不允许以 0 项跳过。
-- 当前基线：236 个检查中通过 236 个，综合通过率 100%（2026-07-01）。
+- 最近记录基线：262 个检查中通过 262 个，综合通过率 100%（2026-07-02）。
+
+### Gate M0：Mac 构建门控
+
+- 所有 Swift/Mac 改动必须记录 scheme、destination、构建命令和退出码。
+- 无 Xcode 或目标 Mac 能力时状态为 `blocked`，不得以 Python Gate 代替。
+
+### Gate M1：Mac 体验与性能门控
+
+- 功能变更必须验证加载、空状态、错误、点击、导航和返回。
+- 性能变更必须提供可复现场景、数据规模和修改前后证据。
+- 没有完成目标 Mac 人工或自动验证时记为 `pending_manual_validation`。
 
 ### Gate 2：结构门控
 
@@ -105,6 +120,8 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 | Prompt 文件变更 | Gate 3 + Gate 4（手工 case 验证） |
 | 新增/删除模块 | Gate 0 + Gate 1 + Gate 2 |
 | Evaluation 框架变更 | Gate 0 + Gate 1 + Gate 2 |
+| Swift/Mac 功能变更 | Gate M0 + 对应交互场景 + 必要的后端 Gate |
+| Swift/Mac 性能变更 | Gate M0 + Gate M1 + 必要的后端 Gate |
 
 ### 5.2 失败响应流程
 
@@ -123,7 +140,8 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 | 角色 | 可以修改 | 禁止修改 |
 |------|---------|---------|
 | Test / Checker Agent | `app/evaluation/**`、测试 fixture、测试报告 | 产品实现、Prompt、iOS 产品代码 |
-| Product / Fixer Agent（Codex） | 产品实现和必要产品文档 | `app/evaluation/**`、测试、fixture、case |
+| Product / Fixer / Executor Agent | 产品实现和必要产品文档 | `app/evaluation/**`、测试、fixture、case |
+| Product Manager Agent | `status.md`、`TODO.md` 的授权区域和交接报告 | 产品代码、测试、`ROADMAP.md`、`plan.md`、自动化协议 |
 
 - Checker 可以只读访问 `data/app.db` 生成私有评估或脱敏/合成测试，但不得持久化真实对话原文。
 - Fixer 可以运行 Checker 提供的测试，但不得新增、删除、修改或放宽测试。
@@ -138,6 +156,8 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - `docs/automation/automation-orchestration.md`
 - `docs/automation/checker-agent-prompt.md`
 - `docs/automation/product-fixer-agent-prompt.md`
+- `docs/automation/product-manager-agent-prompt.md`
+- `docs/automation/executor-agent-prompt.md`
 
 ### 5.4 修改—检查工作流（所有 Agent 必须遵循）
 

@@ -379,8 +379,7 @@ final class SQLiteDatabase {
                 keywords: String(cString: sqlite3_column_text(statement, 5)).split(separator: ",").map(String.init),
                 sourceSessionID: String(cString: sqlite3_column_text(statement, 6)),
                 importance: Int(sqlite3_column_int(statement, 7)),
-                updatedAt: String(cString: sqlite3_column_text(statement, 8)),
-                isDeleted: false
+                updatedAt: String(cString: sqlite3_column_text(statement, 8))
             ))
         }
         return results
