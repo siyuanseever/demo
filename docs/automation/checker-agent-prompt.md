@@ -14,7 +14,9 @@
 - 时区：`Asia/Shanghai`
 - 协议版本：`xiaodongwu-automation/v3`
 - Prompt revision：`2026-07-02-governance-1`
-- 当前产品平台：`mac_catalyst`
+- 当前运行平台：`mac_catalyst_migrated_ios`
+- 长期方向：`native_macos`
+- P0 固定调度：`02:00`、`08:00`、`14:00`、`20:00`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -24,23 +26,25 @@
 5. `docs/automation/automation-orchestration.md`
 6. Checker/Fixer/Executor 索引、各自 state，以及所有尚未处理的 Fixer 和 Executor batch
 7. `docs/automation/activation-checklist.md`
+8. `docs/automation/mac-freeze-incident-playbook.md`
 
 若这些文件与本 Prompt 冲突，以更严格的安全、隐私和角色隔离规则为准。
 
 ## 2. 前置步骤（每次运行必须先执行）
+
+自动 slot 仅允许编排协议列出的四个时段；其他时段必须是用户触发的 `manual-*` slot。
 
 ### 2.1 互斥锁检查
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
 如果锁不存在或已过期，创建锁文件，内容包含当前时间、任务类型（checker）和进程标识。
 
 ### 2.2 Worktree 准备
-1. 检查 `automation/quality-loop` 分支是否存在：`git branch -a | grep automation/quality-loop`
-   - 不存在：在主项目运行 `git branch automation/quality-loop` 创建
-2. 检查 worktree 是否已存在：`git worktree list | grep xiaodongwu-quality-loop`
-   - 不存在：运行 `git worktree add /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop automation/quality-loop`
-   - 已存在：确认 worktree 处于干净状态（无未提交修改）
-3. 所有测试代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
-4. 验证固定 cwd、branch、clean worktree；不符时状态为 `wrong_worktree`
+1. 验证 `automation/quality-loop` 分支和固定 worktree 已由用户/bootstrap 创建。
+2. 验证 worktree 路径、branch 和 clean 状态。
+3. 所有测试代码修改必须在固定 worktree 中进行，不得在 main 工作区直接修改。
+4. 分支或 worktree 不存在时状态为 `worktree_missing` 并退出。
+
+Checker 不得执行 `git worktree add/remove/prune/repair`，不得创建、删除、重命名 branch，也不得选择新的 worktree 路径。
 
 ### 2.3 自动同步主分支（每次运行必做）
 
@@ -86,7 +90,9 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续
 
 - 有 `last_reviewed_commit`：审查 `<last_reviewed_commit>..HEAD`
 - 没有状态：回退到过去 24 小时提交，记录当前 HEAD
-- 无新提交时：处理 Fixer 回执 + 运行 Harness 基线 + 生成 `no_change` 报告
+- 无新提交时：先处理 Fixer/Executor 回执；是否运行完整 Harness 取决于当前 slot，最后生成 `no_change` 报告
+
+02:00 执行每日完整 Harness；08:00 重点复验回执。14:00/20:00 若没有新 commit、未处理回执或开放 P0 incident 新证据，只做 index/cursor 轻量检查，不重复运行完整 Harness。
 
 ## 5. 优先处理产品变更回执
 
@@ -116,8 +122,11 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续
 - 一级类别 → 二级类别 → 可点击叶节点详情是否完整可达
 - 最近新增/更新的日记和记忆是否在刷新后可见
 - 心流单卡片的轻动作是否可选、有正反馈且忽略无惩罚
+- `MAC-HANG-SEND-001` 的阶段事件、UI heartbeat、主线程 sample 和后端接收证据是否足够定位请求消失的位置
 
 不得仅凭代码风格偏好创建产品缺陷。非行为问题放入 `observations`。
+
+对发送卡死必须沿用稳定 issue ID。没有观测能力时分类为 `needs_instrumentation` 或 `blocked_by_observability`，不得写“未复现”。Checker 负责专用 UI-test 目录中的场景、fixture 和断言；缺少 target 时报告基础设施缺口，由 PM/Executor 建空 target。
 
 ## 7. 数据库使用规范
 
@@ -153,6 +162,8 @@ Runner 失败时：`python3 -m app.evaluation.diagnose`
 
 - `product_bug`：产品行为违反明确契约
 - `test_bug`：测试或 Harness 本身错误
+- `needs_instrumentation`：现有观测不足，需先补脱敏事件或采样能力
+- `blocked_by_observability`：无法取得区分根因所需证据
 - `needs_confirmation`：契约不明确或涉及安全策略
 - `observation`：不阻断的工程建议
 
@@ -189,12 +200,12 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "previous_checker_run_id": null,
   "main_sync": {
     "attempted": true,
-    "result": "merged_successfully | merge_conflict | already_up_to_date | skipped",
+    "result": "equal | main_merged | quality_loop_ahead | diverged | merge_conflict | skipped",
     "main_head_before": "SHA",
     "quality_loop_head_before": "SHA",
     "quality_loop_head_after": "SHA"
   },
-  "status": "action_required | no_issues | blocked | no_change",
+  "status": "action_required | needs_confirmation | no_issues | blocked | no_change | protocol_mismatch | duplicate_slot | unexpected_schedule_slot | wrong_worktree | worktree_missing | invalid_index",
   "source_fixer_run_ids_processed": [],
   "source_executor_run_ids_processed": [],
   "verification_results": [],
@@ -202,6 +213,7 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "commands": [],
   "gate_status": { "gate0_syntax": true, "gate1_passed": true, "overall_pass_rate": 1.0, "mac_build": "passed | failed | not_applicable", "mac_interaction": "passed | pending_manual_validation | not_applicable", "performance_evidence": "recorded | missing | not_applicable", "failed_critical_dimensions": [], "suite_errors": [] },
   "test_changes": { "changed": false, "files": [], "branch": "automation/quality-loop", "test_commit": null },
+  "incidents": [{ "incident_id": "MAC-HANG-SEND-001", "last_successful_stage": "send_tapped | ... | unknown", "occurrences": [], "evidence_status": "complete | needs_instrumentation | blocked_by_observability" }],
   "issues": [],
   "observations": [],
   "handoff": { "target": "product_fixer", "action_required": true, "issue_ids": [] }

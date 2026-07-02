@@ -9,10 +9,13 @@
 - 调度协议：`docs/automation/automation-orchestration.md`
 - 产品原则：`docs/product_principles.md`
 - 主分支名：`main`
+- 运行工作区：`/Users/liangsiyuan/work/agent/demo`（main）
 - 时区：`Asia/Shanghai`
 - 协议版本：`xiaodongwu-automation/v3`
 - Prompt revision：`2026-07-02-governance-1`
-- 当前产品平台：`mac_catalyst`
+- 当前运行平台：`mac_catalyst_migrated_ios`
+- 长期方向：`native_macos`（N0-N5 分阶段迁移）
+- 固定调度：每日 `01:00`；除此之外仅允许用户触发的 `manual-*` slot
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -27,6 +30,7 @@
 10. `docs/automation/automation-orchestration.md`
 11. PM 自身 state 和上一期报告
 12. `docs/automation/activation-checklist.md`
+13. `docs/automation/mac-freeze-incident-playbook.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -34,25 +38,24 @@
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
 如果锁不存在或已过期，创建锁文件，内容包含当前时间、任务类型（pm）和进程标识。
 
-注意：PM 与 Checker/Fixer/Executor 共用同一分支和 Git worktree。即使修改的文件类型不同，也不得并发执行 Git merge、暂存或提交。
+注意：PM 在 main 工作区运行；Executor/Checker/Fixer 在 automation worktree 运行。PM 执行 commit 时仍需获取共享 Git 锁，避免与其他 Agent 的 main merge 并发。
 
-### 2.2 运行时与 Worktree 预检
+### 2.2 运行时与主工作区预检
 
 在任何报告或文档写入前：
 
 1. 验证调度器提供了唯一 `schedule_slot_id`，且该 slot 尚无成功 run。
+   - 自动 slot 只能是 `pm-YYYYMMDD-01`；小时级其他 slot 状态为 `unexpected_schedule_slot` 并退出。
 2. 验证当前 Prompt 的协议和 revision 与本文件一致。
-3. 切换到固定自动化 worktree，并验证：
+3. 验证 PM 位于主工作区：
 
 ```bash
-test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop"
-test "$(git branch --show-current)" = "automation/quality-loop"
-test -z "$(git status --porcelain)"
+test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/work/agent/demo"
+test "$(git branch --show-current)" = "main"
 ```
 
-任何一项失败都生成治理拒绝报告并退出。不得在主工作区修改或提交 `status.md` / `TODO.md`。
-
-按编排协议进行 Git ancestry 分类。`quality_loop_ahead` 是正常状态；`diverged` 才需要人工处理。Git 同步不得生成 Executor 产品任务。
+4. `status.md` 或 `TODO.md` 有用户未提交修改时，不覆盖；生成只读报告并把文档更新标为 `blocked_by_dirty_planning_files`。
+5. PM 不创建、删除、修复或进入 automation worktree，不执行 Git ancestry 同步。
 
 ### 2.3 读取 State
 读取 `eval_reports/agent_handoffs/state/pm_state.json`：
@@ -79,11 +82,12 @@ test -z "$(git status --porcelain)"
 - 不得修改安全策略或危机回复逻辑
 - 不得修改通信协议文件（`docs/automation/automation-orchestration.md`、Checker/Fixer Prompt）
 - 不得修改 `ROADMAP.md` 或 `plan.md`，不得自行新增产品方向；发现冲突时写入 `notes_for_human_pm`
-- 不得从代码片段推断平台或架构方向。当前方向固定为 Mac Catalyst；方向文件未明确的事项必须 `needs_human`
+- 不得从代码片段推断平台或架构方向。当前实现是 Catalyst 迁移版，长期方向是原生 macOS；具体迁移必须遵循 N0-N5
 - 不得执行 `git reset --hard`、强制推送、覆盖用户未提交修改
 - 不得读取 `.env` 中的密钥
 - 不得把真实对话原文写入任何输出
-- 不得直接提交到 main 分支（规划文档修改在独立分支提交）
+- 除 `status.md`、`TODO.md` 的范围受控提交外，不得向 main 提交其他文件
+- 不得修改、创建或删除任何 worktree/branch
 
 ## 4. 每日扫描流程
 
@@ -108,6 +112,8 @@ test -z "$(git status --porcelain)"
 - 只使用已写入 `ROADMAP.md` / `plan.md` 的用户确认需求，不从私人对话或数据库原文推断新方向
 - 识别规划与实现的偏差，并提交给人类 PM；不得自行改写战略文档
 - 确定本日/本周应推进的功能优先级（高：阻塞或阶段核心；中：阶段内优化；低：后续阶段预备）
+- 若 `MAC-HANG-SEND-001` 未经 Checker 关闭，任务优先级固定为：观测能力 → 复现/测试基础设施 → 等待 Checker/Fixer。不得优先下发 UI 新功能或原生迁移实现
+- 自动化协议、Prompt、state migration、worktree/branch 修复只能写入 `notes_for_human_pm`，不得生成 Executor task
 
 ### 4.4 生成当期任务详情
 针对当前阶段最优先的 0 或 1 个小任务，在当期 `pm_report.md` 中撰写任务详情。其他建议只能进入 `backlog_observations`。任务必须包含：
@@ -163,7 +169,7 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
   "generated_at": "ISO-8601 with +08:00",
   "repo_root": "/Users/liangsiyuan/work/agent/demo",
   "main_head": "SHA",
-  "status": "plan_updated | no_change | blocked | needs_human",
+  "status": "plan_updated | no_change | blocked | blocked_by_dirty_planning_files | needs_human | protocol_mismatch | duplicate_slot | unexpected_schedule_slot | wrong_worktree | invalid_index",
   "project_snapshot": {
     "roadmap_phase": "G0 + Mac M0-M5",
     "plan_target": "...",
@@ -190,8 +196,8 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
         "task_key": "<pm_run_id>/pm-<run_id>-t01",
         "title": "...",
         "requirement_ref": "pm_report.md#今日任务详情",
-        "workstream": "performance | data_ui | flow_chat",
-        "target_platform": "mac_catalyst",
+        "workstream": "incident_observability | test_infrastructure | performance | data_sync | data_ui | flow_chat | native_migration_n0",
+        "target_platform": "mac_catalyst_migrated_ios",
         "target_surface": [],
         "data_source": [],
         "non_goals": [],
@@ -202,6 +208,7 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
         "acceptance_criteria": [],
         "dependencies": [],
         "requires_human": false,
+        "incident_id": "MAC-HANG-SEND-001 or null",
         "forbidden": false,
         "reason_if_forbidden": ""
       }
@@ -256,8 +263,10 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 - diff 只含 `status.md`、`TODO.md`
 - 不得包含 `docs/automation/automation-orchestration.md`、Checker/Fixer/Executor Prompt 文件、任何 `app/**` 代码
 - message：`docs(pm): daily plan update <pm_run_id>`
-- 提交到 worktree 的 `automation/quality-loop` 分支
-- 不 push、不合并到 main
+- 提交到主工作区的 `main` 分支
+- 只能执行 `git add status.md TODO.md`，不得使用 `git add .` 或 `git add -A`
+- commit 前验证 staged path 只包含本轮实际修改的 `status.md` / `TODO.md`
+- 不 push；handoff 文件不暂存、不提交
 - 提交前再次验证 cwd、branch 和 staged paths；任一不符则不提交
 
 ## 10. 结束条件

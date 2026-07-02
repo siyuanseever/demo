@@ -15,7 +15,9 @@
 - 时区：`Asia/Shanghai`
 - 协议版本：`xiaodongwu-automation/v3`
 - Prompt revision：`2026-07-02-governance-1`
-- 当前产品平台：`mac_catalyst`
+- 当前运行平台：`mac_catalyst_migrated_ios`
+- 长期方向：`native_macos`
+- P0 固定调度：`04:00`、`10:00`、`16:00`、`22:00`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -26,8 +28,11 @@
 6. `checker_runs.jsonl` 中所有尚未消费的 Checker 报告
 7. 每份报告引用的测试 diff 和 `test_commit`
 8. `docs/automation/activation-checklist.md`
+9. `docs/automation/mac-freeze-incident-playbook.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
+
+自动 slot 仅允许编排协议列出的四个时段；其他时段必须是用户触发的 `manual-*` slot。稳定模式切换后改为每日一次。
 
 ### 2.1 互斥锁检查
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
@@ -35,11 +40,12 @@
 
 ### 2.2 Worktree 准备
 与 Checker 共用同一个 worktree：
-1. 检查 `automation/quality-loop` 分支是否存在
-2. 检查 worktree 是否已存在：`git worktree list | grep xiaodongwu-quality-loop`
-3. 确认 worktree 处于干净状态（无未提交修改）
-4. 所有产品代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
-5. 验证固定 cwd、branch、clean worktree；不符时状态为 `wrong_worktree`
+1. 验证 `automation/quality-loop` 分支和固定 worktree 已由用户/bootstrap 创建。
+2. 验证 worktree 路径、branch 和 clean 状态。
+3. 所有产品代码修改必须在固定 worktree 中进行，不得在 main 工作区直接修改。
+4. 分支或 worktree 不存在时状态为 `worktree_missing` 并退出。
+
+Fixer 不得执行 `git worktree add/remove/prune/repair`，不得创建、删除、重命名 branch，也不得选择新的 worktree 路径。
 
 ### 2.3 自动同步主分支（每次运行必做）
 与 Checker 相同，使用 ancestry 四态分类：
@@ -89,6 +95,8 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续
 4. `no_change`/`no_issues` 报告纳入已扫描列表，但不生成产品 issue
 5. 按 `issue_id` 去重，使用最新状态和证据，保留全部 `source_checker_run_ids`
 
+如果所有未消费报告均为 `no_change` / `no_issues` 或不含 product bug，快速生成 `no_product_changes`、推进 cursor 并退出；不得标记 `blocked`，不得运行无关修复。
+
 ## 5. 独立判断问题类型
 
 对每个 issue，先复现，再选择 disposition：
@@ -97,6 +105,7 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续
 - `not_reproduced`：无法复现，提供命令和实际输出
 - `needs_human`：涉及安全策略、体验策略、多种合理方案
 - `blocked`：缺少 commit/测试/依赖/权限
+- `blocked_by_observability`：缺少最后成功阶段、stack 或等价证据，不能安全修改
 
 Fixer 不得标记 `resolved`，只有 Checker 验证后可以关闭。
 
@@ -111,8 +120,9 @@ Fixer 不得标记 `resolved`，只有 Checker 验证后可以关闭。
 - Mac 性能修复必须先有稳定复现和基线，修复后用同场景复测
 - Mac 数据展示修复必须依据 `SQLite/API → model → store → view` 映射，不臆造字段
 - 心流/夜谈修复保持信息克制，不能用额外弹窗或高频提醒掩盖交互问题
-- 当前平台固定为 Mac Catalyst，不创建原生 AppKit 路线
+- 当前实现是 Catalyst 迁移版；不得把迁移原生 macOS 当作单个 Checker issue 的修复
 - 数据同步遵循“Python 后端权威源 + Mac 沙盒 SQLite 缓存 + API 自动刷新”，不得让两个进程共享活动数据库文件
+- 修复 `MAC-HANG-SEND-001` 前必须有 Checker 提供的最后成功阶段、主线程 sample 或等价证据；缺少证据时回执 `blocked_by_observability`
 - 心理陪伴回复不诊断、不越界
 
 多个 issue 共享根因时可一次修复，但必须逐个回填 disposition。
@@ -169,8 +179,8 @@ fixer_run_id：`fixer-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "base_commit": "SHA",
   "branch": "automation/quality-loop",
   "fix_commit": "SHA or null",
-  "status": "fixed_pending_verification | partial | no_product_changes | blocked",
-  "main_sync": { "attempted": true, "result": "...", "main_head_before": "SHA", "quality_loop_head_before": "SHA", "quality_loop_head_after": "SHA" },
+  "status": "fixed_pending_verification | partial | no_product_changes | blocked | blocked_by_observability | protocol_mismatch | duplicate_slot | unexpected_schedule_slot | wrong_worktree | worktree_missing | invalid_index",
+  "main_sync": { "attempted": true, "result": "equal | main_merged | quality_loop_ahead | diverged | merge_conflict | skipped", "main_head_before": "SHA", "quality_loop_head_before": "SHA", "quality_loop_head_after": "SHA" },
   "commands": [],
   "gate_status": {
     "mac_build": "passed | failed | not_applicable",
@@ -183,8 +193,8 @@ fixer_run_id：`fixer-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
     {
       "issue_id": "CHK-...",
       "source_checker_run_ids": [],
-      "disposition": "fixed_pending_verification | disputed_test | not_reproduced | needs_human | blocked",
-      "classification": "product_bug | test_bug | needs_confirmation",
+      "disposition": "fixed_pending_verification | disputed_test | not_reproduced | needs_human | blocked | blocked_by_observability",
+      "classification": "product_bug | test_bug | needs_instrumentation | needs_confirmation",
       "reason": "判断依据",
       "product_files_changed": [],
       "test_files_changed": [],

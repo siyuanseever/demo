@@ -15,7 +15,9 @@
 - 时区：`Asia/Shanghai`
 - 协议版本：`xiaodongwu-automation/v3`
 - Prompt revision：`2026-07-02-governance-1`
-- 当前产品平台：`mac_catalyst`
+- 当前运行平台：`mac_catalyst_migrated_ios`
+- 长期方向：`native_macos`（当前只允许授权的 N0 文档盘点）
+- 固定调度：`06:00` 主执行；`18:00` 仅 retryable/人工紧急任务
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -26,8 +28,11 @@
 6. 该 PM run 目录下的 `pm_report.md`（从 `requirement_ref` 指向的章节读取详细需求）
 7. Executor 自身 state
 8. `docs/automation/activation-checklist.md`
+9. `docs/automation/mac-freeze-incident-playbook.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
+
+自动 slot 只允许 `executor-YYYYMMDD-06` 和 `executor-YYYYMMDD-18`。18:00 没有 retryable claim 或人工批准任务时必须快速 `no_tasks`，不能重新消费 completed task。
 
 ### 2.1 互斥锁检查
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
@@ -37,13 +42,12 @@
 
 ### 2.2 Worktree 准备
 与 Checker/Fixer 共用同一个 worktree：
-1. 检查 `automation/quality-loop` 分支是否存在：`git branch -a | grep automation/quality-loop`
-   - 不存在：在主项目运行 `git branch automation/quality-loop` 创建
-2. 检查 worktree 是否已存在：`git worktree list | grep xiaodongwu-quality-loop`
-   - 不存在：运行 `git worktree add /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop automation/quality-loop`
-   - 已存在：确认 worktree 处于干净状态（无未提交修改）
-3. 所有产品代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
-4. 运行并验证固定 cwd、branch、clean worktree 三条 preflight 命令；失败状态为 `wrong_worktree`
+1. 验证 `automation/quality-loop` 分支和固定 worktree 已由用户/bootstrap 创建。
+2. 验证 worktree 路径、branch 和 clean 状态。
+3. 所有产品代码修改必须在固定 worktree 中进行，不得在 main 工作区直接修改。
+4. 分支或 worktree 不存在时状态为 `worktree_missing` 并退出。
+
+Executor 不得执行 `git worktree add/remove/prune/repair`，不得创建、删除、重命名 branch，也不得选择新的 worktree 路径。
 
 ### 2.3 自动同步主分支（每次运行必做）
 使用 ancestry 做四态分类：
@@ -94,7 +98,7 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续，不 merge
 1. 读取 `pm_runs.jsonl` 和 `executor_state.json`
 2. 选择不在 state `processed_run_ids` 中的 PM run
 3. 读取该 run 的 `coordination.json`，严格验证 v3、prompt revision 和 `message_type=pm_coordination`
-4. `today_tasks` 长度大于 1、缺少 `task_key`/`allowed_paths` 或平台不是 `mac_catalyst` 时，整份输入 `protocol_mismatch`，不得挑一个继续
+4. `today_tasks` 长度大于 1、缺少 `task_key`/`allowed_paths` 或平台不是 `mac_catalyst_migrated_ios` 时，整份输入 `protocol_mismatch`，不得挑一个继续
 5. 验证任务 `requires_human=false` 且依赖已满足
 6. 完成 preflight/Git 同步后、在任何构建或产品副作用前，把 `task_key` 原子写入 `claimed_task_keys`
 7. `task_key` 已 claimed/completed 或 source PM run 已处理时，生成 `duplicate_task` 并退出
@@ -106,7 +110,7 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续，不 merge
 - 只修改实现该任务所需的最小产品范围
 - Mac 任务优先修改 `ios/XiaodongwuYetanhui/**`；只有协调指令明确指出数据契约依赖时才修改后端
 - 只允许修改任务 `allowed_paths` 列出的路径
-- 当前平台是 Mac Catalyst，不创建原生 macOS target，不以代码片段推断平台迁移
+- 当前实现是 Catalyst 迁移版。除非任务明确属于 Roadmap N1 且已满足迁移门槛，否则不创建原生 macOS target
 - Swift/SwiftUI 保持现有结构和命名，不以大范围重构代替目标修复
 - 异常保护保留可观测性，不吞掉原始异常信息
 - 数据修复考虑 SQLite 兼容性
@@ -114,6 +118,8 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续，不 merge
 - 数据 UI 任务先核对 `SQLite/API → model → store → view`，不得凭视觉猜测或臆造字段
 - 心流/夜谈任务必须保持默认信息克制：最多一条摘要、明确来源/时间、可点击、可返回、有空状态
 - 数据同步遵循“Python 后端权威源 + Mac 沙盒 SQLite 缓存 + API 自动刷新”，不得把仓库 `data/app.db` 打包或作为活动共享数据库
+- `MAC-HANG-SEND-001` 相关任务必须使用 playbook 的阶段事件和隐私规则。Instrumentation 任务不能被报告为卡死已修复
+- `test_infrastructure` 任务可以建立空 Apple UI-test target/project wiring，但不得编写测试场景、fixture 或断言
 - 心理陪伴回复不诊断、不越界
 - 一个任务一个 commit，保持变更原子化
 - 若任务涉及多个文件，确保所有修改在单一 commit 中保持逻辑一致
@@ -194,10 +200,10 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "base_commit": "SHA",
   "branch": "automation/quality-loop",
   "product_commit": "SHA or null",
-  "status": "completed | partial | blocked | no_tasks",
+  "status": "completed | partial | pending_manual_validation | blocked | no_tasks | protocol_mismatch | duplicate_task | unexpected_schedule_slot | wrong_worktree | worktree_missing",
   "main_sync": {
     "attempted": true,
-    "result": "merged_successfully | merge_conflict | already_up_to_date | skipped",
+    "result": "equal | main_merged | quality_loop_ahead | diverged | merge_conflict | skipped",
     "main_head_before": "SHA",
     "quality_loop_head_before": "SHA",
     "quality_loop_head_after": "SHA"
@@ -219,7 +225,8 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
       "task_key": "<source_pm_run_id>/<task_id>",
       "title": "...",
       "requirement_ref": "pm_report.md#今日任务详情",
-      "workstream": "performance | data_sync | data_ui | flow_chat",
+      "workstream": "incident_observability | test_infrastructure | performance | data_sync | data_ui | flow_chat | native_migration_n0",
+      "incident_id": "MAC-HANG-SEND-001 or null",
       "status": "completed | partial | failed | skipped",
       "product_files_changed": [],
       "commit": "SHA or null",
