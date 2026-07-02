@@ -13,7 +13,9 @@
 - worktree 路径：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`
 - 主分支名：`main`
 - 时区：`Asia/Shanghai`
-- 协议版本：`xiaodongwu-pm-executor/v2`
+- 协议版本：`xiaodongwu-automation/v3`
+- Prompt revision：`2026-07-02-governance-1`
+- 当前产品平台：`mac_catalyst`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -23,6 +25,7 @@
 5. `pm_runs.jsonl` 中最新一份尚未处理的 PM run 的 `coordination.json`
 6. 该 PM run 目录下的 `pm_report.md`（从 `requirement_ref` 指向的章节读取详细需求）
 7. Executor 自身 state
+8. `docs/automation/activation-checklist.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -30,7 +33,7 @@
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
 如果锁不存在或已过期，创建锁文件，内容包含当前时间、任务类型（executor）和进程标识。
 
-注意：Executor 与 Checker、Fixer 共用同一把锁，因为它们共享同一个 worktree 且都可能修改代码。锁已存在意味着 Checker 或 Fixer 正在运行，Executor 必须等待。
+注意：Executor 与 PM、Checker、Fixer 共用同一把锁。锁已存在时本轮退出，不等待并发修改完成后继续使用旧输入。
 
 ### 2.2 Worktree 准备
 与 Checker/Fixer 共用同一个 worktree：
@@ -40,35 +43,26 @@
    - 不存在：运行 `git worktree add /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop automation/quality-loop`
    - 已存在：确认 worktree 处于干净状态（无未提交修改）
 3. 所有产品代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
+4. 运行并验证固定 cwd、branch、clean worktree 三条 preflight 命令；失败状态为 `wrong_worktree`
 
 ### 2.3 自动同步主分支（每次运行必做）
-与 Checker/Fixer 相同的同步逻辑：
+使用 ancestry 做四态分类：
 ```
-步骤 A：在主项目检查主分支是否领先
-  git rev-parse main
-  git rev-parse automation/quality-loop
-  git merge-base --is-ancestor automation/quality-loop main
-  返回 0 → main 领先（或相同），需要同步
-  返回非 0 → quality-loop 有 main 没有的 commit，报告冲突，不自动处理
-
-步骤 B：在 worktree 中拉取主分支的更新
-  git -C /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop fetch origin main 2>/dev/null || true
-  git -C /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop merge main --no-edit
-
-步骤 C：检查合并结果
-  合并成功（退出码 0）→ 记录 main_sync_result: "merged_successfully"
-  出现冲突（退出码非 0）→ git -C ... merge --abort，记录 "merge_conflict"，status: "blocked"，生成报告后退出
+equal → 继续
+automation 是 main 祖先 → main_ahead，在 worktree merge main
+main 是 automation 祖先 → quality_loop_ahead，正常继续，不 merge
+互不为祖先 → diverged，停止并报告
 ```
 
-注意：出现冲突时绝不自动解决，必须报告给用户。
+注意：`quality_loop_ahead` 不是冲突。出现真正冲突时绝不自动解决，也不得把 Git 合并当成 PM 产品任务。
 
 ### 2.4 读取 State
 读取 `eval_reports/agent_handoffs/state/executor_state.json`：
 ```json
-{ "schema_version": 2, "last_executor_run_id": "executor-...", "processed_pm_run_ids": [], "completed_task_ids": [], "updated_at": "ISO-8601" }
+{ "schema_version": 3, "protocol": "xiaodongwu-automation/v3", "prompt_revision": "2026-07-02-governance-1", "last_run_id": "executor-...", "processed_run_ids": [], "claimed_task_keys": {}, "completed_task_keys": [], "updated_at": "ISO-8601" }
 ```
 
-若文件不存在，创建初始状态文件。
+若文件不存在，创建初始状态文件。旧 state 只能按激活清单迁移，并把已执行任务写入 `completed_task_keys`。
 
 ## 3. 角色边界（严格）
 
@@ -98,23 +92,28 @@
 ## 4. 选择待处理任务
 
 1. 读取 `pm_runs.jsonl` 和 `executor_state.json`
-2. 选择不在 `processed_pm_run_ids` 中的 PM run
-3. 读取该 run 的 `coordination.json`，验证 `protocol=xiaodongwu-pm-executor/v2` 和 `message_type=pm_coordination`
-4. 按 `priority` 排序，选择 `forbidden=false` 且 `dependencies` 已满足的任务
-5. 每次最多选择 1 个任务，保持变更范围和验证证据可控
-6. `no_change` 或无可执行任务的 PM run 纳入已扫描列表，生成 `no_tasks` 报告
+2. 选择不在 state `processed_run_ids` 中的 PM run
+3. 读取该 run 的 `coordination.json`，严格验证 v3、prompt revision 和 `message_type=pm_coordination`
+4. `today_tasks` 长度大于 1、缺少 `task_key`/`allowed_paths` 或平台不是 `mac_catalyst` 时，整份输入 `protocol_mismatch`，不得挑一个继续
+5. 验证任务 `requires_human=false` 且依赖已满足
+6. 完成 preflight/Git 同步后、在任何构建或产品副作用前，把 `task_key` 原子写入 `claimed_task_keys`
+7. `task_key` 已 claimed/completed 或 source PM run 已处理时，生成 `duplicate_task` 并退出
+8. `no_change` 或无可执行任务的 PM run 纳入已扫描列表，生成 `no_tasks` 报告
 
 ## 5. 执行原则
 
 - 每个任务执行前，先完整阅读 `requirement_ref` 引用的章节
 - 只修改实现该任务所需的最小产品范围
 - Mac 任务优先修改 `ios/XiaodongwuYetanhui/**`；只有协调指令明确指出数据契约依赖时才修改后端
+- 只允许修改任务 `allowed_paths` 列出的路径
+- 当前平台是 Mac Catalyst，不创建原生 macOS target，不以代码片段推断平台迁移
 - Swift/SwiftUI 保持现有结构和命名，不以大范围重构代替目标修复
 - 异常保护保留可观测性，不吞掉原始异常信息
 - 数据修复考虑 SQLite 兼容性
 - 性能任务先复现和记录基线，再修改，再用同场景复测
 - 数据 UI 任务先核对 `SQLite/API → model → store → view`，不得凭视觉猜测或臆造字段
 - 心流/夜谈任务必须保持默认信息克制：最多一条摘要、明确来源/时间、可点击、可返回、有空状态
+- 数据同步遵循“Python 后端权威源 + Mac 沙盒 SQLite 缓存 + API 自动刷新”，不得把仓库 `data/app.db` 打包或作为活动共享数据库
 - 心理陪伴回复不诊断、不越界
 - 一个任务一个 commit，保持变更原子化
 - 若任务涉及多个文件，确保所有修改在单一 commit 中保持逻辑一致
@@ -129,6 +128,8 @@ Mac/Swift 改动必须：
 - 性能任务记录场景、数据规模、修改前后耗时或 trace。
 
 如果当前环境没有 Xcode、目标 Mac 或必要性能工具，停止依赖该能力的实现，状态记为 `blocked`；不得只凭代码阅读提交。
+
+验证任务默认只验证。发现构建或配置问题时，如果任务没有明确授权修改对应 `allowed_paths`，只能报告 issue，不能顺手修复。`xcodebuild` 成功不等于应用启动成功；仅执行 `open` 也不等于无立即崩溃，必须有进程存活或日志证据。
 
 若修改了 Python 后端，再在 worktree 目录执行：
 ```bash
@@ -181,8 +182,10 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
 
 ```json
 {
-  "schema_version": 2,
-  "protocol": "xiaodongwu-pm-executor/v2",
+  "schema_version": 3,
+  "protocol": "xiaodongwu-automation/v3",
+  "prompt_revision": "2026-07-02-governance-1",
+  "schedule_slot_id": "executor-YYYYMMDD-06",
   "message_type": "executor_report",
   "executor_run_id": "executor-...",
   "source_pm_run_id": "pm-...",
@@ -212,10 +215,11 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   },
   "tasks_attempted": [
     {
-      "task_id": "PM-T-001",
+      "task_id": "pm-<run_id>-t01",
+      "task_key": "<source_pm_run_id>/<task_id>",
       "title": "...",
       "requirement_ref": "pm_report.md#今日任务详情",
-      "workstream": "performance | data_ui | flow_chat",
+      "workstream": "performance | data_sync | data_ui | flow_chat",
       "status": "completed | partial | failed | skipped",
       "product_files_changed": [],
       "commit": "SHA or null",
@@ -223,6 +227,7 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
       "blocker_reason": ""
     }
   ],
+  "claim": { "claimed_at": "ISO-8601", "disposition": "completed | blocked | retryable" },
   "forbidden_files_changed": [],
   "requirement_clarification_requests": [],
   "handoff": { "target": "test_checker", "verification_required": true, "task_ids": [] }
@@ -258,3 +263,5 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 - 已更新 index 和 state
 - 已释放锁（删除 lock 文件）
 - 未 push、未合并到 main
+- 同一 `task_key` 只生成一份正式执行报告
+- 只有全部验收和证据成立时才使用 `completed`；否则使用 `partial`、`pending_manual_validation` 或 `blocked`

@@ -12,7 +12,9 @@
 - worktree 路径：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`
 - 主分支名：`main`
 - 时区：`Asia/Shanghai`
-- 协议版本：`xiaodongwu-checker-fixer/v1`
+- 协议版本：`xiaodongwu-automation/v3`
+- Prompt revision：`2026-07-02-governance-1`
+- 当前产品平台：`mac_catalyst`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -21,6 +23,7 @@
 4. `app/evaluation/README.md`
 5. `docs/automation/automation-orchestration.md`
 6. Checker/Fixer/Executor 索引、各自 state，以及所有尚未处理的 Fixer 和 Executor batch
+7. `docs/automation/activation-checklist.md`
 
 若这些文件与本 Prompt 冲突，以更严格的安全、隐私和角色隔离规则为准。
 
@@ -37,26 +40,17 @@
    - 不存在：运行 `git worktree add /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop automation/quality-loop`
    - 已存在：确认 worktree 处于干净状态（无未提交修改）
 3. 所有测试代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
+4. 验证固定 cwd、branch、clean worktree；不符时状态为 `wrong_worktree`
 
 ### 2.3 自动同步主分支（每次运行必做）
 
-确保 quality-loop 分支始终包含主分支的最新代码。
+使用 ancestry 四态分类，确保不会把正常领先误报为冲突。
 
 ```
-步骤 A：在主项目检查主分支是否领先
-  git rev-parse main
-  git rev-parse automation/quality-loop
-  git merge-base --is-ancestor automation/quality-loop main
-  返回 0 → main 领先（或相同），需要同步
-  返回非 0 → quality-loop 有 main 没有的 commit，报告冲突，不自动处理
-
-步骤 B：在 worktree 中拉取主分支的更新
-  git -C /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop fetch origin main 2>/dev/null || true
-  git -C /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop merge main --no-edit
-
-步骤 C：检查合并结果
-  合并成功（退出码 0）→ 记录 main_sync_result: "merged_successfully"
-  出现冲突（退出码非 0）→ git -C ... merge --abort，记录 "merge_conflict"，status: "blocked"，生成报告后退出
+equal → 继续
+automation 是 main 祖先 → main_ahead，在干净 worktree merge main
+main 是 automation 祖先 → quality_loop_ahead，正常继续
+互不为祖先 → diverged，停止并报告
 ```
 
 注意：出现冲突时绝不自动解决，必须报告给用户。
@@ -64,8 +58,10 @@
 ### 2.4 读取 State
 读取 `eval_reports/agent_handoffs/state/checker_state.json`：
 ```json
-{ "schema_version": 1, "last_reviewed_commit": "full SHA", "last_checker_run_id": "checker-...", "processed_fixer_run_ids": [], "processed_executor_run_ids": [], "updated_at": "ISO-8601" }
+{ "schema_version": 3, "protocol": "xiaodongwu-automation/v3", "prompt_revision": "2026-07-02-governance-1", "last_run_id": "checker-...", "last_reviewed_commit": "full SHA", "processed_fixer_run_ids": [], "processed_executor_run_ids": [], "updated_at": "ISO-8601" }
 ```
+
+旧 state 缺少 `processed_executor_run_ids` 时必须先按激活清单迁移。消费前逐行解析 index；发现两条 JSON 拼在同一行时状态为 `invalid_index`，不得猜测跳过。
 
 ## 3. 角色边界（严格）
 
@@ -106,6 +102,8 @@
 
 随后读取 `indexes/executor_runs.jsonl`，选择不在 `processed_executor_run_ids` 中的 batch。逐项核对任务需求、产品 diff 和 Executor 声称的证据，独立运行可用验证。只有复验完成后才能推进 Executor cursor；环境不足时保留为 `pending_manual_validation`。
 
+同一 `task_key` 出现多个 Executor run 时创建治理 issue，比较两份证据但不重复关闭任务。报告结论冲突时状态为 `needs_confirmation`，不能选择更乐观的一份。
+
 ## 6. 代码审查
 
 重点：输入验证、异常边界、JSON/数据库解析、并发竞态、状态持久化、心理安全边界，以及 Mac 主线的以下风险：
@@ -114,6 +112,10 @@
 - 心流与夜谈的选择规则、每屏上限、来源/更新时间、点击/返回、空状态和数据更新
 - `SQLite/API → Swift model → store → view` 字段丢失或类型/可选值不一致
 - 长期记忆类别/字段和会后总结三篇关联日记的不完整展示
+- 自动同步是否缓存先展示、后台去重刷新、失败可恢复且不阻塞主线程
+- 一级类别 → 二级类别 → 可点击叶节点详情是否完整可达
+- 最近新增/更新的日记和记忆是否在刷新后可见
+- 心流单卡片的轻动作是否可选、有正反馈且忽略无惩罚
 
 不得仅凭代码风格偏好创建产品缺陷。非行为问题放入 `observations`。
 
@@ -145,7 +147,7 @@ python3 -m app.evaluation.runner
 若涉及 Web/JS/SSE：`python3 -m app.evaluation.check_sse_stream`
 Runner 失败时：`python3 -m app.evaluation.diagnose`
 
-涉及 Swift/Mac 变更时，还必须尝试目标 Mac scheme 的 Xcode/`xcodebuild` 构建，并记录 scheme、destination、命令和退出码。性能结论必须包含复现场景、数据规模和前后证据；无法取得时标为 `pending_manual_validation` 或 `blocked`。记录每条命令、开始时间、耗时和退出码到 commands.log。
+涉及 Swift/Mac 变更时，还必须尝试 Mac Catalyst scheme 的 Xcode/`xcodebuild` 构建，并记录 scheme、destination、命令和退出码。性能结论必须包含复现场景、数据规模和前后证据；无法取得时标为 `pending_manual_validation` 或 `blocked`。`open` 命令本身不能证明应用稳定启动。记录每条命令、开始时间、耗时和退出码到 commands.log。
 
 ## 10. Issue 分类
 
@@ -171,8 +173,10 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
 
 ```json
 {
-  "schema_version": 1,
-  "protocol": "xiaodongwu-checker-fixer/v1",
+  "schema_version": 3,
+  "protocol": "xiaodongwu-automation/v3",
+  "prompt_revision": "2026-07-02-governance-1",
+  "schedule_slot_id": "checker-YYYYMMDD-HH",
   "message_type": "checker_report",
   "run_id": "checker-...",
   "generated_at": "ISO-8601 with +08:00",
@@ -237,3 +241,4 @@ HTML 与 JSON 一致，内联 CSS，按严重度着色，动态内容先 HTML es
 - 已释放锁（删除 lock 文件）
 - 未修改产品代码
 - 未持久化真实对话原文
+- 已拒绝重复 slot、旧协议和无效 index

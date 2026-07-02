@@ -13,7 +13,9 @@
 - worktree 路径：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`
 - 主分支名：`main`
 - 时区：`Asia/Shanghai`
-- 协议版本：`xiaodongwu-checker-fixer/v1`
+- 协议版本：`xiaodongwu-automation/v3`
+- Prompt revision：`2026-07-02-governance-1`
+- 当前产品平台：`mac_catalyst`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -23,6 +25,7 @@
 5. `docs/automation/automation-orchestration.md`
 6. `checker_runs.jsonl` 中所有尚未消费的 Checker 报告
 7. 每份报告引用的测试 diff 和 `test_commit`
+8. `docs/automation/activation-checklist.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -36,21 +39,26 @@
 2. 检查 worktree 是否已存在：`git worktree list | grep xiaodongwu-quality-loop`
 3. 确认 worktree 处于干净状态（无未提交修改）
 4. 所有产品代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
+5. 验证固定 cwd、branch、clean worktree；不符时状态为 `wrong_worktree`
 
 ### 2.3 自动同步主分支（每次运行必做）
-与 Checker 相同的同步逻辑：
+与 Checker 相同，使用 ancestry 四态分类：
 ```
-步骤 A：检查 main 是否领先
-  git merge-base --is-ancestor automation/quality-loop main
-  返回 0 → 在 worktree 中执行 git merge main --no-edit
-步骤 B：冲突时 abort 并报告 blocked
+equal → 继续
+automation 是 main 祖先 → main_ahead，merge main
+main 是 automation 祖先 → quality_loop_ahead，正常继续
+互不为祖先 → diverged，停止并报告
 ```
+
+`quality_loop_ahead` 不是冲突。Git 同步不是产品 issue，不得为此产生产品修复 commit。
 
 ### 2.4 读取 State
 读取 `eval_reports/agent_handoffs/state/fixer_state.json`：
 ```json
-{ "schema_version": 1, "last_fixer_run_id": "fixer-...", "processed_checker_run_ids": [], "updated_at": "ISO-8601" }
+{ "schema_version": 3, "protocol": "xiaodongwu-automation/v3", "prompt_revision": "2026-07-02-governance-1", "last_run_id": "fixer-...", "processed_checker_run_ids": [], "updated_at": "ISO-8601" }
 ```
+
+旧 state 必须按激活清单迁移。逐行验证 Checker index；无效 JSONL 时 `invalid_index` 并停止。
 
 ## 3. 角色边界（严格）
 
@@ -103,6 +111,8 @@ Fixer 不得标记 `resolved`，只有 Checker 验证后可以关闭。
 - Mac 性能修复必须先有稳定复现和基线，修复后用同场景复测
 - Mac 数据展示修复必须依据 `SQLite/API → model → store → view` 映射，不臆造字段
 - 心流/夜谈修复保持信息克制，不能用额外弹窗或高频提醒掩盖交互问题
+- 当前平台固定为 Mac Catalyst，不创建原生 AppKit 路线
+- 数据同步遵循“Python 后端权威源 + Mac 沙盒 SQLite 缓存 + API 自动刷新”，不得让两个进程共享活动数据库文件
 - 心理陪伴回复不诊断、不越界
 
 多个 issue 共享根因时可一次修复，但必须逐个回填 disposition。
@@ -147,8 +157,10 @@ fixer_run_id：`fixer-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
 
 ```json
 {
-  "schema_version": 1,
-  "protocol": "xiaodongwu-checker-fixer/v1",
+  "schema_version": 3,
+  "protocol": "xiaodongwu-automation/v3",
+  "prompt_revision": "2026-07-02-governance-1",
+  "schedule_slot_id": "fixer-YYYYMMDD-05",
   "message_type": "fixer_response",
   "fixer_run_id": "fixer-...",
   "source_checker_run_ids": [],
@@ -214,3 +226,4 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 - 已更新 LATEST、state、index
 - 已释放锁（删除 lock 文件）
 - 未 push、未合并到 main
+- 未把 Roadmap 功能、Git 同步或平台迁移当作 Checker 缺陷修复

@@ -10,7 +10,9 @@
 - 产品原则：`docs/product_principles.md`
 - 主分支名：`main`
 - 时区：`Asia/Shanghai`
-- 协议版本：`xiaodongwu-pm-executor/v2`
+- 协议版本：`xiaodongwu-automation/v3`
+- Prompt revision：`2026-07-02-governance-1`
+- 当前产品平台：`mac_catalyst`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -24,6 +26,7 @@
 9. `eval_reports/agent_handoffs/indexes/fixer_runs.jsonl` 最新 1 条
 10. `docs/automation/automation-orchestration.md`
 11. PM 自身 state 和上一期报告
+12. `docs/automation/activation-checklist.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -33,13 +36,31 @@
 
 注意：PM 与 Checker/Fixer/Executor 共用同一分支和 Git worktree。即使修改的文件类型不同，也不得并发执行 Git merge、暂存或提交。
 
-### 2.2 读取 State
-读取 `eval_reports/agent_handoffs/state/pm_state.json`：
-```json
-{ "schema_version": 2, "last_pm_run_id": "pm-...", "last_requirements_commit": "SHA or null", "executor_tasks_issued": [], "updated_at": "ISO-8601" }
+### 2.2 运行时与 Worktree 预检
+
+在任何报告或文档写入前：
+
+1. 验证调度器提供了唯一 `schedule_slot_id`，且该 slot 尚无成功 run。
+2. 验证当前 Prompt 的协议和 revision 与本文件一致。
+3. 切换到固定自动化 worktree，并验证：
+
+```bash
+test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop"
+test "$(git branch --show-current)" = "automation/quality-loop"
+test -z "$(git status --porcelain)"
 ```
 
-若文件不存在，创建初始状态文件。
+任何一项失败都生成治理拒绝报告并退出。不得在主工作区修改或提交 `status.md` / `TODO.md`。
+
+按编排协议进行 Git ancestry 分类。`quality_loop_ahead` 是正常状态；`diverged` 才需要人工处理。Git 同步不得生成 Executor 产品任务。
+
+### 2.3 读取 State
+读取 `eval_reports/agent_handoffs/state/pm_state.json`：
+```json
+{ "schema_version": 3, "protocol": "xiaodongwu-automation/v3", "prompt_revision": "2026-07-02-governance-1", "last_run_id": "pm-...", "processed_run_ids": [], "issued_task_keys": [], "updated_at": "ISO-8601" }
+```
+
+若文件不存在，创建初始状态文件。若为 v1/v2，只能按激活清单迁移；不得一边读取旧字段一边输出 v3。
 
 ## 3. 角色边界（严格）
 
@@ -58,6 +79,7 @@
 - 不得修改安全策略或危机回复逻辑
 - 不得修改通信协议文件（`docs/automation/automation-orchestration.md`、Checker/Fixer Prompt）
 - 不得修改 `ROADMAP.md` 或 `plan.md`，不得自行新增产品方向；发现冲突时写入 `notes_for_human_pm`
+- 不得从代码片段推断平台或架构方向。当前方向固定为 Mac Catalyst；方向文件未明确的事项必须 `needs_human`
 - 不得执行 `git reset --hard`、强制推送、覆盖用户未提交修改
 - 不得读取 `.env` 中的密钥
 - 不得把真实对话原文写入任何输出
@@ -80,6 +102,7 @@
 - 识别新增技术债务或风险
 - 分析 Checker/Fixer 报告中的高频问题模式（同一模块多次出现 issue）
 - 对比当前代码状态与 Mac 主线一致性；Web/Python 只作为兼容和数据契约基础
+- 核对最新 Executor 报告是否已经被 Checker 独立复验，未经复验不得写成“已完成”
 
 ### 4.3 需求与规划整理
 - 只使用已写入 `ROADMAP.md` / `plan.md` 的用户确认需求，不从私人对话或数据库原文推断新方向
@@ -87,7 +110,7 @@
 - 确定本日/本周应推进的功能优先级（高：阻塞或阶段核心；中：阶段内优化；低：后续阶段预备）
 
 ### 4.4 生成当期任务详情
-针对当前阶段最优先的 1 个小任务，在当期 `pm_report.md` 中撰写任务详情。必须包含：
+针对当前阶段最优先的 0 或 1 个小任务，在当期 `pm_report.md` 中撰写任务详情。其他建议只能进入 `backlog_observations`。任务必须包含：
 - **功能背景与目标**：解决什么问题，服务哪个 Roadmap 阶段
 - **用户场景**：具体使用情境
 - **功能范围（做/不做）**：明确边界，防止范围蔓延
@@ -96,11 +119,12 @@
 - **验收标准**：可验证的完成条件，对应 plan.md 中的验收项
 - **依赖项和风险**：阻塞项、技术债务、安全/隐私影响
 - **Mac 专项信息**：`workstream`、目标页面、数据来源、非目标、需要的 Xcode/性能/真实数据证据
+- **执行边界**：`allowed_paths`、`requires_human`、全局唯一 `task_id` 和 `task_key`
 
 ## 5. 生成协调指令
 
 生成给 Executor Agent 的协调指令 `coordination.json`，包含：
-- 今日推荐任务列表（最多 1 个）
+- `today_tasks` 长度只能是 0 或 1；不得把后续任务或依赖任务一起放入数组
 - 每个任务引用当期 `pm_report.md` 章节，并包含验收标准、依赖和证据要求
 - 明确禁止执行的任务（如涉及安全策略变更、未经验证的架构调整）
 - 对 Checker/Fixer 报告中需要产品决策的问题给出处理建议（`needs_human` 的建议、可自动修复的确认）
@@ -130,8 +154,10 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
 
 ```json
 {
-  "schema_version": 2,
-  "protocol": "xiaodongwu-pm-executor/v2",
+  "schema_version": 3,
+  "protocol": "xiaodongwu-automation/v3",
+  "prompt_revision": "2026-07-02-governance-1",
+  "schedule_slot_id": "pm-YYYYMMDD-01",
   "message_type": "pm_report",
   "pm_run_id": "pm-...",
   "generated_at": "ISO-8601 with +08:00",
@@ -139,7 +165,7 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
   "main_head": "SHA",
   "status": "plan_updated | no_change | blocked | needs_human",
   "project_snapshot": {
-    "roadmap_phase": "Mac M0-M4",
+    "roadmap_phase": "G0 + Mac M0-M5",
     "plan_target": "...",
     "todo_completed_count": 25,
     "todo_in_progress_count": 1,
@@ -160,19 +186,22 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
     "target": "executor",
     "today_tasks": [
       {
-        "task_id": "PM-T-001",
+        "task_id": "pm-<run_id>-t01",
+        "task_key": "<pm_run_id>/pm-<run_id>-t01",
         "title": "...",
         "requirement_ref": "pm_report.md#今日任务详情",
         "workstream": "performance | data_ui | flow_chat",
-        "target_platform": "mac",
+        "target_platform": "mac_catalyst",
         "target_surface": [],
         "data_source": [],
         "non_goals": [],
         "evidence_required": [],
+        "allowed_paths": [],
         "priority": "high | medium | low",
         "estimated_scope": "small | medium | large",
         "acceptance_criteria": [],
         "dependencies": [],
+        "requires_human": false,
         "forbidden": false,
         "reason_if_forbidden": ""
       }
@@ -194,12 +223,15 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
 
 ```json
 {
-  "schema_version": 2,
-  "protocol": "xiaodongwu-pm-executor/v2",
+  "schema_version": 3,
+  "protocol": "xiaodongwu-automation/v3",
+  "prompt_revision": "2026-07-02-governance-1",
   "message_type": "pm_coordination",
   "source_pm_run_id": "pm-...",
+  "schedule_slot_id": "pm-YYYYMMDD-01",
   "generated_at": "ISO-8601 with +08:00",
   "today_tasks": [],
+  "backlog_observations": [],
   "blocked_tasks": [],
   "notes_for_human_pm": ""
 }
@@ -226,6 +258,7 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 - message：`docs(pm): daily plan update <pm_run_id>`
 - 提交到 worktree 的 `automation/quality-loop` 分支
 - 不 push、不合并到 main
+- 提交前再次验证 cwd、branch 和 staged paths；任一不符则不提交
 
 ## 10. 结束条件
 
@@ -236,6 +269,8 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 - 已生成 JSON/MD/HTML 报告
 - 已更新 index 和 state
 - 已释放锁（删除 lock 文件）
+- `today_tasks` 长度 <= 1，且 task key 未在历史中出现
+- 报告写入真实时间，不得使用未来时间或预设调度时间冒充生成时间
 - 未修改产品实现代码
 - 未修改测试代码
 - 未修改通信协议文件

@@ -6,7 +6,7 @@ This repository contains the Python stdlib backend/Web demo and the SwiftUI Appl
 
 - 核心目标：帮用户整理情绪、身体感受、内在冲突和关系模式，形成稳定、温和、可追溯的长期记忆。
 - 非目标：不做诊断，不替代心理咨询、精神科治疗或危机干预。
-- 当前开发主线：Mac 应用体验整合与稳定化，核心是“心流 ↔ 夜谈互融 + 性能鲁棒性 + 数据/UI 完整性”。
+- 当前开发主线：Mac Catalyst 应用体验整合与稳定化，核心是“自动同步 + 性能鲁棒性 + 数据/UI 完整性 + 心流/夜谈轻互动”。
 - Web/Python 当前作为数据、模型和兼容性基线维护，不主动扩展无关功能。
 
 ---
@@ -24,6 +24,7 @@ This repository contains the Python stdlib backend/Web demo and the SwiftUI Appl
 - `ios/XiaodongwuYetanhui/` contains the SwiftUI app currently used for the Mac product direction.
 - `docs/`, `TODO.md`, and `ROADMAP.md` document product direction and implementation notes.
 - Runtime files live in `data/app.db` and `logs/app.log`; avoid committing private data.
+- Python 后端 `data/app.db` 是当前权威数据源；Mac App 沙盒数据库是缓存。不得让两个进程持续共享读写同一个活动数据库文件。
 
 ---
 
@@ -77,12 +78,13 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - 综合通过率必须 >= 95%。
 - `accuracy`、`robustness`、`completeness`、`functional`、`api_resilience`、`framework` 六个关键维度必须 100%。
 - 任一测试套件执行异常都视为失败，不允许以 0 项跳过。
-- 最近记录基线：262 个检查中通过 262 个，综合通过率 100%（2026-07-02）。
+- main 最近记录基线为 262/262；automation 分支后续报告出现 270/271。合并或宣称稳定前必须在同一 commit 上重跑并记录唯一基线。
 
 ### Gate M0：Mac 构建门控
 
-- 所有 Swift/Mac 改动必须记录 scheme、destination、构建命令和退出码。
+- 当前平台固定为 Mac Catalyst。所有 Swift/Mac 改动必须记录 scheme、Catalyst destination、构建命令和退出码。
 - 无 Xcode 或目标 Mac 能力时状态为 `blocked`，不得以 Python Gate 代替。
+- `xcodebuild` 只证明构建；声称启动成功还需进程存活或日志证据。
 
 ### Gate M1：Mac 体验与性能门控
 
@@ -140,7 +142,8 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 | 角色 | 可以修改 | 禁止修改 |
 |------|---------|---------|
 | Test / Checker Agent | `app/evaluation/**`、测试 fixture、测试报告 | 产品实现、Prompt、iOS 产品代码 |
-| Product / Fixer / Executor Agent | 产品实现和必要产品文档 | `app/evaluation/**`、测试、fixture、case |
+| Product / Fixer Agent | 仅修复 Checker 已复现的产品缺陷 | `app/evaluation/**`、Roadmap 功能、测试 |
+| Product / Executor Agent | 仅执行 PM 下发的一个产品任务 | `app/evaluation/**`、规划、自动化协议、测试 |
 | Product Manager Agent | `status.md`、`TODO.md` 的授权区域和交接报告 | 产品代码、测试、`ROADMAP.md`、`plan.md`、自动化协议 |
 
 - Checker 可以只读访问 `data/app.db` 生成私有评估或脱敏/合成测试，但不得持久化真实对话原文。
@@ -149,11 +152,14 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - Checker 报告、Fixer 回执和复验结果使用 `docs/automation/` 中定义的通信协议。
 - Checker 负责关闭 issue；Fixer 只能标记为 `fixed_pending_verification`。
 - Checker 每 6 小时追加一份独立报告；Fixer 每天按 index + cursor 批量消费所有未处理报告，禁止只读取 `LATEST_CHECKER.json`。
-- 双方使用持久分支 `automation/quality-loop` 串行提交，调度器负责互斥，不增加第三个智能 Agent。
+- 四个 Agent 使用持久分支 `automation/quality-loop` 串行提交，调度器负责互斥，不增加第五个常驻智能 Agent。
+- 运行时协议必须是 `xiaodongwu-automation/v3`，Prompt revision 必须是 `2026-07-02-governance-1`。
+- 仓库 Prompt 改动不会自动更新已保存的定时任务；激活步骤见 `docs/automation/activation-checklist.md`。
 
 完整 Prompt：
 
 - `docs/automation/automation-orchestration.md`
+- `docs/automation/activation-checklist.md`
 - `docs/automation/checker-agent-prompt.md`
 - `docs/automation/product-fixer-agent-prompt.md`
 - `docs/automation/product-manager-agent-prompt.md`
