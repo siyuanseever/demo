@@ -11,6 +11,10 @@ Mac 应用体验整合与稳定化：M0 基线与盘点。
 
 当前主线已经从 Web demo 完善切换为 Mac 应用。Web/Python 保留为数据和兼容性基线。
 
+### 分支状态
+
+- **automation/quality-loop 与 main 分歧**: 自动化分支与主分支发生分歧，Fixer 已阻塞。需人工确认合并策略。
+
 ---
 
 ## 工程基线
