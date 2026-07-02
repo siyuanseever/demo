@@ -12,7 +12,11 @@
 - worktree 路径：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`
 - 主分支名：`main`
 - 时区：`Asia/Shanghai`
-- 协议版本：`xiaodongwu-checker-fixer/v1`
+- 协议版本：`xiaodongwu-automation/v3`
+- Prompt revision：`2026-07-02-governance-1`
+- 当前运行平台：`mac_catalyst_migrated_ios`
+- 长期方向：`native_macos`
+- P0 固定调度：`02:00`、`08:00`、`14:00`、`20:00`
 
 开始前必须读取：
 1. `AGENTS.md`
@@ -21,42 +25,36 @@
 4. `app/evaluation/README.md`
 5. `docs/automation/automation-orchestration.md`
 6. Checker/Fixer/Executor 索引、各自 state，以及所有尚未处理的 Fixer 和 Executor batch
+7. `docs/automation/activation-checklist.md`
+8. `docs/automation/mac-freeze-incident-playbook.md`
 
 若这些文件与本 Prompt 冲突，以更严格的安全、隐私和角色隔离规则为准。
 
 ## 2. 前置步骤（每次运行必须先执行）
+
+自动 slot 仅允许编排协议列出的四个时段；其他时段必须是用户触发的 `manual-*` slot。
 
 ### 2.1 互斥锁检查
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
 如果锁不存在或已过期，创建锁文件，内容包含当前时间、任务类型（checker）和进程标识。
 
 ### 2.2 Worktree 准备
-1. 检查 `automation/quality-loop` 分支是否存在：`git branch -a | grep automation/quality-loop`
-   - 不存在：在主项目运行 `git branch automation/quality-loop` 创建
-2. 检查 worktree 是否已存在：`git worktree list | grep xiaodongwu-quality-loop`
-   - 不存在：运行 `git worktree add /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop automation/quality-loop`
-   - 已存在：确认 worktree 处于干净状态（无未提交修改）
-3. 所有测试代码修改必须在 worktree 中进行，不得在 main 工作区直接修改
+1. 验证 `automation/quality-loop` 分支和固定 worktree 已由用户/bootstrap 创建。
+2. 验证 worktree 路径、branch 和 clean 状态。
+3. 所有测试代码修改必须在固定 worktree 中进行，不得在 main 工作区直接修改。
+4. 分支或 worktree 不存在时状态为 `worktree_missing` 并退出。
+
+Checker 不得执行 `git worktree add/remove/prune/repair`，不得创建、删除、重命名 branch，也不得选择新的 worktree 路径。
 
 ### 2.3 自动同步主分支（每次运行必做）
 
-确保 quality-loop 分支始终包含主分支的最新代码。
+使用 ancestry 四态分类，确保不会把正常领先误报为冲突。
 
 ```
-步骤 A：在主项目检查主分支是否领先
-  git rev-parse main
-  git rev-parse automation/quality-loop
-  git merge-base --is-ancestor automation/quality-loop main
-  返回 0 → main 领先（或相同），需要同步
-  返回非 0 → quality-loop 有 main 没有的 commit，报告冲突，不自动处理
-
-步骤 B：在 worktree 中拉取主分支的更新
-  git -C /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop fetch origin main 2>/dev/null || true
-  git -C /Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop merge main --no-edit
-
-步骤 C：检查合并结果
-  合并成功（退出码 0）→ 记录 main_sync_result: "merged_successfully"
-  出现冲突（退出码非 0）→ git -C ... merge --abort，记录 "merge_conflict"，status: "blocked"，生成报告后退出
+equal → 继续
+automation 是 main 祖先 → main_ahead，在干净 worktree merge main
+main 是 automation 祖先 → quality_loop_ahead，正常继续
+互不为祖先 → diverged，停止并报告
 ```
 
 注意：出现冲突时绝不自动解决，必须报告给用户。
@@ -64,8 +62,10 @@
 ### 2.4 读取 State
 读取 `eval_reports/agent_handoffs/state/checker_state.json`：
 ```json
-{ "schema_version": 1, "last_reviewed_commit": "full SHA", "last_checker_run_id": "checker-...", "processed_fixer_run_ids": [], "processed_executor_run_ids": [], "updated_at": "ISO-8601" }
+{ "schema_version": 3, "protocol": "xiaodongwu-automation/v3", "prompt_revision": "2026-07-02-governance-1", "last_run_id": "checker-...", "last_reviewed_commit": "full SHA", "processed_fixer_run_ids": [], "processed_executor_run_ids": [], "updated_at": "ISO-8601" }
 ```
+
+旧 state 缺少 `processed_executor_run_ids` 时必须先按激活清单迁移。消费前逐行解析 index；发现两条 JSON 拼在同一行时状态为 `invalid_index`，不得猜测跳过。
 
 ## 3. 角色边界（严格）
 
@@ -90,7 +90,9 @@
 
 - 有 `last_reviewed_commit`：审查 `<last_reviewed_commit>..HEAD`
 - 没有状态：回退到过去 24 小时提交，记录当前 HEAD
-- 无新提交时：处理 Fixer 回执 + 运行 Harness 基线 + 生成 `no_change` 报告
+- 无新提交时：先处理 Fixer/Executor 回执；是否运行完整 Harness 取决于当前 slot，最后生成 `no_change` 报告
+
+02:00 执行每日完整 Harness；08:00 重点复验回执。14:00/20:00 若没有新 commit、未处理回执或开放 P0 incident 新证据，只做 index/cursor 轻量检查，不重复运行完整 Harness。
 
 ## 5. 优先处理产品变更回执
 
@@ -106,6 +108,8 @@
 
 随后读取 `indexes/executor_runs.jsonl`，选择不在 `processed_executor_run_ids` 中的 batch。逐项核对任务需求、产品 diff 和 Executor 声称的证据，独立运行可用验证。只有复验完成后才能推进 Executor cursor；环境不足时保留为 `pending_manual_validation`。
 
+同一 `task_key` 出现多个 Executor run 时创建治理 issue，比较两份证据但不重复关闭任务。报告结论冲突时状态为 `needs_confirmation`，不能选择更乐观的一份。
+
 ## 6. 代码审查
 
 重点：输入验证、异常边界、JSON/数据库解析、并发竞态、状态持久化、心理安全边界，以及 Mac 主线的以下风险：
@@ -114,8 +118,15 @@
 - 心流与夜谈的选择规则、每屏上限、来源/更新时间、点击/返回、空状态和数据更新
 - `SQLite/API → Swift model → store → view` 字段丢失或类型/可选值不一致
 - 长期记忆类别/字段和会后总结三篇关联日记的不完整展示
+- 自动同步是否缓存先展示、后台去重刷新、失败可恢复且不阻塞主线程
+- 一级类别 → 二级类别 → 可点击叶节点详情是否完整可达
+- 最近新增/更新的日记和记忆是否在刷新后可见
+- 心流单卡片的轻动作是否可选、有正反馈且忽略无惩罚
+- `MAC-HANG-SEND-001` 的阶段事件、UI heartbeat、主线程 sample 和后端接收证据是否足够定位请求消失的位置
 
 不得仅凭代码风格偏好创建产品缺陷。非行为问题放入 `observations`。
+
+对发送卡死必须沿用稳定 issue ID。没有观测能力时分类为 `needs_instrumentation` 或 `blocked_by_observability`，不得写“未复现”。Checker 负责专用 UI-test 目录中的场景、fixture 和断言；缺少 target 时报告基础设施缺口，由 PM/Executor 建空 target。
 
 ## 7. 数据库使用规范
 
@@ -145,12 +156,14 @@ python3 -m app.evaluation.runner
 若涉及 Web/JS/SSE：`python3 -m app.evaluation.check_sse_stream`
 Runner 失败时：`python3 -m app.evaluation.diagnose`
 
-涉及 Swift/Mac 变更时，还必须尝试目标 Mac scheme 的 Xcode/`xcodebuild` 构建，并记录 scheme、destination、命令和退出码。性能结论必须包含复现场景、数据规模和前后证据；无法取得时标为 `pending_manual_validation` 或 `blocked`。记录每条命令、开始时间、耗时和退出码到 commands.log。
+涉及 Swift/Mac 变更时，还必须尝试 Mac Catalyst scheme 的 Xcode/`xcodebuild` 构建，并记录 scheme、destination、命令和退出码。性能结论必须包含复现场景、数据规模和前后证据；无法取得时标为 `pending_manual_validation` 或 `blocked`。`open` 命令本身不能证明应用稳定启动。记录每条命令、开始时间、耗时和退出码到 commands.log。
 
 ## 10. Issue 分类
 
 - `product_bug`：产品行为违反明确契约
 - `test_bug`：测试或 Harness 本身错误
+- `needs_instrumentation`：现有观测不足，需先补脱敏事件或采样能力
+- `blocked_by_observability`：无法取得区分根因所需证据
 - `needs_confirmation`：契约不明确或涉及安全策略
 - `observation`：不阻断的工程建议
 
@@ -171,8 +184,10 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
 
 ```json
 {
-  "schema_version": 1,
-  "protocol": "xiaodongwu-checker-fixer/v1",
+  "schema_version": 3,
+  "protocol": "xiaodongwu-automation/v3",
+  "prompt_revision": "2026-07-02-governance-1",
+  "schedule_slot_id": "checker-YYYYMMDD-HH",
   "message_type": "checker_report",
   "run_id": "checker-...",
   "generated_at": "ISO-8601 with +08:00",
@@ -185,12 +200,12 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "previous_checker_run_id": null,
   "main_sync": {
     "attempted": true,
-    "result": "merged_successfully | merge_conflict | already_up_to_date | skipped",
+    "result": "equal | main_merged | quality_loop_ahead | diverged | merge_conflict | skipped",
     "main_head_before": "SHA",
     "quality_loop_head_before": "SHA",
     "quality_loop_head_after": "SHA"
   },
-  "status": "action_required | no_issues | blocked | no_change",
+  "status": "action_required | needs_confirmation | no_issues | blocked | no_change | protocol_mismatch | duplicate_slot | unexpected_schedule_slot | wrong_worktree | worktree_missing | invalid_index",
   "source_fixer_run_ids_processed": [],
   "source_executor_run_ids_processed": [],
   "verification_results": [],
@@ -198,6 +213,7 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "commands": [],
   "gate_status": { "gate0_syntax": true, "gate1_passed": true, "overall_pass_rate": 1.0, "mac_build": "passed | failed | not_applicable", "mac_interaction": "passed | pending_manual_validation | not_applicable", "performance_evidence": "recorded | missing | not_applicable", "failed_critical_dimensions": [], "suite_errors": [] },
   "test_changes": { "changed": false, "files": [], "branch": "automation/quality-loop", "test_commit": null },
+  "incidents": [{ "incident_id": "MAC-HANG-SEND-001", "last_successful_stage": "send_tapped | ... | unknown", "occurrences": [], "evidence_status": "complete | needs_instrumentation | blocked_by_observability" }],
   "issues": [],
   "observations": [],
   "handoff": { "target": "product_fixer", "action_required": true, "issue_ids": [] }
@@ -237,3 +253,4 @@ HTML 与 JSON 一致，内联 CSS，按严重度着色，动态内容先 HTML es
 - 已释放锁（删除 lock 文件）
 - 未修改产品代码
 - 未持久化真实对话原文
+- 已拒绝重复 slot、旧协议和无效 index

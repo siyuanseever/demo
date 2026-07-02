@@ -1,98 +1,87 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-02（PM Agent 更新，第 2 轮）
+> 最后更新时间：2026-07-02（PM 每日扫描报告 pm-20260702T230000+0800-f425ce1）
 
 ---
 
 ## 当前阶段
 
-Mac 应用体验整合与稳定化：M0 基线与盘点。
+G0 自动化治理止血 + Mac Catalyst M0 基线与数据架构。
 
-当前主线已经从 Web demo 完善切换为 Mac 应用。Web/Python 保留为数据和兼容性基线。
-
-### 分支状态
-
-- **automation/quality-loop 领先 main**：分支分歧已由 Executor 解决（`3ee20e7` 合并 main）。当前 quality-loop 领先，串行状态恢复。
+当前运行版本是 iOS App 的 Mac Catalyst 迁移版，并非原生 macOS App。Web/Python 是权威数据和智能能力基础，Mac 沙盒 SQLite 是界面缓存。长期方向是分阶段迁移原生 macOS，但当前先处理可复现卡死。
 
 ---
 
-## 工程基线
+## 自动化实际状态
+
+当前不是“正常运行”，而是 **协议切换未生效**：
+
+- 审计时仓库 Prompt 已定义 v2，但最新 PM 输出仍为 v1；当前仓库已升级为 v3，仍需按激活清单更新实际定时任务。
+- PM 在同一天生成了多轮报告，并且每轮下发 3 个任务，违反“每日/每槽一个任务”。
+- Executor 对 `PM-TASK-004` 生成了两份报告，重复执行同一任务。
+- 两份 Executor 报告对应用启动状态分别写为“待人工验证”和“成功”，证据口径不一致。
+- PM 在 main 提交规划文档符合当前部署；需要验证它只暂存 `status.md` / `TODO.md`，不会夹带其他 Agent 的修改。
+- Checker state 尚无 `processed_executor_run_ids`，不能保证 Executor 回执只消费一次。
+- `checker_runs.jsonl` 存在记录未换行拼接，索引写入不够可靠。
+- 本轮治理编辑期间，运行中的其他 Agent 再次把 Web 修复和治理文档混合提交到 `main`（`f425ce1`），进一步证明新版 worktree、角色边界和单任务规则尚未在运行时生效。
+- 最新 PM 虽已降为单任务，但 `PM-TASK-009` 把自动化协议/state 修改交给 Executor，与 Executor 的禁止路径冲突；治理任务必须改为给用户/Codex的提醒。
+
+Git 当前真实状态：`automation/quality-loop` 正常领先 `main`，不是“分支分歧”。自动化分支领先属于正常状态，不应被 PM 创建为产品任务。
+
+---
+
+## 产品工程基线
 
 ### Python / Web
 
-| 指标 | 当前值 | 目标 |
-|---|---|---|
-| Gate 1 综合通过率 | **100%**（262/262） | >= 95% |
-| 失败 | 0 | 0 |
-| 关键维度 | accuracy / completeness / functional / api_resilience / framework / robustness 100% | 全部 100% |
-| 最近记录的验证 | `python3 -m compileall app`、`python3 -m app.evaluation.runner` | 保持通过 |
+- 最近报告的 Gate 结果存在 262/262 与 270/271 两种口径，需要 Checker 在同一 commit 上重新建立唯一基线。
+- `sync_token_empty_bypass_risk` 在不同报告中被同时写为已修复和仍失败，当前不得宣称 Gate 稳定。
 
-### Mac
+### Mac Catalyst
 
 | 指标 | 当前状态 |
 |---|---|
-| 首轮三主线实现 | 已提交：`9c08a7a` |
-| 编译错误修复 | 已完成：`07db46d`（isDeleted、emotionCurve、saveTodayPlanItems） |
-| iOS 构建验证 | ✅ 已通过：`3ee20e7`（移除 app.db 资源引用） |
-| 原生 Mac 构建验证 | ❓ 待确认方向 + 执行 |
-| 关键路径性能基线 | 待补 |
-| 真实数据字段矩阵 | 待补 |
-| 双向互融端到端验收 | 待补 |
-| Mac 技术方向假设 | 原生 macOS（基于代码中 AppKit 修改推断） |
-
-> Python Gate 通过不构成 Mac 构建、性能或交互验收证据。
-
----
-
-## 已实现但待验收
-
-- **心流 ↔ 夜谈**：`CompanionGardenView` 已展示部分心流内容，`ChatView` 已加入 `FlowContextBar`。
-- **性能首轮修改**：`MemoryListView` / `StateOverviewView` 使用惰性列表；SQLite 增加事务和 SQL 层过滤；`contextMemories` 已优化。
-- **UI 内容首轮补齐**：`MemoryCard` 增加 subcategory / updatedAt；Journal 增加情绪曲线、insights、keywords；StateProfile 字段已复核。
-- **iOS 构建验证**：Executor 已完成 iOS Release 构建验证，移除了不存在的 app.db 资源引用。
-
-这些条目只表示代码已经存在，不表示目标 Mac 上已经构建、数据完整或性能达标。
+| Catalyst 构建 | 已通过（automation 分支证据） |
+| 启动持续存活/核心页面 | 报告互相矛盾，待独立复验 |
+| 卡死复现与性能 trace | 未完成 |
+| 单条消息发送后卡死、后端无请求 | P0，用户再次复现 |
+| 自动刷新 | 当前 `syncIfNeeded()` 不执行同步，仍依赖手动刷新 |
+| 数据权威边界 | 已在规划中确认，尚未实现验收 |
+| 字段矩阵 | 未完成 |
+| 记忆二级目录/叶节点详情 | 未完成 |
+| 最近更新日记/记忆入口 | 未完成 |
+| 心流单卡片轻互动 | 部分 UI 存在，完整交互未验收 |
 
 ---
 
 ## 当前 P0
 
-1. 确认原生 Mac 技术方向，完成 macOS target 构建验证，记录平台差异。
-2. 在原生 Mac 环境下对启动、页面切换、夜谈发送、长期记忆、心流页和同步建立性能基线。
-3. 建立 `SQLite / API → Swift model → Store → View` 字段矩阵。
-4. 用代表性脱敏数据检查长期记忆全部类别、核心字段、会后总结和三篇关联日记。
-5. 基于性能基线，复现并定位 `CompanionStore.load()`、`syncAllFromBackend`、数据库查询和视图计算中的卡顿。
+1. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。
+2. 停止 PM/Executor 小时级轮询，按 P0 调度表错峰运行。
+3. 验证 PM/main 的范围提交和三个代码 Agent 的固定 worktree 保护。
+4. Checker 在同一 automation HEAD 上复核 Catalyst 构建、Python Gate 和 Executor 证据。
+5. 建立卡死复现场景和六条关键路径性能基线。
+6. 为发送路径建立脱敏阶段事件、correlation ID、UI heartbeat 和 hang 采样方案。
+7. 完成自动刷新触发矩阵与数据字段矩阵。
+8. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
+9. 核对最近更新记忆/日记和三篇关联日记的可见性。
 
 ---
 
-## 已知问题与风险
+## 已确认的产品方向
 
-### 高优先级
-
-- Mac 应用存在卡死和点击反应缓慢，尚无统一复现场景和性能证据。
-- 原生 Mac 构建验证尚未完成，技术方向需最终确认。
-- 长期记忆类别/字段和三篇关联日记是否完整进入 UI 尚未经过字段矩阵验证。
-
-### 中优先级
-
-- 心流与夜谈已有初步入口，但选择规则、点击详情、来源、更新和空状态尚未完整验收。
-- `CompanionStore.load()` 异步化、`syncAllFromBackend` 批量事务和 `StateOverviewView` 计算缓存仍待基线支持后决定。
-- Fixer 上一轮因 worktree 路径和分支问题阻塞，需下一轮验证是否恢复。
-
-### 暂缓
-
-- Web 记忆混合检索、session 继续策略、角色统计和 README 截图。
-- 移动端语音、账号、支付、云同步和新互动内容。
+- 当前实现：Mac Catalyst 迁移版；长期方向：原生 macOS 分阶段迁移。
+- 数据：Python 后端为权威源；Mac 沙盒数据库为缓存。
+- 同步：启动、回前台、写入完成和后端恢复时自动刷新；手动按钮只作兜底。
+- 心流：主界面/夜谈最多显示一张轻量卡片。
+- 行动：每卡最多一个可选点击；点击有即时正反馈并记录，不点击无负担。
+- 记忆：一级目录、二级目录、可点击叶节点详情必须完整可达。
 
 ---
 
-## 下一步
+## 暂缓 / 有门槛的后续
 
-1. 完成原生 Mac 构建验证（M0 首项），明确平台差异。
-2. 建立性能基线，用数据而非感觉评估卡顿问题。
-3. 完成字段矩阵盘点，确保数据不静默丢失。
-4. 按复现证据处理 M1 稳定性问题。
-5. 再完成 M2 双向互融的规则、导航和状态闭环。
-6. 完成 M3 长期记忆和关联日记的数据展示闭环。
-7. 使用脱敏真实数据进行 M4 人工体验验收。
+- 原生 macOS N1-N5 代码迁移：待发送卡死完成取证、共同逻辑稳定、N0 ADR 通过后启动。
+- 完全移除 Python 后端或同时维护 Swift/Python 两套权威业务逻辑。
+- Web 新功能、移动端语音、账号、支付、云同步和新小游戏。

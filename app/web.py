@@ -3231,10 +3231,10 @@ class Handler(BaseHTTPRequestHandler):
                 client_host = self.client_address[0] if self.client_address else ""
                 is_local = client_host in ("127.0.0.1", "localhost", "::1")
                 if not is_local:
-                    if not sync_token:
+                    if not sync_token or not sync_token.strip():
                         self.respond_json({"error": "sync is not configured on this Mac"}, status=503)
                         return
-                    if not supplied_token:
+                    if not supplied_token or not supplied_token.strip():
                         self.respond_json({"error": "sync token required"}, status=401)
                         return
                     if not secrets.compare_digest(supplied_token, sync_token):

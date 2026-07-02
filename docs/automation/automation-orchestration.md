@@ -1,199 +1,237 @@
-# 自动化 Agent 编排
+# 自动化 Agent 编排协议
 
-本文件定义调度和队列规则。它不是第三个智能 Agent；调度器只负责定时、互斥、传递 run ID 和维护 cursor，不做代码判断。
+本文件定义 PM、Executor、Checker、Fixer 四个 Agent 的运行时契约。调度器只负责定时、互斥和唤起，不做产品判断，也不作为第五个智能 Agent。
 
-## 推荐频率
+## 1. 当前协议
 
-时区统一为 `Asia/Shanghai`：
+- 协议：`xiaodongwu-automation/v3`
+- Prompt revision：`2026-07-02-governance-1`
+- 时区：`Asia/Shanghai`
+- 当前运行平台：iOS App 的 Mac Catalyst 迁移版
+- 长期平台方向：原生 macOS，按 Roadmap N0-N5 分阶段迁移
+- 自动化分支：`automation/quality-loop`
+- 自动化 worktree：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`
+- 主工作区：`/Users/liangsiyuan/work/agent/demo`
+- 共享交接目录：`/Users/liangsiyuan/work/agent/demo/eval_reports/agent_handoffs`
 
-| 任务 | 时间 | 说明 |
+任何 Agent 的运行时 Prompt、输入消息或 state 不是 v3/revision 不一致时，必须生成 `protocol_mismatch` 报告并退出，不能“兼容执行”。
+
+## 2. 调度频率
+
+当前处于 P0 incident 模式：
+
+| Agent | 固定时间 | 每个 slot 的工作 |
 |---|---|---|
-| PM | 01:00 | 每日扫描项目、核对 Mac 主线、生成一项协调指令 |
-| Checker | 02:00、08:00、14:00、20:00 | 每 6 小时增量审查、写测试、运行可用 Harness |
-| Fixer | 05:00 | 每天批量消费上次 Fixer 之后的所有 Checker run |
-| Executor | 06:00 | 读取 PM 协调指令、执行开发任务、提交产品代码 |
+| PM | 01:00 | 每天一次扫描方向和证据，最多下发 1 个任务 |
+| Checker | 02:00 | 每日完整增量审查和 Harness |
+| Fixer | 04:00、10:00、16:00、22:00 | P0 期间每 6 小时处理一次新 Checker 缺陷 |
+| Executor | 06:00 | 原子领取并执行 1 个 PM 任务 |
+| Executor retry | 18:00 | 只重试明确 `retryable` 的同一任务，或执行用户批准的紧急任务；不得重复 completed task |
+| Checker | 08:00 | 优先复验 Fixer/Executor 回执 |
+| Checker | 14:00、20:00 | 有新提交则增量检查；无变化只写轻量 no_change |
 
-调度逻辑：
-- 01:00 PM 生成晨间报告和今日任务规划
-- 02:00 Checker 进行常规质量检查（验证前一天修改）
-- 05:00 Fixer 批量修复 Checker 发现的问题
-- 06:00 Executor 读取 PM 协调指令并执行开发任务
-- 08:00 Checker 验证 Executor 的修改
+`schedule_slot_id` 格式：`<role>-YYYYMMDD-HH`。同一 role + slot 只能成功创建一个 run。发现 slot 已存在时写 `duplicate_slot` 调度记录并退出，不生成第二份正式报告。
 
-这样 Fixer 每次通常消费前一天 08:00、14:00、20:00 和当天 02:00 四轮结果；08:00 Checker 会优先验证 05:00 Fixer 的修复和 06:00 Executor 的提交。
+稳定模式（`MAC-HANG-SEND-001` 已关闭且连续 7 天无 high issue）：
 
-高风险 issue 可以立即通知用户，但默认不额外触发 Fixer，避免并发修改。若以后需要紧急修复，应由确定性调度器增加一次性 Fixer 任务，而不是新增第三个 LLM Agent。
+- PM：每天 1 次；
+- Executor：每天 1 次或由新 PM task 事件触发；
+- Checker：每 12 小时 1 次；
+- Fixer：每天 1 次，无新 product issue 时快速 no-op。
 
-## 持久集成分支
+禁止 PM 或 Executor 每小时轮询。小时级运行不会增加有效开发量，只会增加重复报告、stale task、Git 同步和 token 消耗。
 
-自动化使用一个串行分支和一个固定 worktree：
+高风险问题只通知用户，不临时唤起另一个智能 Agent。需要加跑时，由用户或确定性调度器创建带唯一 slot ID 的一次性任务。
 
-- branch：`automation/quality-loop`
-- worktree：`/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop`（在 TRAE 操作白名单内）
+## 3. 激活前提
 
-Checker、Fixer、PM 和 Executor 轮流在该分支提交。当前产品方向以 `ROADMAP.md` 和 `plan.md` 中的 Mac 主线为准；自动化 Agent 不得自行切回 Web 主线或扩展新的产品方向。
+仓库文件不会自动改变 TRAE/Codex 中已经保存的定时任务 Prompt。每个定时任务必须：
 
-```text
-产品基线
-  → PM 规划文档 commit（status.md、TODO.md）
-  → Checker 测试 commit
-  → Checker 测试 commit
-  → Fixer 产品 commit
-  → Executor 产品 commit（按 PM 协调指令开发）
-  → Checker 复验/测试 commit
-```
+1. 使用对应 Prompt 文件的完整内容，或使用一个只负责读取对应文件并严格执行的 launcher；
+2. 在首行固定声明 v3 和 prompt revision；
+3. 把实际 `protocol`、`prompt_revision`、`schedule_slot_id` 写入报告；
+4. 通过一次 dry run 后才恢复自动提交。
 
-角色隔离由每个 commit 的路径白名单保证，而不是为每轮创建互不相连的 branch。这样一天四轮测试不会产生四条无法汇合的分支。
+具体步骤见 `docs/automation/activation-checklist.md`。
 
-各 Agent 的 commit 路径白名单：
-- PM：`status.md`、`TODO.md`（人类可读规划文档）
-- Checker：`app/evaluation/**`、`eval_reports/agent_handoffs/**`
-- Fixer：`app/**`（不含 evaluation）、`ios/**`、`docs/**`（不含 automation 协议和规划文档）
-- Executor：`app/**`（不含 evaluation）、`ios/**`、`docs/**`（不含 automation 协议和规划文档）
+## 4. 工作区与强制 Preflight
 
-### 合并到 main
+工作区模型：
 
-所有自动化 Agent（PM、Executor、Checker、Fixer）都**不合并到 main、不 push**。合并由用户手动执行：
+- PM 在主工作区 `main` 运行，只允许修改并提交 `status.md`、`TODO.md`；handoff 直接写共享目录且不提交。
+- Executor、Checker、Fixer 只在固定 automation worktree/branch 运行。
+- worktree 和 automation branch 的创建、删除、修复只归用户或一次性 bootstrap 工具，不归四个 Agent。
+
+四个 Agent 在任何读取队列、修改文件或运行验证之前都必须完成：
+
+1. 获取共享锁 `/private/tmp/xiaodongwu-quality-loop.lock`。
+2. 验证当前时间与 `schedule_slot_id` 的偏差不超过 10 分钟；人工 dry run 可使用 `manual-*` slot。
+3. 验证 Prompt revision 和输入协议。
+4. 验证自己所在的工作区和分支符合角色要求。
+5. Executor、Checker、Fixer 执行 Git 关系分类；PM 跳过。
+6. 验证自己的 state schema；不匹配时迁移或 `blocked`，不得混用字段。
+7. 验证对应 index 每一行都是独立合法 JSON。
+
+Executor、Checker、Fixer 必须在自动化 worktree 中执行：
 
 ```bash
-# 在主工作区
-git merge automation/quality-loop --no-ff
+test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/.trae-cn/work/6a44adb20787131fb56cfca1/xiaodongwu-quality-loop"
+test "$(git branch --show-current)" = "automation/quality-loop"
+test -z "$(git status --porcelain)"
 ```
 
-同步主分支（main → quality-loop）时只允许：
-- 自动化 worktree 干净
-- 能够 fast-forward 或由用户批准普通 merge
-- 出现冲突时停止并报告，不自动 rebase、不覆盖用户修改
+PM 必须在主工作区执行：
 
-## 互斥
+```bash
+test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/work/agent/demo"
+test "$(git branch --show-current)" = "main"
+```
 
-调度器启动任务前获取共享锁；锁已存在时，本轮写入 `skipped_due_to_lock` 调度记录并退出。
+PM 不要求整个 main 干净，但 `status.md`、`TODO.md` 必须没有用户未提交修改。PM 只能显式暂存这两个文件，不得使用 `git add -A` 或 `git add .`。提交前 staged path 必须严格等于本轮实际修改的允许文件。
 
-- **共享 worktree 锁**：`/private/tmp/xiaodongwu-quality-loop.lock`
-  - 共享者：PM、Checker、Fixer、Executor
-  - 四者会在同一分支/worktree 读写或提交，全部必须互斥。文件类型不同不代表 Git index、HEAD 和 merge 操作可以安全并发。
+所有涉及 commit、merge 或 branch/worktree 元数据的操作使用共享 Git 锁 `/private/tmp/xiaodongwu-git.lock`，避免 PM 提交 main 与其他 Agent 同时 merge main。
 
-锁必须包含启动时间、任务类型和进程标识，并设置陈旧锁处理策略（30 分钟过期）。Agent 自己不得强行删除无法确认归属的锁。
+### Worktree 生命周期保护
 
-## 目录和队列
+四个 Agent 均严格禁止：
+
+- `git worktree add/remove/prune/repair`；
+- 创建、删除、重命名 `automation/quality-loop`；
+- worktree 缺失时自行选择新路径或新 branch；
+- 删除其他 Agent 的 lock、state 或未提交文件。
+
+固定 worktree 不存在、路径不匹配或 branch 不存在时，状态必须为 `worktree_missing`，只生成报告并通知用户。
+
+## 5. Git 关系分类
+
+以 `main` 和 `automation/quality-loop` 的真实 ancestry 分类：
+
+- 两者相同：`equal`，继续。
+- `automation/quality-loop` 是 `main` 的祖先：`main_ahead`，在干净 worktree 合并 `main`。
+- `main` 是 `automation/quality-loop` 的祖先：`quality_loop_ahead`，这是正常状态，不同步、不报错。
+- 两者互不为祖先：`diverged`，停止并请求用户处理。
+
+Git 同步属于确定性 preflight，PM 不得把“合并分支”下发为产品任务。任何 Agent 都不得 push、rebase、force、自动合并回 main 或自动解决冲突。
+
+本节仅适用于 Executor、Checker、Fixer。PM 已在 main 上运行，不执行 main → quality-loop 同步。
+
+## 6. 队列、Index 与 State
+
+目录保持：
 
 ```text
 eval_reports/agent_handoffs/
-├── pm/
-│   └── YYYYMMDD/<pm_run_id>/
-├── executor/
-│   └── YYYYMMDD/<executor_run_id>/
-├── checker/
-│   └── YYYYMMDD/<checker_run_id>/
-├── fixer/
-│   └── YYYYMMDD/<fixer_run_id>/
-├── indexes/
-│   ├── pm_runs.jsonl
-│   ├── executor_runs.jsonl
-│   ├── checker_runs.jsonl
-│   └── fixer_runs.jsonl
-├── state/
-│   ├── pm_state.json
-│   ├── executor_state.json
-│   ├── checker_state.json
-│   └── fixer_state.json
-├── LATEST_PM.json
-├── LATEST_EXECUTOR.json
-├── LATEST_CHECKER.json
-└── LATEST_FIXER.json
+├── pm/YYYYMMDD/<run_id>/
+├── executor/YYYYMMDD/<run_id>/
+├── checker/YYYYMMDD/<run_id>/
+├── fixer/YYYYMMDD/<run_id>/
+├── indexes/{pm,executor,checker,fixer}_runs.jsonl
+├── state/{pm,executor,checker,fixer}_state.json
+└── LATEST_{PM,EXECUTOR,CHECKER,FIXER}.json
 ```
 
-索引采用 append-only JSONL，每行只存元数据和报告路径，不复制完整报告。写报告顺序：
+写入顺序：
 
-1. 在 run 目录写临时文件；
-2. 原子 rename 为最终报告；
-3. append 对应 index；
-4. 原子更新角色自己的 state；
+1. 在 run 目录写临时文件并校验 JSON；
+2. 原子 rename 报告；
+3. 确保 index 旧文件以换行结尾，再追加一行 JSON 和一个换行；
+4. 原子更新 state；
 5. 原子更新 `LATEST_*`。
 
-`LATEST_*` 只供人快速查看，不能作为自动消费队列。
+`LATEST_*` 只供人查看，Agent 必须消费 append-only index + cursor。index 任一行无法独立解析时，停止消费并报告 `invalid_index`，不得猜测或跳过。
 
-## Cursor 规则
+所有 state 使用 schema version 3，并至少记录：
 
-PM 拥有：
-- `last_pm_run_id`
-- `last_requirements_commit`
-- `executor_tasks_issued`
+- `protocol`
+- `prompt_revision`
+- `last_run_id`
+- `processed_run_ids`
+- `claimed_task_keys`（仅 Executor）
+- `completed_task_keys`（仅 Executor）
+- `updated_at`
 
-Executor 拥有：
-- `last_executor_run_id`
-- `processed_pm_run_ids`
-- `completed_task_ids`
+## 7. PM → Executor
 
-Checker 拥有：
-- `last_reviewed_commit`
-- `processed_fixer_run_ids`
-- `processed_executor_run_ids`
-- `last_checker_run_id`
+PM 每个 slot 只能生成 0 或 1 个 `today_tasks`。其他建议放入 `backlog_observations`，不能放进可执行数组。
 
-Fixer 拥有：
-- `processed_checker_run_ids`
-- `last_fixer_run_id`
+任务必须包含：
 
-### 消费关系
+- `task_id`：全局唯一，包含 PM run ID；
+- `task_key`：`<source_pm_run_id>/<task_id>`；
+- `workstream`、`target_platform=mac_catalyst_migrated_ios`、`target_surface`；
+- `problem_statement`、`data_source`、`acceptance_criteria`；
+- `evidence_required`、`non_goals`、`allowed_paths`；
+- `requires_human` 和依赖。
 
-- Executor 每天读取 `pm_runs.jsonl`，选择所有不在 `processed_pm_run_ids` 中的合法 run。所有被扫描的 run——包括 `no_change` 和无可执行任务——都必须进入 processed 列表，避免第二天重复读取。
-- Fixer 每天读取 `checker_runs.jsonl`，选择所有不在 `processed_checker_run_ids` 中的合法 run。所有被扫描的 run——包括 `no_change` 和 `no_issues`——都必须进入 processed 列表，避免第二天重复读取。
-- Checker 每轮读取 `fixer_runs.jsonl`，只验证不在 `processed_fixer_run_ids` 中的 Fixer batch。验证完成后才推进 cursor。
-- Checker 每轮读取 `executor_runs.jsonl`，只验证不在 `processed_executor_run_ids` 中的 Executor batch。验证完成后才推进 cursor。
+平台迁移、数据权威源变化、安全策略、删除/迁移数据和大范围架构调整必须 `requires_human=true`，不得下发 Executor。
 
-## Fixer 批处理
+自动化协议、Prompt、state migration、worktree/branch 修复属于治理任务，只能由用户或 Codex 执行。PM 只能写入 `notes_for_human_pm`，不得把它们放进 `today_tasks` 交给 Executor。
 
-Fixer 将多轮 Checker 报告合并为一个 batch：
+Executor 在产生任何副作用前，必须把 `task_key` 原子写入 `claimed_task_keys`。已完成、已有有效 claim 或 source PM run 已处理时，写 `duplicate_task` 并退出。失败时记录明确 disposition，不得通过重复运行制造第二份“完成”报告。
 
-1. 按 `issue_id` 聚合；
-2. 同一 issue 只处理一次；
-3. 使用生成时间最新的状态和证据；
-4. 保留所有 `source_checker_run_ids`；
-5. 最新状态为 `resolved`、`observation` 或 `needs_human` 时，不自动修产品；
-6. 多个 issue 共享根因时可以一次修复，但必须逐项回执。
+## 8. Checker/Fixer 与产品开发隔离
 
-Fixer 完成后，一次性把本批次所有已扫描 Checker run 写入自己的 processed cursor。若任务中途失败，不推进 cursor，下次安全重试。
+- Checker 可改测试/Harness，不改产品。
+- Fixer 只修 Checker 已稳定复现、契约明确的产品缺陷，不执行 Roadmap 功能。
+- Executor 只执行 PM 任务，不写测试。
+- PM 只整理方向和证据，不写产品或测试。
 
-## Executor 任务执行
+Checker 每轮先消费所有未处理的 Executor/Fixer run，再审查新的 commit。只有独立复验后才能关闭 issue 或把 task 标为 `verified`。
 
-Executor 读取单份 PM 协调指令（而非多份聚合）：
+若缺少 Apple UI-test target，PM 可以下发一次 `test_infrastructure` 任务，由 Executor 只建立空 target 和必要 project wiring；测试场景、fixture 和断言仍只能由 Checker 编写。
 
-1. 读取 `coordination.json` 中的 `today_tasks` 列表
-2. 按 `priority` 排序，跳过 `forbidden=true` 的任务
-3. 验证 `dependencies` 是否已满足（检查 `completed_task_ids`）
-4. 当前 Mac 阶段每次最多执行 1 个任务，保持变更范围和验收证据可控
-5. 按变更平台执行对应门控；Python Gate 不能替代 Xcode/Mac 验证
-6. 一个任务一个 commit
-7. 完成后一次性把该 PM run 写入 `processed_pm_run_ids`
+## 9. Mac 专项契约
 
-若任务中途失败，已完成的任务推进 cursor，失败的任务记录 blocker 并留待下次处理。
+- 当前运行版本是 Catalyst 迁移版，不得写成原生 macOS App。
+- 原生 macOS 是已确认的长期方向，但 N1 以后代码迁移必须满足 Roadmap 门槛；PM 不得把平台重写当作当前卡死的默认修复。
+- Python 后端和 `data/app.db` 是当前权威源；Mac 沙盒 SQLite 是缓存。
+- Mac App 不直接持续读写仓库的活动数据库文件。
+- 自动同步目标是缓存先展示、后台增量刷新、去重/取消/超时、手动刷新兜底。
+- 性能任务必须有复现场景、数据规模、trace 和前后对比。
+- `xcodebuild` 成功只证明构建；`open App.app` 只证明发起启动。要声称“启动成功且无立即崩溃”，必须提供进程存活或日志证据。
+- Python Gate 不能证明 Mac 交互、数据完整性或性能。
 
-## PM 协调规则
+### P0 发送卡死
 
-PM 每天生成一份报告和协调指令：
+“点击发送后 App 卡死且后端没有收到请求”按 `MAC-HANG-SEND-001` 持续追踪。四个 Agent 必须读取并执行：
 
-1. 扫描项目状态后不直接消费任何 Agent 报告，只做只读分析
-2. `coordination.json` 中的 `today_tasks` 必须对应同一 run 的 `pm_report.md` 具体章节
-3. 任务粒度控制：小任务（<50 行变更）、中任务（50-200 行）、大任务（>200 行）需拆分为多个小任务
-4. 涉及安全策略、危机回复、架构方向变更的任务必须标记 `forbidden=true` 并附 `reason_if_forbidden`
-5. PM 的 `no_change` 报告仍需生成，用于记录"今日无新任务"状态
-6. 当前每天最多下发 1 个 Mac 任务，且必须包含 `workstream`、`target_surface`、`data_source`、`non_goals`、`acceptance_criteria` 和 `evidence_required`
-7. PM 只能依据用户已经确认的 `ROADMAP.md` / `plan.md` 排序和拆解，不得自行修改战略方向
+`docs/automation/mac-freeze-incident-playbook.md`
 
-## Mac 阶段验证规则
+在该 issue 被 Checker 独立验证关闭前：
 
-- Swift/Mac 改动必须记录 Xcode 或 `xcodebuild` 的 target、命令和退出码。
-- 性能任务必须记录复现场景、数据规模、修改前后证据；“感觉更快”不是完成证据。
-- 数据展示任务必须提供 `SQLite/API → model → store → view` 映射和完整/缺失数据场景。
-- 心流与夜谈任务必须验证触发规则、每屏上限、点击路径、来源/更新时间、空状态和返回路径。
-- 自动化环境没有 Xcode、目标 Mac 或性能工具时，相关任务状态只能是 `blocked` 或 `pending_manual_validation`。
-- Python `compileall` / evaluation runner 仅验证后端兼容性，不得用于宣称 Mac 构建、交互或性能通过。
+- PM 优先下发观测、复现或测试基础设施任务，不下发低优先级 Roadmap 功能；
+- Executor 只能实现任务授权的观测/基础设施，不凭静态阅读宣称修复；
+- Checker 负责复现矩阵、测试和 stack/log 证据；
+- Fixer 只依据 Checker 的稳定复现和最后成功阶段修产品；
+- 原生迁移 N0 可做只读盘点，N1 以后不得用来绕过该 incident。
 
-## 报告层次
+## 10. 完成语义
 
-- PM：每天一份 run 报告 + 协调指令，是当日的产品规划基线和任务分配依据。
-- Executor：每天一份执行报告，记录已完成的任务、变更文件和验证结果。
-- Checker：每 6 小时一份 run 报告，用于追踪增量和独立复验。
-- Fixer：每天一份 batch 回执，是当天给用户和下一轮 Checker 的聚合摘要。
-- 不要求第五个 Agent 再生成日报；PM 的 Markdown 报告即每日产品日报，Executor 报告即每日开发日报。
+- `completed`：全部验收标准和必需证据成立。
+- `partial`：完成部分工作，未满足全部验收。
+- `pending_manual_validation`：自动证据完成，但仍需人工体验确认。
+- `blocked`：缺少环境、权限、方向或合法输入。
+- `no_change`：没有新输入或提交。
+- `protocol_mismatch` / `duplicate_slot` / `duplicate_task` / `wrong_worktree`：治理拒绝状态。
+
+验证任务发现问题但未修复时，结果是 `partial` 或 `blocked`，不是 `completed`。未经授权的修复不能藏在“验证任务”中。
+
+## 11. 提交边界
+
+- PM：仅 main 上的 `status.md`、`TODO.md`；handoff 不提交。
+- Checker：`app/evaluation/**`、专用测试目录和交接报告。
+- Fixer：明确 issue 所需的产品文件，不含测试和规划。
+- Executor：任务 `allowed_paths` 内的产品文件，不含测试、规划和自动化协议。
+
+一个 commit 只对应一个任务或一个 issue。提交前必须检查 staged path；报告和 commit message 必须准确描述全部变更。
+
+## 12. 治理审计
+
+不增加第五个常驻智能 Agent。由用户或 Codex 每周/方向变化后执行一次只读治理审计，检查：
+
+- 运行时 protocol/revision 是否与仓库一致；
+- slot、run、task 是否重复；
+- state/index 是否可解析且 cursor 单调；
+- 报告结论是否有证据且互相一致；
+- Agent 是否越权修改路径、分支或产品方向；
+- Roadmap、TODO、plan、status 是否仍与用户目标一致。
