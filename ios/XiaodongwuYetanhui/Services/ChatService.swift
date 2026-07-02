@@ -22,6 +22,7 @@ struct ChatServiceStreamUpdate {
 
     let stage: Stage
     let response: ChatServiceResponse
+    let correlationID: String?
 }
 
 struct ChatServiceStreamResult {
@@ -483,6 +484,7 @@ final class ChatService {
         character: CompanionCharacter,
         isGroupMode: Bool = false,
         fallbackReply: String? = nil,
+        correlationID: String = "",
         onUpdate: @escaping (ChatServiceStreamUpdate) async -> Void
     ) async -> ChatServiceStreamResult {
         var deliveredStageCount = 0
@@ -499,7 +501,15 @@ final class ChatService {
                 )
             )
             request.timeoutInterval = 90
+            if !correlationID.isEmpty {
+                request.setValue(correlationID, forHTTPHeaderField: "X-Correlation-ID")
+            }
 
+            if !correlationID.isEmpty {
+                DispatchQueue.main.async {
+                    SendInstrumentation.shared.recordPhase(.requestResumed, correlationID: correlationID)
+                }
+            }
             let (bytes, urlResponse) = try await session.bytes(for: request)
             guard let httpResponse = urlResponse as? HTTPURLResponse else {
                 throw ChatServiceError.invalidResponse
@@ -544,13 +554,13 @@ final class ChatService {
                     )
                     latestResponse = response
                     deliveredStageCount += 1
-                    await onUpdate(ChatServiceStreamUpdate(stage: .quick, response: response))
+                    await onUpdate(ChatServiceStreamUpdate(stage: .quick, response: response, correlationID: correlationID))
                 case "deep_reply":
                     let body = try JSONDecoder().decode(ChatResponseBody.self, from: data)
                     let response = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)
                     latestResponse = response
                     deliveredStageCount += 1
-                    await onUpdate(ChatServiceStreamUpdate(stage: .deep, response: response))
+                    await onUpdate(ChatServiceStreamUpdate(stage: .deep, response: response, correlationID: correlationID))
                 case "final":
                     let body = try JSONDecoder().decode(ChatResponseBody.self, from: data)
                     latestResponse = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)

@@ -871,6 +871,11 @@ final class CompanionStore: ObservableObject {
     ) async {
         guard !text.isEmpty, !isSending else { return }
         let character = selectedCharacter
+        let correlationID = SendInstrumentation.shared.beginSend(
+            messageLength: text.utf8.count,
+            isGroupMode: isGroupMode
+        )
+        SendInstrumentation.shared.recordPhase(.sendTaskStarted, correlationID: correlationID)
         messages.append(
             ChatMessage(
                 id: UUID().uuidString,
@@ -883,14 +888,15 @@ final class CompanionStore: ObservableObject {
         isSending = true
         chatNotice = nil
         chatOperationStatus = "正在连接本机后端…"
-        logger.info("chat request started mode=\(self.isGroupMode ? "auto" : "manual", privacy: .public)")
+        logger.info("[\(correlationID, privacy: .public)] chat request started mode=\(self.isGroupMode ? "auto" : "manual", privacy: .public)")
 
         #if targetEnvironment(macCatalyst)
         await sendBackendChatText(
             text,
             character: character,
             fallbackReply: fallbackReply,
-            shouldSuggestCheckIn: shouldSuggestCheckIn
+            shouldSuggestCheckIn: shouldSuggestCheckIn,
+            correlationID: correlationID
         )
         #else
         if let apiKey = secureSettings.deepSeekAPIKey(), !apiKey.isEmpty {
@@ -908,7 +914,8 @@ final class CompanionStore: ObservableObject {
             text,
             character: character,
             fallbackReply: fallbackReply,
-            shouldSuggestCheckIn: shouldSuggestCheckIn
+            shouldSuggestCheckIn: shouldSuggestCheckIn,
+            correlationID: correlationID
         )
         #endif
     }
@@ -917,18 +924,22 @@ final class CompanionStore: ObservableObject {
         _ text: String,
         character: CompanionCharacter,
         fallbackReply: String?,
-        shouldSuggestCheckIn: Bool
+        shouldSuggestCheckIn: Bool,
+        correlationID: String
     ) async {
+        SendInstrumentation.shared.recordPhase(.requestEncodeStarted, correlationID: correlationID)
         let streamResult = await chatService.sendStreaming(
             text: text,
             character: character,
             isGroupMode: true,
-            fallbackReply: fallbackReply
+            fallbackReply: fallbackReply,
+            correlationID: correlationID
         ) { [weak self] update in
             guard let self else { return }
             self.applyStreamUpdate(update)
         }
         let response = streamResult.response
+        SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
         if streamResult.deliveredStageCount == 0 {
             appendAssistantResponse(response, fallbackCharacter: character)
         } else if let responseCharacter = self.character(id: response.characterID) {
@@ -958,9 +969,16 @@ final class CompanionStore: ObservableObject {
                 await syncSessionFromBackend(sessionID)
             }
         }
+        SendInstrumentation.shared.recordPhase(.storeApplyFinished, correlationID: correlationID)
+        SendInstrumentation.shared.endSend(correlationID, success: !response.usedFallback)
     }
 
     private func applyStreamUpdate(_ update: ChatServiceStreamUpdate) {
+        if let cid = update.correlationID {
+            if update.stage == .quick {
+                SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: cid)
+            }
+        }
         switch update.stage {
         case .quick:
             chatOperationStatus = "已收到快速回应，正在继续识别意图并深入理解…"
