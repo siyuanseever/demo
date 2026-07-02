@@ -15,7 +15,7 @@
 | 启动结论矛盾 | 一份写待人工验证，一份写启动成功 | 无法信任完成状态 | 证据等级与完成语义 |
 | 平台方向被推断 | PM 从代码推断当前已是原生 macOS | 可能造成大规模返工 | 明确当前是 Catalyst 迁移版、长期才迁移原生 |
 | 错误判断分支状态 | automation 领先被写成分歧/阻塞 | 无意义的 Git 任务 | ancestry 四态分类 |
-| PM/main 边界需明确 | `3998357` 位于 main | PM 提交本身合理，但可能夹带其他文件 | PM 仅显式暂存 status/TODO，并使用 Git 锁 |
+| PM/main commit 过多 | 多个 `docs(pm)` commit 位于 main | 历史噪声和持续分歧 | PM 改为只读 main、只写 handoff，不再 commit |
 | 运行中再次混合提交 | `f425ce1` 把 Web 修复与治理文档一起提交到 main | 单任务和路径边界未生效 | 激活前暂停自动提交，dry run 验证 |
 | Checker cursor 不完整 | state 无 Executor cursor | 回执重复或漏验 | schema v3 强制迁移 |
 | JSONL 写入不可靠 | checker index 两条 JSON 曾拼在同一行 | 消费器解析不确定 | 单行校验、换行追加、无效即阻塞 |
@@ -25,6 +25,13 @@
 | Worktree 被 Agent 重建/删除 | 用户观察到固定 worktree 曾被删除并换 branch | 丢失未提交状态、分支漂移 | 四 Agent 禁止全部 worktree/branch 生命周期命令 |
 
 ## 产品架构判断
+
+### 新增 Critical 事故
+
+- `MAC-MEM-GROWTH-001`：Mac App 内存持续增长至约 65GB。
+- 已确认 `SendInstrumentation.cpuUsage()` 的 `task_threads` Mach allocation 释放地址/size 错误。
+- 已识别 heartbeat 在主线程阻塞时缺少 in-flight 背压。
+- 处理规范见 `mac-memory-incident-playbook.md`。
 
 ### 当前采用
 
@@ -50,6 +57,6 @@
 3. Executor 对重复 task key 明确拒绝。
 4. 所有修改发生在 automation worktree。
 5. Checker 能消费并独立复验 Executor 报告。
-6. PM 的 main commit 仅含 status/TODO，其他三个 Agent 不向 main 提交。
+6. PM 不产生 Git commit，其他三个 Agent 不向 main 提交。
 
 激活步骤见 `activation-checklist.md`。

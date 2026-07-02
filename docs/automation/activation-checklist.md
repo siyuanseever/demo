@@ -19,6 +19,7 @@
 
 - `docs/automation/automation-orchestration.md`
 - `docs/automation/mac-freeze-incident-playbook.md`
+- `docs/automation/mac-memory-incident-playbook.md`
 
 如果定时工具支持从文件加载，可使用最小 launcher：
 
@@ -47,9 +48,9 @@ prompt_revision 必须是 2026-07-02-governance-1。
 - PM 输出 0 或 1 个任务；
 - Executor 能拒绝重复 task key；
 - Checker 能消费 Executor run；
-- PM 把未关闭的 `MAC-HANG-SEND-001` 排在普通功能之前；
+- PM 按 `MAC-MEM-GROWTH-001` > `MAC-HANG-SEND-001` > 普通功能排序；
 - Fixer 在没有产品 issue 时不修改代码；
-- PM 在 main 的 commit 只含 `status.md` / `TODO.md`；
+- PM 没有修改、暂存或提交任何 Git 文件；
 - 其他三个 Agent 没有 commit 落到 main；
 - worktree 缺失模拟会得到 `worktree_missing`，不会创建 branch/worktree。
 

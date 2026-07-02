@@ -21,13 +21,13 @@ G0 自动化治理止血 + Mac Catalyst M0 基线与数据架构。
 - PM 在同一天生成了多轮报告，并且每轮下发 3 个任务，违反“每日/每槽一个任务”。
 - Executor 对 `PM-TASK-004` 生成了两份报告，重复执行同一任务。
 - 两份 Executor 报告对应用启动状态分别写为“待人工验证”和“成功”，证据口径不一致。
-- PM 在 main 提交规划文档符合当前部署；需要验证它只暂存 `status.md` / `TODO.md`，不会夹带其他 Agent 的修改。
+- PM 历史上在 main 提交规划文档；根据用户最新要求，后续改为只读 main、只写 handoff，不再创建 Git commit。
 - Checker state 尚无 `processed_executor_run_ids`，不能保证 Executor 回执只消费一次。
 - `checker_runs.jsonl` 存在记录未换行拼接，索引写入不够可靠。
 - 本轮治理编辑期间，运行中的其他 Agent 再次把 Web 修复和治理文档混合提交到 `main`（`f425ce1`），进一步证明新版 worktree、角色边界和单任务规则尚未在运行时生效。
 - 最新 PM 虽已降为单任务，但 `PM-TASK-009` 把自动化协议/state 修改交给 Executor，与 Executor 的禁止路径冲突；治理任务必须改为给用户/Codex的提醒。
 
-Git 当前真实状态：`automation/quality-loop` 与 `main` 已 diverged（互不为祖先），Fixer 无法处理 Checker 报告。此问题需要用户手动解决分支分歧。
+Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `4a2a8b0`，分歧已经通过 merge 解决。automation worktree 当前有 Checker 的未提交测试修改，其他 Agent 必须等待其完成或报告 busy，不能覆盖。
 
 ---
 
@@ -46,6 +46,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 已 diverged（互
 | 启动持续存活/核心页面 | 报告互相矛盾，待独立复验 |
 | 卡死复现与性能 trace | 未完成 |
 | 单条消息发送后卡死、后端无请求 | P0，用户再次复现 |
+| 内存持续增长至约 65GB | Critical，当前最高优先级 |
 | 自动刷新 | 当前 `syncIfNeeded()` 不执行同步，仍依赖手动刷新 |
 | 数据权威边界 | 已在规划中确认，尚未实现验收 |
 | 字段矩阵 | 未完成 |
@@ -59,13 +60,15 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 已 diverged（互
 
 1. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。
 2. 停止 PM/Executor 小时级轮询，按 P0 调度表错峰运行。
-3. 验证 PM/main 的范围提交和三个代码 Agent 的固定 worktree 保护。
+3. 验证 PM 没有任何 Git 写操作，以及三个代码 Agent 的固定 worktree 保护。
 4. Checker 在同一 automation HEAD 上复核 Catalyst 构建、Python Gate 和 Executor 证据。
-5. 建立卡死复现场景和六条关键路径性能基线。
-6. 为发送路径建立脱敏阶段事件、correlation ID、UI heartbeat 和 hang 采样方案。
-7. 完成自动刷新触发矩阵与数据字段矩阵。
-8. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
-9. 核对最近更新记忆/日记和三篇关联日记的可见性。
+5. Checker 对 `30c0d36` 前后执行内存 A/B，并复现 `MAC-MEM-GROWTH-001`。
+6. 为 `MEM-001` 错误 Mach 释放和 `MEM-002` heartbeat 无背压建立测试，交给 Fixer。
+7. 建立卡死复现场景和六条关键路径性能基线。
+8. 为发送路径建立脱敏阶段事件、correlation ID、UI heartbeat 和 hang 采样方案。
+9. 完成自动刷新触发矩阵与数据字段矩阵。
+10. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
+11. 核对最近更新记忆/日记和三篇关联日记的可见性。
 
 ---
 

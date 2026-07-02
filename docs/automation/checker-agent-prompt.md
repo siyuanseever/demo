@@ -27,6 +27,7 @@
 6. Checker/Fixer/Executor 索引、各自 state，以及所有尚未处理的 Fixer 和 Executor batch
 7. `docs/automation/activation-checklist.md`
 8. `docs/automation/mac-freeze-incident-playbook.md`
+9. `docs/automation/mac-memory-incident-playbook.md`
 
 若这些文件与本 Prompt 冲突，以更严格的安全、隐私和角色隔离规则为准。
 
@@ -123,6 +124,9 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续
 - 最近新增/更新的日记和记忆是否在刷新后可见
 - 心流单卡片的轻动作是否可选、有正反馈且忽略无惩罚
 - `MAC-HANG-SEND-001` 的阶段事件、UI heartbeat、主线程 sample 和后端接收证据是否足够定位请求消失的位置
+- `MAC-MEM-GROWTH-001` 的 resident/footprint 斜率、memgraph、allocation 类型和 A/B commit 证据
+- `SendInstrumentation.cpuUsage()` 的 `task_threads` allocation 是否用真实地址和正确 byte size 释放
+- heartbeat 在主线程阻塞时是否有 in-flight 背压，避免 main queue 无界积压
 
 不得仅凭代码风格偏好创建产品缺陷。非行为问题放入 `observations`。
 
@@ -213,7 +217,10 @@ run_id：`checker-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
   "commands": [],
   "gate_status": { "gate0_syntax": true, "gate1_passed": true, "overall_pass_rate": 1.0, "mac_build": "passed | failed | not_applicable", "mac_interaction": "passed | pending_manual_validation | not_applicable", "performance_evidence": "recorded | missing | not_applicable", "failed_critical_dimensions": [], "suite_errors": [] },
   "test_changes": { "changed": false, "files": [], "branch": "automation/quality-loop", "test_commit": null },
-  "incidents": [{ "incident_id": "MAC-HANG-SEND-001", "last_successful_stage": "send_tapped | ... | unknown", "occurrences": [], "evidence_status": "complete | needs_instrumentation | blocked_by_observability" }],
+  "incidents": [
+    { "incident_id": "MAC-MEM-GROWTH-001", "memory_slope_mb_per_min": null, "peak_resident_mb": null, "memgraph_path": null, "evidence_status": "complete | needs_instrumentation | blocked_by_observability" },
+    { "incident_id": "MAC-HANG-SEND-001", "last_successful_stage": "send_tapped | ... | unknown", "occurrences": [], "evidence_status": "complete | needs_instrumentation | blocked_by_observability" }
+  ],
   "issues": [],
   "observations": [],
   "handoff": { "target": "product_fixer", "action_required": true, "issue_ids": [] }

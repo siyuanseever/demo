@@ -27,6 +27,7 @@
 
 - **Mac M0/M1：Catalyst 基线、性能与稳定性止血**
   - Mac Catalyst 已构建成功；仍需验证持续运行和关键路径。
+  - Critical 事故：内存持续增长至约 65GB。
   - P0 事故：发送一条消息后 App 卡死，Python 后端未收到请求。
   - 对启动、页面切换、夜谈发送、记忆列表、心流页和同步建立可复现基线。
   - 定位 `CompanionStore.load()`、`syncAllFromBackend`、SQLite 查询和视图重复计算中的主线程阻塞。
@@ -41,10 +42,14 @@
 ## 近期 TODO
 
 - [ ] **P0 自动化治理**：让所有定时任务实际加载 v3 Prompt；拒绝旧协议、重复 slot、错误分支和同一任务重复执行。
-- [ ] **P0 分支分歧紧急处理**（PM-OBS-001）：main 和 automation/quality-loop 分支已 diverged，Fixer 无法处理 Checker 报告。需要用户手动解决分支分歧，确保 automation/quality-loop 重新成为 main 的后代或与 main 一致。
+- [x] **分支分歧处理**（PM-OBS-001）：main 与 automation/quality-loop 已在 `4a2a8b0` 对齐。
 - [ ] **P0 调度降频**：PM 改为每日一次；Executor 改为每日主执行 + 仅重试 slot；Checker/Fixer 在 P0 期间每 6 小时错峰。
 - [ ] **P0 Worktree 保护**：三个代码 Agent 只验证固定 worktree，缺失即报告，绝不自行删除、创建 branch 或换路径。
 - [ ] **P0 性能**：关键路径无可复现卡死，无超过 1 秒的主线程停顿；保留优化前后同场景证据。
+- [ ] **Critical 内存 A/B**：比较 `30c0d36` 前后相同场景的 resident/physical footprint、Allocations 和 memgraph。
+- [ ] **Critical MEM-001**：为 `task_threads` Mach allocation 的错误释放建立回归并修复。
+- [ ] **Critical MEM-002**：heartbeat 主线程投递增加 in-flight 背压，阻塞时 pending work 不得无界增长。
+- [ ] **Critical 内存 soak**：idle、连续发送、离线后端、页面切换和自动同步均满足内存斜率/回落门槛。
 - [ ] **P0 发送卡死取证**（PM-TASK-011）：建立 tap → task → encode → request resumed → backend received → response → UI applied 的脱敏事件链；实现 correlation ID 贯穿发送路径；实现 UI heartbeat 机制检测主线程阻塞；hang 时采集主线程 sample、CPU/内存、最后事件和后端日志窗口；覆盖后端在线/离线、首次/连续发送、群聊/单角色场景。
 - [ ] **P0 发送卡死复现**：覆盖后端在线/离线、首次/连续发送、群聊/单角色和不同数据规模。
 - [ ] **P0 发送卡死回归**：请求能离开 App 且 UI 持续响应；修复后连续发送和 soak test 通过。

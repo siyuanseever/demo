@@ -58,7 +58,7 @@
 
 工作区模型：
 
-- PM 在主工作区 `main` 运行，只允许修改并提交 `status.md`、`TODO.md`；handoff 直接写共享目录且不提交。
+- PM 在主工作区 `main` 只读运行；所有输出写入已忽略的 handoff，不修改、不暂存、不提交 Git 文件。
 - Executor、Checker、Fixer 只在固定 automation worktree/branch 运行。
 - worktree 和 automation branch 的创建、删除、修复只归用户或一次性 bootstrap 工具，不归四个 Agent。
 
@@ -87,9 +87,9 @@ test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/work/agent/demo"
 test "$(git branch --show-current)" = "main"
 ```
 
-PM 不要求整个 main 干净，但 `status.md`、`TODO.md` 必须没有用户未提交修改。PM 只能显式暂存这两个文件，不得使用 `git add -A` 或 `git add .`。提交前 staged path 必须严格等于本轮实际修改的允许文件。
+PM 不要求 main 干净，因为它不写 Git 文件；不得执行 `git add`、`git commit`、merge、branch 或 worktree 命令。
 
-所有涉及 commit、merge 或 branch/worktree 元数据的操作使用共享 Git 锁 `/private/tmp/xiaodongwu-git.lock`，避免 PM 提交 main 与其他 Agent 同时 merge main。
+Executor、Checker、Fixer 涉及 commit、merge 或 branch 元数据读取时使用共享 Git 锁 `/private/tmp/xiaodongwu-git.lock`。
 
 ### Worktree 生命周期保护
 
@@ -191,6 +191,14 @@ Checker 每轮先消费所有未处理的 Executor/Fixer run，再审查新的 c
 - `xcodebuild` 成功只证明构建；`open App.app` 只证明发起启动。要声称“启动成功且无立即崩溃”，必须提供进程存活或日志证据。
 - Python Gate 不能证明 Mac 交互、数据完整性或性能。
 
+### Critical 内存失控
+
+“内存持续增长至约 65GB”按 `MAC-MEM-GROWTH-001` 处理，优先级高于其他产品任务。四个 Agent 必须读取：
+
+`docs/automation/mac-memory-incident-playbook.md`
+
+incident 未经 Checker 关闭前，PM 只能下发内存复现、观测或测试基础设施任务；Executor/Fixer 不得以原生迁移或大范围重构代替证据驱动修复。
+
 ### P0 发送卡死
 
 “点击发送后 App 卡死且后端没有收到请求”按 `MAC-HANG-SEND-001` 持续追踪。四个 Agent 必须读取并执行：
@@ -218,7 +226,7 @@ Checker 每轮先消费所有未处理的 Executor/Fixer run，再审查新的 c
 
 ## 11. 提交边界
 
-- PM：仅 main 上的 `status.md`、`TODO.md`；handoff 不提交。
+- PM：Git 路径白名单为空；只写 handoff。
 - Checker：`app/evaluation/**`、专用测试目录和交接报告。
 - Fixer：明确 issue 所需的产品文件，不含测试和规划。
 - Executor：任务 `allowed_paths` 内的产品文件，不含测试、规划和自动化协议。

@@ -31,6 +31,7 @@
 11. PM 自身 state 和上一期报告
 12. `docs/automation/activation-checklist.md`
 13. `docs/automation/mac-freeze-incident-playbook.md`
+14. `docs/automation/mac-memory-incident-playbook.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -38,7 +39,7 @@
 检查文件 `/private/tmp/xiaodongwu-quality-loop.lock` 是否存在。如果存在且锁未过期（创建时间 < 30 分钟前），记录 `skipped_due_to_lock=true` 并退出。
 如果锁不存在或已过期，创建锁文件，内容包含当前时间、任务类型（pm）和进程标识。
 
-注意：PM 在 main 工作区运行；Executor/Checker/Fixer 在 automation worktree 运行。PM 执行 commit 时仍需获取共享 Git 锁，避免与其他 Agent 的 main merge 并发。
+注意：PM 在 main 工作区只读运行；Executor/Checker/Fixer 在 automation worktree 运行。PM 不执行任何 Git 写操作。
 
 ### 2.2 运行时与主工作区预检
 
@@ -54,8 +55,8 @@ test "$(git rev-parse --show-toplevel)" = "/Users/liangsiyuan/work/agent/demo"
 test "$(git branch --show-current)" = "main"
 ```
 
-4. `status.md` 或 `TODO.md` 有用户未提交修改时，不覆盖；生成只读报告并把文档更新标为 `blocked_by_dirty_planning_files`。
-5. PM 不创建、删除、修复或进入 automation worktree，不执行 Git ancestry 同步。
+4. main 是否 dirty 不影响只读扫描，但 PM 不得修改任何 tracked/untracked Git 文件。
+5. PM 不执行 add/commit/merge/branch/worktree 命令。
 
 ### 2.3 读取 State
 读取 `eval_reports/agent_handoffs/state/pm_state.json`：
@@ -69,12 +70,11 @@ test "$(git branch --show-current)" = "main"
 
 ### 允许
 - 读取全部项目代码、文档和 Git 历史
-- 修改规划类文档：`status.md`（仅进度概述、下一步建议和已知问题部分）
-- 在 `TODO.md` 的"近期 TODO"和"待排期"区域追加新条目（不得删除、修改已有条目）
 - 在当期 PM 报告中生成可执行任务详情
 - 生成协调指令给 Executor Agent
 - 分析 Checker/Fixer 报告并纳入产品决策
 - 把 `ROADMAP.md` 和 `plan.md` 作为只读、用户已确认的方向依据
+- 在 `pm_report.md` 中生成 `proposed_document_updates`，供用户或 Codex决定是否应用
 
 ### 禁止
 - 不得修改产品实现代码（`app/**` 中的 Python/JS/CSS、Prompt 文件、静态资源）
@@ -86,7 +86,8 @@ test "$(git branch --show-current)" = "main"
 - 不得执行 `git reset --hard`、强制推送、覆盖用户未提交修改
 - 不得读取 `.env` 中的密钥
 - 不得把真实对话原文写入任何输出
-- 除 `status.md`、`TODO.md` 的范围受控提交外，不得向 main 提交其他文件
+- 不得修改 `status.md`、`TODO.md` 或任何仓库文件
+- 不得执行 `git add`、`git commit`、merge、push 或其他 Git 写操作
 - 不得修改、创建或删除任何 worktree/branch
 
 ## 4. 每日扫描流程
@@ -112,7 +113,7 @@ test "$(git branch --show-current)" = "main"
 - 只使用已写入 `ROADMAP.md` / `plan.md` 的用户确认需求，不从私人对话或数据库原文推断新方向
 - 识别规划与实现的偏差，并提交给人类 PM；不得自行改写战略文档
 - 确定本日/本周应推进的功能优先级（高：阻塞或阶段核心；中：阶段内优化；低：后续阶段预备）
-- 若 `MAC-HANG-SEND-001` 未经 Checker 关闭，任务优先级固定为：观测能力 → 复现/测试基础设施 → 等待 Checker/Fixer。不得优先下发 UI 新功能或原生迁移实现
+- incident 顺序：`MAC-MEM-GROWTH-001` > `MAC-HANG-SEND-001` > 普通 Roadmap。内存事故未关闭时只能下发 memory reproduction/observability/test infrastructure
 - 自动化协议、Prompt、state migration、worktree/branch 修复只能写入 `notes_for_human_pm`，不得生成 Executor task
 
 ### 4.4 生成当期任务详情
@@ -169,7 +170,7 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
   "generated_at": "ISO-8601 with +08:00",
   "repo_root": "/Users/liangsiyuan/work/agent/demo",
   "main_head": "SHA",
-  "status": "plan_updated | no_change | blocked | blocked_by_dirty_planning_files | needs_human | protocol_mismatch | duplicate_slot | unexpected_schedule_slot | wrong_worktree | invalid_index",
+  "status": "report_generated | no_change | blocked | needs_human | protocol_mismatch | duplicate_slot | unexpected_schedule_slot | wrong_worktree | invalid_index",
   "project_snapshot": {
     "roadmap_phase": "G0 + Mac M0-M5",
     "plan_target": "...",
@@ -196,7 +197,7 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
         "task_key": "<pm_run_id>/pm-<run_id>-t01",
         "title": "...",
         "requirement_ref": "pm_report.md#今日任务详情",
-        "workstream": "incident_observability | test_infrastructure | performance | data_sync | data_ui | flow_chat | native_migration_n0",
+        "workstream": "memory_observability | incident_observability | test_infrastructure | performance | data_sync | data_ui | flow_chat | native_migration_n0",
         "target_platform": "mac_catalyst_migrated_ios",
         "target_surface": [],
         "data_source": [],
@@ -208,7 +209,7 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
         "acceptance_criteria": [],
         "dependencies": [],
         "requires_human": false,
-        "incident_id": "MAC-HANG-SEND-001 or null",
+        "incident_id": "MAC-MEM-GROWTH-001 | MAC-HANG-SEND-001 | null",
         "forbidden": false,
         "reason_if_forbidden": ""
       }
@@ -218,8 +219,8 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
     "notes_for_human_pm": ""
   },
   "document_changes": {
-    "status_md_updated": false,
-    "todo_md_appended": [],
+    "repository_files_changed": false,
+    "proposed_document_updates": [],
     "requirements_in_handoff": true
   },
   "handoff": { "target": "executor", "action_required": true, "task_ids": [] }
@@ -257,17 +258,11 @@ pm_run_id：`pm-YYYYMMDDTHHMMSS+0800-<main_HEAD前8位>`
 
 HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 
-## 9. 提交规范
+## 9. Git 规则
 
-若修改了规划文档，允许提交：
-- diff 只含 `status.md`、`TODO.md`
-- 不得包含 `docs/automation/automation-orchestration.md`、Checker/Fixer/Executor Prompt 文件、任何 `app/**` 代码
-- message：`docs(pm): daily plan update <pm_run_id>`
-- 提交到主工作区的 `main` 分支
-- 只能执行 `git add status.md TODO.md`，不得使用 `git add .` 或 `git add -A`
-- commit 前验证 staged path 只包含本轮实际修改的 `status.md` / `TODO.md`
-- 不 push；handoff 文件不暂存、不提交
-- 提交前再次验证 cwd、branch 和 staged paths；任一不符则不提交
+- PM 的 Git 权限是只读。
+- handoff 已被 `.gitignore` 排除，PM 不得尝试提交它。
+- 规划变更只写成 `proposed_document_updates`；由用户或 Codex应用。
 
 ## 10. 结束条件
 
@@ -283,3 +278,4 @@ HTML 与 JSON 一致，内联 CSS，动态内容先 HTML escaping。
 - 未修改产品实现代码
 - 未修改测试代码
 - 未修改通信协议文件
+- 未修改、暂存或提交任何仓库文件

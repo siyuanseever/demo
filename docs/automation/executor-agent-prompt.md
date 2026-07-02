@@ -29,6 +29,7 @@
 7. Executor 自身 state
 8. `docs/automation/activation-checklist.md`
 9. `docs/automation/mac-freeze-incident-playbook.md`
+10. `docs/automation/mac-memory-incident-playbook.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -119,6 +120,7 @@ main 是 automation 祖先 → quality_loop_ahead，正常继续，不 merge
 - 心流/夜谈任务必须保持默认信息克制：最多一条摘要、明确来源/时间、可点击、可返回、有空状态
 - 数据同步遵循“Python 后端权威源 + Mac 沙盒 SQLite 缓存 + API 自动刷新”，不得把仓库 `data/app.db` 打包或作为活动共享数据库
 - `MAC-HANG-SEND-001` 相关任务必须使用 playbook 的阶段事件和隐私规则。Instrumentation 任务不能被报告为卡死已修复
+- `MAC-MEM-GROWTH-001` 相关任务达到 2GB 测试上限时立即停止并保存证据；观测任务不能被报告为内存修复
 - `test_infrastructure` 任务可以建立空 Apple UI-test target/project wiring，但不得编写测试场景、fixture 或断言
 - 心理陪伴回复不诊断、不越界
 - 一个任务一个 commit，保持变更原子化
@@ -225,8 +227,8 @@ executor_run_id：`executor-YYYYMMDDTHHMMSS+0800-<HEAD前8位>`
       "task_key": "<source_pm_run_id>/<task_id>",
       "title": "...",
       "requirement_ref": "pm_report.md#今日任务详情",
-      "workstream": "incident_observability | test_infrastructure | performance | data_sync | data_ui | flow_chat | native_migration_n0",
-      "incident_id": "MAC-HANG-SEND-001 or null",
+      "workstream": "memory_observability | incident_observability | test_infrastructure | performance | data_sync | data_ui | flow_chat | native_migration_n0",
+      "incident_id": "MAC-MEM-GROWTH-001 | MAC-HANG-SEND-001 | null",
       "status": "completed | partial | failed | skipped",
       "product_files_changed": [],
       "commit": "SHA or null",

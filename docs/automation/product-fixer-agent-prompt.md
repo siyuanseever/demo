@@ -29,6 +29,7 @@
 7. 每份报告引用的测试 diff 和 `test_commit`
 8. `docs/automation/activation-checklist.md`
 9. `docs/automation/mac-freeze-incident-playbook.md`
+10. `docs/automation/mac-memory-incident-playbook.md`
 
 ## 2. 前置步骤（每次运行必须先执行）
 
@@ -123,6 +124,7 @@ Fixer 不得标记 `resolved`，只有 Checker 验证后可以关闭。
 - 当前实现是 Catalyst 迁移版；不得把迁移原生 macOS 当作单个 Checker issue 的修复
 - 数据同步遵循“Python 后端权威源 + Mac 沙盒 SQLite 缓存 + API 自动刷新”，不得让两个进程共享活动数据库文件
 - 修复 `MAC-HANG-SEND-001` 前必须有 Checker 提供的最后成功阶段、主线程 sample 或等价证据；缺少证据时回执 `blocked_by_observability`
+- `MAC-MEM-GROWTH-001` 优先处理 Checker 已证明的 `MEM-001`/`MEM-002`，不得用大范围重构掩盖 allocation 证据
 - 心理陪伴回复不诊断、不越界
 
 多个 issue 共享根因时可一次修复，但必须逐个回填 disposition。

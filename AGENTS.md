@@ -8,6 +8,7 @@ This repository contains the Python stdlib backend/Web demo and the SwiftUI Appl
 - 非目标：不做诊断，不替代心理咨询、精神科治疗或危机干预。
 - 当前运行版本：iOS App 的 Mac Catalyst 迁移版，不是原生 macOS App。
 - 当前开发主线：Catalyst 稳定化，核心是“发送卡死 + 自动同步 + 数据/UI 完整性 + 心流/夜谈轻互动”。
+- 当前最高优先级事故：`MAC-MEM-GROWTH-001`，内存曾持续增长至约 65GB。
 - 长期方向：按 Roadmap N0-N5 分阶段迁移到原生 macOS App。
 - Web/Python 当前作为数据、模型和兼容性基线维护，不主动扩展无关功能。
 
@@ -45,6 +46,7 @@ This repository contains the Python stdlib backend/Web demo and the SwiftUI Appl
 | 体验评估 | `python3 -m app.evaluation.manual_eval` | 基于 cases 的手工/半自动评估 |
 | Mac 构建 | Xcode 或目标 scheme 的 `xcodebuild` | Swift 编译、链接和目标平台验证 |
 | Mac 性能 | Instruments / Time Profiler / 可复现场景计时 | 主线程停顿、数据库和视图刷新证据 |
+| Mac 内存 | Allocations / Leaks / memgraph / resident-footprint 采样 | 泄漏、无界队列、对象净增长和回落证据 |
 
 ### 快速验证组合
 
@@ -94,6 +96,7 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - 性能变更必须提供可复现场景、数据规模和修改前后证据。
 - 没有完成目标 Mac 人工或自动验证时记为 `pending_manual_validation`。
 - 发送卡死相关变更必须执行 `docs/automation/mac-freeze-incident-playbook.md`，不能以单次未卡死作为通过证据。
+- 内存相关变更必须执行 `docs/automation/mac-memory-incident-playbook.md`；自动场景达到 2GB 立即停止并保存证据。
 
 ### Gate 2：结构门控
 
@@ -147,7 +150,7 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 | Test / Checker Agent | `app/evaluation/**`、测试 fixture、测试报告 | 产品实现、Prompt、iOS 产品代码 |
 | Product / Fixer Agent | 仅修复 Checker 已复现的产品缺陷 | `app/evaluation/**`、Roadmap 功能、测试 |
 | Product / Executor Agent | 仅执行 PM 下发的一个产品任务 | `app/evaluation/**`、规划、自动化协议、测试 |
-| Product Manager Agent | `status.md`、`TODO.md` 的授权区域和交接报告 | 产品代码、测试、`ROADMAP.md`、`plan.md`、自动化协议 |
+| Product Manager Agent | 只读仓库；写 handoff 报告和文档更新建议 | 所有仓库文件、Git 写操作 |
 
 - Checker 可以只读访问 `data/app.db` 生成私有评估或脱敏/合成测试，但不得持久化真实对话原文。
 - Apple UI-test target/project wiring 若不存在，可由 Executor 在明确的 `test_infrastructure` 任务中建立空 target；测试场景、fixture 和断言仍只归 Checker。
@@ -156,7 +159,7 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - Checker 报告、Fixer 回执和复验结果使用 `docs/automation/` 中定义的通信协议。
 - Checker 负责关闭 issue；Fixer 只能标记为 `fixed_pending_verification`。
 - Checker 每 6 小时追加一份独立报告；Fixer 每天按 index + cursor 批量消费所有未处理报告，禁止只读取 `LATEST_CHECKER.json`。
-- PM 在 main 仅提交 `status.md` / `TODO.md`；Executor、Checker、Fixer 使用固定 `automation/quality-loop` worktree。调度器负责 Git 互斥，不增加第五个常驻智能 Agent。
+- PM 在 main 只读运行、只写 handoff；Executor、Checker、Fixer 使用固定 `automation/quality-loop` worktree。调度器负责 Git 互斥，不增加第五个常驻智能 Agent。
 - 四个 Agent 均不得创建、删除、prune 或修复 worktree/branch；固定 worktree 缺失时只报告 `worktree_missing`。
 - 运行时协议必须是 `xiaodongwu-automation/v3`，Prompt revision 必须是 `2026-07-02-governance-1`。
 - 仓库 Prompt 改动不会自动更新已保存的定时任务；激活步骤见 `docs/automation/activation-checklist.md`。
@@ -166,6 +169,7 @@ python3 -m compileall app && python3 -m app.evaluation.runner
 - `docs/automation/automation-orchestration.md`
 - `docs/automation/activation-checklist.md`
 - `docs/automation/mac-freeze-incident-playbook.md`
+- `docs/automation/mac-memory-incident-playbook.md`
 - `docs/automation/checker-agent-prompt.md`
 - `docs/automation/product-fixer-agent-prompt.md`
 - `docs/automation/product-manager-agent-prompt.md`
