@@ -1,475 +1,70 @@
 {
-  "nodes": [
-    {
-      "id": "title_group",
-      "type": "group",
-      "x": 320,
-      "y": -40,
-      "width": 1160,
-      "height": 60,
-      "label": "小动物夜谈会 Xiaodongwu Yetanhui — 项目架构全景图",
-      "color": "6"
-    },
-
-    {
-      "id": "entry_group",
-      "type": "group",
-      "x": 320,
-      "y": 60,
-      "width": 1160,
-      "height": 150,
-      "label": "入口层 Entry",
-      "color": "1"
-    },
-    {
-      "id": "n_main_py",
-      "type": "text",
-      "x": 370,
-      "y": 95,
-      "width": 240,
-      "height": 90,
-      "text": "main.py\n\nCLI 入口 / 启动",
-      "color": "1"
-    },
-    {
-      "id": "n_web_py",
-      "type": "text",
-      "x": 660,
-      "y": 95,
-      "width": 260,
-      "height": 90,
-      "text": "web.py\n\nWeb UI / HTTP / SSE 流",
-      "color": "1"
-    },
-    {
-      "id": "n_ios_app",
-      "type": "text",
-      "x": 970,
-      "y": 95,
-      "width": 480,
-      "height": 90,
-      "text": "ios/XiaodongwuYetanhui (SwiftUI)\niOS 聊天 / Mac Catalyst 原型\n本地 DeepSeek + SQLite / BYO API Key",
-      "color": "1"
-    },
-
-    {
-      "id": "orch_group",
-      "type": "group",
-      "x": 320,
-      "y": 250,
-      "width": 560,
-      "height": 130,
-      "label": "编排层 Orchestration",
-      "color": "2"
-    },
-    {
-      "id": "n_orchestrator",
-      "type": "text",
-      "x": 370,
-      "y": 280,
-      "width": 230,
-      "height": 80,
-      "text": "orchestrator.py\n\n会话流转 / 角色调度",
-      "color": "2"
-    },
-    {
-      "id": "n_characters",
-      "type": "text",
-      "x": 640,
-      "y": 280,
-      "width": 210,
-      "height": 80,
-      "text": "characters.py\n\n角色定义与管理",
-      "color": "2"
-    },
-
-    {
-      "id": "ios_svc_group",
-      "type": "group",
-      "x": 920,
-      "y": 250,
-      "width": 560,
-      "height": 130,
-      "label": "iOS 服务层 iOS Services",
-      "color": "2"
-    },
-    {
-      "id": "n_chat_svc",
-      "type": "text",
-      "x": 970,
-      "y": 280,
-      "width": 220,
-      "height": 80,
-      "text": "ChatService.swift\n\n后端通信 / SSE 流",
-      "color": "2"
-    },
-    {
-      "id": "n_local_deepseek",
-      "type": "text",
-      "x": 1230,
-      "y": 280,
-      "width": 230,
-      "height": 80,
-      "text": "LocalDeepSeek.swift\n\n本地 DeepSeek 调用",
-      "color": "2"
-    },
-
-    {
-      "id": "safety_group",
-      "type": "group",
-      "x": 320,
-      "y": 420,
-      "width": 240,
-      "height": 130,
-      "label": "安全层 Safety",
-      "color": "3"
-    },
-    {
-      "id": "n_safety",
-      "type": "text",
-      "x": 365,
-      "y": 450,
-      "width": 170,
-      "height": 80,
-      "text": "safety.py\n\n内容安全\n危机识别",
-      "color": "3"
-    },
-
-    {
-      "id": "intent_group",
-      "type": "group",
-      "x": 600,
-      "y": 420,
-      "width": 280,
-      "height": 130,
-      "label": "意图层 Intent",
-      "color": "3"
-    },
-    {
-      "id": "n_intent",
-      "type": "text",
-      "x": 645,
-      "y": 450,
-      "width": 190,
-      "height": 80,
-      "text": "intent/\n\nschema / router\nagent.py",
-      "color": "3"
-    },
-
-    {
-      "id": "ios_model_group",
-      "type": "group",
-      "x": 920,
-      "y": 420,
-      "width": 560,
-      "height": 130,
-      "label": "iOS 数据层 iOS Data & Models",
-      "color": "3"
-    },
-    {
-      "id": "n_ios_models",
-      "type": "text",
-      "x": 970,
-      "y": 450,
-      "width": 240,
-      "height": 80,
-      "text": "CompanionModels.swift\n\n角色 / 表情 / 消息 / 记忆\n互动 / 星图洞察",
-      "color": "3"
-    },
-    {
-      "id": "n_ios_db",
-      "type": "text",
-      "x": 1240,
-      "y": 450,
-      "width": 220,
-      "height": 80,
-      "text": "SQLiteDatabase.swift\n\niOS 本地 SQLite\n离线数据存储",
-      "color": "3"
-    },
-
-    {
-      "id": "core_group",
-      "type": "group",
-      "x": 320,
-      "y": 590,
-      "width": 1160,
-      "height": 150,
-      "label": "核心服务层 Core Services",
-      "color": "4"
-    },
-    {
-      "id": "n_llm",
-      "type": "text",
-      "x": 370,
-      "y": 620,
-      "width": 200,
-      "height": 90,
-      "text": "llm/\n\nDeepSeek / Fake\n模型适配层",
-      "color": "4"
-    },
-    {
-      "id": "n_memory",
-      "type": "text",
-      "x": 610,
-      "y": 620,
-      "width": 200,
-      "height": 90,
-      "text": "memory/\n\nschema + store\nSQLite 持久化",
-      "color": "4"
-    },
-    {
-      "id": "n_knowledge",
-      "type": "text",
-      "x": 850,
-      "y": 620,
-      "width": 200,
-      "height": 90,
-      "text": "knowledge/\n\n知识卡片\n检索辅助",
-      "color": "4"
-    },
-    {
-      "id": "n_prompts",
-      "type": "text",
-      "x": 1090,
-      "y": 620,
-      "width": 200,
-      "height": 90,
-      "text": "prompts/\n\nMarkdown\nPrompt 模板",
-      "color": "4"
-    },
-    {
-      "id": "n_config",
-      "type": "text",
-      "x": 1310,
-      "y": 620,
-      "width": 150,
-      "height": 90,
-      "text": "config.py\n\n全局配置",
-      "color": "4"
-    },
-
-    {
-      "id": "ios_view_group",
-      "type": "group",
-      "x": 920,
-      "y": 780,
-      "width": 560,
-      "height": 150,
-      "label": "iOS 视图层 iOS Views",
-      "color": "4"
-    },
-    {
-      "id": "n_chat_view",
-      "type": "text",
-      "x": 970,
-      "y": 810,
-      "width": 160,
-      "height": 90,
-      "text": "ChatView\n\niOS 聊天",
-      "color": "4"
-    },
-    {
-      "id": "n_mac_proto",
-      "type": "text",
-      "x": 1170,
-      "y": 810,
-      "width": 160,
-      "height": 90,
-      "text": "MacProtoView\n\nMac 原型",
-      "color": "4"
-    },
-    {
-      "id": "n_other_views",
-      "type": "text",
-      "x": 1360,
-      "y": 810,
-      "width": 110,
-      "height": 90,
-      "text": "其他视图\n\n星图 / 记忆\n情绪签到",
-      "color": "4"
-    },
-
-    {
-      "id": "static_group",
-      "type": "group",
-      "x": 320,
-      "y": 780,
-      "width": 560,
-      "height": 150,
-      "label": "静态资源 Static Assets",
-      "color": "4"
-    },
-    {
-      "id": "n_static",
-      "type": "text",
-      "x": 370,
-      "y": 810,
-      "width": 200,
-      "height": 90,
-      "text": "app/static/\n\nWeb 头像 / 场景\n背景图",
-      "color": "4"
-    },
-    {
-      "id": "n_assets",
-      "type": "text",
-      "x": 610,
-      "y": 810,
-      "width": 240,
-      "height": 90,
-      "text": "ios/Assets.xcassets\n\nApp 图标 / 图片资源",
-      "color": "4"
-    },
-
-    {
-      "id": "eval_group",
-      "type": "group",
-      "x": 320,
-      "y": 970,
-      "width": 1160,
-      "height": 150,
-      "label": "评估层 Evaluation / Harness (Python Web Demo)",
-      "color": "5"
-    },
-    {
-      "id": "n_runner",
-      "type": "text",
-      "x": 370,
-      "y": 1000,
-      "width": 200,
-      "height": 90,
-      "text": "runner.py\n\n八维度评估主控",
-      "color": "5"
-    },
-    {
-      "id": "n_diagnose",
-      "type": "text",
-      "x": 610,
-      "y": 1000,
-      "width": 200,
-      "height": 90,
-      "text": "diagnose.py\n\n失败分类诊断",
-      "color": "5"
-    },
-    {
-      "id": "n_check",
-      "type": "text",
-      "x": 850,
-      "y": 1000,
-      "width": 200,
-      "height": 90,
-      "text": "check_*.py\n\nSSE / 结构校验",
-      "color": "5"
-    },
-    {
-      "id": "n_tracker",
-      "type": "text",
-      "x": 1090,
-      "y": 1000,
-      "width": 200,
-      "height": 90,
-      "text": "prompt_tracker\n\n调用追踪 / 评分",
-      "color": "5"
-    },
-    {
-      "id": "n_tests",
-      "type": "text",
-      "x": 1310,
-      "y": 1000,
-      "width": 150,
-      "height": 90,
-      "text": "tests/\n\n单元 / 集成",
-      "color": "5"
-    },
-
-    {
-      "id": "infra_group",
-      "type": "group",
-      "x": 320,
-      "y": 1160,
-      "width": 1160,
-      "height": 120,
-      "label": "基础设施 Infrastructure",
-      "color": "6"
-    },
-    {
-      "id": "n_data",
-      "type": "text",
-      "x": 370,
-      "y": 1190,
-      "width": 200,
-      "height": 60,
-      "text": "data/\napp.db / test_set",
-      "color": "6"
-    },
-    {
-      "id": "n_reports",
-      "type": "text",
-      "x": 610,
-      "y": 1190,
-      "width": 200,
-      "height": 60,
-      "text": "eval_reports/\n日报 / 诊断",
-      "color": "6"
-    },
-    {
-      "id": "n_docs",
-      "type": "text",
-      "x": 850,
-      "y": 1190,
-      "width": 200,
-      "height": 60,
-      "text": "docs/\n产品 / 技术 / 自动化",
-      "color": "6"
-    },
-    {
-      "id": "n_design",
-      "type": "text",
-      "x": 1090,
-      "y": 1190,
-      "width": 200,
-      "height": 60,
-      "text": "design/\n画风 / 场景 / 世界观",
-      "color": "6"
-    },
-    {
-      "id": "n_env",
-      "type": "text",
-      "x": 1310,
-      "y": 1190,
-      "width": 150,
-      "height": 60,
-      "text": ".env\nAPI Key",
-      "color": "6"
-    }
-  ],
-  "edges": [
-    {"id":"e_entry_orch_1","fromNode":"n_main_py","fromSide":"bottom","toNode":"n_orchestrator","toSide":"top"},
-    {"id":"e_entry_orch_2","fromNode":"n_web_py","fromSide":"bottom","toNode":"n_orchestrator","toSide":"top"},
-    {"id":"e_entry_char","fromNode":"n_web_py","fromSide":"bottom","toNode":"n_characters","toSide":"top"},
-
-    {"id":"e_ios_chat_svc","fromNode":"n_ios_app","fromSide":"bottom","toNode":"n_chat_svc","toSide":"top"},
-    {"id":"e_ios_local_ds","fromNode":"n_ios_app","fromSide":"bottom","toNode":"n_local_deepseek","toSide":"top"},
-
-    {"id":"e_orch_safety","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_safety","toSide":"top"},
-    {"id":"e_orch_intent","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_intent","toSide":"top"},
-    {"id":"e_orch_llm","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_llm","toSide":"top"},
-    {"id":"e_orch_mem","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_memory","toSide":"top"},
-    {"id":"e_orch_know","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_knowledge","toSide":"top"},
-    {"id":"e_orch_prompt","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_prompts","toSide":"top"},
-    {"id":"e_orch_char_2","fromNode":"n_orchestrator","fromSide":"right","toNode":"n_characters","toSide":"left"},
-
-    {"id":"e_intent_llm","fromNode":"n_intent","fromSide":"bottom","toNode":"n_llm","toSide":"top"},
-
-    {"id":"e_chat_svc_models","fromNode":"n_chat_svc","fromSide":"bottom","toNode":"n_ios_models","toSide":"top"},
-    {"id":"e_local_ds_models","fromNode":"n_local_deepseek","fromSide":"bottom","toNode":"n_ios_models","toSide":"top"},
-    {"id":"e_models_db","fromNode":"n_ios_models","fromSide":"right","toNode":"n_ios_db","toSide":"left"},
-
-    {"id":"e_svc_views","fromNode":"n_chat_svc","fromSide":"bottom","toNode":"n_chat_view","toSide":"top"},
-    {"id":"e_models_mac","fromNode":"n_ios_models","fromSide":"bottom","toNode":"n_mac_proto","toSide":"top"},
-
-    {"id":"e_config_llm","fromNode":"n_config","fromSide":"left","toNode":"n_llm","toSide":"right","toEnd":"none"},
-    {"id":"e_config_mem","fromNode":"n_config","fromSide":"left","toNode":"n_memory","toSide":"right","toEnd":"none"},
-
-    {"id":"e_secure_key","fromNode":"n_ios_db","fromSide":"top","toNode":"n_local_deepseek","toSide":"bottom","label":"Keychain 存 Key"}
-  ]
+	"nodes":[
+		{"id":"title_group","type":"group","x":320,"y":-40,"width":1160,"height":60,"label":"小动物夜谈会 Xiaodongwu Yetanhui — 项目架构全景图","color":"6"},
+		{"id":"entry_group","type":"group","x":320,"y":60,"width":1160,"height":150,"label":"入口层 Entry","color":"1"},
+		{"id":"n_main_py","type":"text","x":370,"y":95,"width":240,"height":90,"text":"main.py\n\nCLI 入口 / 启动","color":"1"},
+		{"id":"n_web_py","type":"text","x":660,"y":95,"width":260,"height":90,"text":"web.py\n\nWeb UI / HTTP / SSE 流","color":"1"},
+		{"id":"n_ios_app","type":"text","x":970,"y":95,"width":480,"height":90,"text":"ios/XiaodongwuYetanhui (SwiftUI)\niOS 聊天 / Mac Catalyst 原型\n本地 DeepSeek + SQLite / BYO API Key","color":"1"},
+		{"id":"orch_group","type":"group","x":320,"y":250,"width":560,"height":130,"label":"编排层 Orchestration","color":"2"},
+		{"id":"n_orchestrator","type":"text","x":370,"y":280,"width":230,"height":80,"text":"orchestrator.py\n\n会话流转 / 角色调度","color":"2"},
+		{"id":"n_characters","type":"text","x":640,"y":280,"width":210,"height":80,"text":"characters.py\n\n角色定义与管理","color":"2"},
+		{"id":"ios_svc_group","type":"group","x":920,"y":250,"width":560,"height":130,"label":"iOS 服务层 iOS Services","color":"2"},
+		{"id":"n_chat_svc","type":"text","x":970,"y":280,"width":220,"height":80,"text":"ChatService.swift\n\n后端通信 / SSE 流","color":"2"},
+		{"id":"n_local_deepseek","type":"text","x":1230,"y":280,"width":230,"height":80,"text":"LocalDeepSeek.swift\n\n本地 DeepSeek 调用","color":"2"},
+		{"id":"safety_group","type":"group","x":320,"y":420,"width":240,"height":130,"label":"安全层 Safety","color":"3"},
+		{"id":"n_safety","type":"text","x":365,"y":450,"width":170,"height":80,"text":"safety.py\n\n内容安全\n危机识别","color":"3"},
+		{"id":"intent_group","type":"group","x":600,"y":420,"width":280,"height":130,"label":"意图层 Intent","color":"3"},
+		{"id":"n_intent","type":"text","x":645,"y":450,"width":190,"height":80,"text":"intent/\n\nschema / router\nagent.py","color":"3"},
+		{"id":"ios_model_group","type":"group","x":920,"y":420,"width":560,"height":130,"label":"iOS 数据层 iOS Data & Models","color":"3"},
+		{"id":"n_ios_models","type":"text","x":970,"y":450,"width":240,"height":80,"text":"CompanionModels.swift\n\n角色 / 表情 / 消息 / 记忆\n互动 / 星图洞察","color":"3"},
+		{"id":"n_ios_db","type":"text","x":1240,"y":450,"width":220,"height":80,"text":"SQLiteDatabase.swift\n\niOS 本地 SQLite\n离线数据存储","color":"3"},
+		{"id":"core_group","type":"group","x":320,"y":590,"width":1160,"height":150,"label":"核心服务层 Core Services","color":"4"},
+		{"id":"n_llm","type":"text","x":370,"y":620,"width":200,"height":90,"text":"llm/\n\nDeepSeek / Fake\n模型适配层","color":"4"},
+		{"id":"n_memory","type":"text","x":610,"y":620,"width":200,"height":90,"text":"memory/\n\nschema + store\nSQLite 持久化","color":"4"},
+		{"id":"n_knowledge","type":"text","x":850,"y":620,"width":200,"height":90,"text":"knowledge/\n\n知识卡片\n检索辅助","color":"4"},
+		{"id":"n_prompts","type":"text","x":1090,"y":620,"width":200,"height":90,"text":"prompts/\n\nMarkdown\nPrompt 模板","color":"4"},
+		{"id":"n_config","type":"text","x":1310,"y":620,"width":150,"height":90,"text":"config.py\n\n全局配置","color":"4"},
+		{"id":"ios_view_group","type":"group","x":920,"y":780,"width":560,"height":150,"label":"iOS 视图层 iOS Views","color":"4"},
+		{"id":"n_chat_view","type":"text","x":970,"y":810,"width":160,"height":90,"text":"ChatView\n\niOS 聊天","color":"4"},
+		{"id":"n_mac_proto","type":"text","x":1170,"y":810,"width":160,"height":90,"text":"MacProtoView\n\nMac 原型","color":"4"},
+		{"id":"n_other_views","type":"text","x":1360,"y":810,"width":110,"height":90,"text":"其他视图\n\n星图 / 记忆\n情绪签到","color":"4"},
+		{"id":"static_group","type":"group","x":320,"y":780,"width":560,"height":150,"label":"静态资源 Static Assets","color":"4"},
+		{"id":"n_static","type":"text","x":370,"y":810,"width":200,"height":90,"text":"app/static/\n\nWeb 头像 / 场景\n背景图","color":"4"},
+		{"id":"n_assets","type":"text","x":610,"y":810,"width":240,"height":90,"text":"ios/Assets.xcassets\n\nApp 图标 / 图片资源","color":"4"},
+		{"id":"eval_group","type":"group","x":320,"y":970,"width":1160,"height":150,"label":"评估层 Evaluation / Harness (Python Web Demo)","color":"5"},
+		{"id":"n_runner","type":"text","x":370,"y":1000,"width":200,"height":90,"text":"runner.py\n\n八维度评估主控","color":"5"},
+		{"id":"n_diagnose","type":"text","x":610,"y":1000,"width":200,"height":90,"text":"diagnose.py\n\n失败分类诊断","color":"5"},
+		{"id":"n_check","type":"text","x":850,"y":1000,"width":200,"height":90,"text":"check_*.py\n\nSSE / 结构校验","color":"5"},
+		{"id":"n_tracker","type":"text","x":1090,"y":1000,"width":200,"height":90,"text":"prompt_tracker\n\n调用追踪 / 评分","color":"5"},
+		{"id":"n_tests","type":"text","x":1310,"y":1000,"width":150,"height":90,"text":"tests/\n\n单元 / 集成","color":"5"},
+		{"id":"infra_group","type":"group","x":320,"y":1160,"width":1160,"height":120,"label":"基础设施 Infrastructure","color":"6"},
+		{"id":"n_data","type":"text","x":370,"y":1190,"width":200,"height":60,"text":"data/\napp.db / test_set","color":"6"},
+		{"id":"n_reports","type":"text","x":610,"y":1190,"width":200,"height":60,"text":"eval_reports/\n日报 / 诊断","color":"6"},
+		{"id":"n_docs","type":"text","x":850,"y":1190,"width":200,"height":60,"text":"docs/\n产品 / 技术 / 自动化","color":"6"},
+		{"id":"n_design","type":"text","x":1090,"y":1190,"width":200,"height":60,"text":"design/\n画风 / 场景 / 世界观","color":"6"},
+		{"id":"n_env","type":"text","x":1310,"y":1190,"width":150,"height":60,"text":".env\nAPI Key","color":"6"}
+	],
+	"edges":[
+		{"id":"e_entry_orch_1","fromNode":"n_main_py","fromSide":"bottom","toNode":"n_orchestrator","toSide":"top"},
+		{"id":"e_entry_orch_2","fromNode":"n_web_py","fromSide":"bottom","toNode":"n_orchestrator","toSide":"top"},
+		{"id":"e_entry_char","fromNode":"n_web_py","fromSide":"bottom","toNode":"n_characters","toSide":"top"},
+		{"id":"e_ios_chat_svc","fromNode":"n_ios_app","fromSide":"bottom","toNode":"n_chat_svc","toSide":"top"},
+		{"id":"e_ios_local_ds","fromNode":"n_ios_app","fromSide":"bottom","toNode":"n_local_deepseek","toSide":"top"},
+		{"id":"e_orch_safety","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_safety","toSide":"top"},
+		{"id":"e_orch_intent","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_intent","toSide":"top"},
+		{"id":"e_orch_llm","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_llm","toSide":"top"},
+		{"id":"e_orch_mem","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_memory","toSide":"top"},
+		{"id":"e_orch_know","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_knowledge","toSide":"top"},
+		{"id":"e_orch_prompt","fromNode":"n_orchestrator","fromSide":"bottom","toNode":"n_prompts","toSide":"top"},
+		{"id":"e_orch_char_2","fromNode":"n_orchestrator","fromSide":"right","toNode":"n_characters","toSide":"left"},
+		{"id":"e_intent_llm","fromNode":"n_intent","fromSide":"bottom","toNode":"n_llm","toSide":"top"},
+		{"id":"e_chat_svc_models","fromNode":"n_chat_svc","fromSide":"bottom","toNode":"n_ios_models","toSide":"top"},
+		{"id":"e_local_ds_models","fromNode":"n_local_deepseek","fromSide":"bottom","toNode":"n_ios_models","toSide":"top"},
+		{"id":"e_models_db","fromNode":"n_ios_models","fromSide":"right","toNode":"n_ios_db","toSide":"left"},
+		{"id":"e_svc_views","fromNode":"n_chat_svc","fromSide":"bottom","toNode":"n_chat_view","toSide":"top"},
+		{"id":"e_models_mac","fromNode":"n_ios_models","fromSide":"bottom","toNode":"n_mac_proto","toSide":"top"},
+		{"id":"e_config_llm","fromNode":"n_config","fromSide":"left","toNode":"n_llm","toSide":"right","toEnd":"none"},
+		{"id":"e_config_mem","fromNode":"n_config","fromSide":"left","toNode":"n_memory","toSide":"right","toEnd":"none"},
+		{"id":"e_secure_key","fromNode":"n_ios_db","fromSide":"top","toNode":"n_local_deepseek","toSide":"bottom","label":"Keychain 存 Key"}
+	]
 }
