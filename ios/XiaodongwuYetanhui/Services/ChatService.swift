@@ -520,13 +520,20 @@ final class ChatService {
 
             var eventType = "message"
             var dataLines: [String] = []
+            var bufferedEventByteCount = 0
+            let maximumEventByteCount = 1_048_576
             streamLoop: for try await line in bytes.lines {
                 if line.hasPrefix("event:") {
                     eventType = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
                     continue
                 }
                 if line.hasPrefix("data:") {
-                    dataLines.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+                    let dataLine = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+                    bufferedEventByteCount += dataLine.utf8.count
+                    guard bufferedEventByteCount <= maximumEventByteCount else {
+                        throw ChatServiceError.streamBufferExceeded(maximumEventByteCount)
+                    }
+                    dataLines.append(dataLine)
                     continue
                 }
                 guard line.isEmpty, !dataLines.isEmpty else { continue }
@@ -535,6 +542,7 @@ final class ChatService {
                 let data = Data(dataLines.joined(separator: "\n").utf8)
                 eventType = "message"
                 dataLines.removeAll(keepingCapacity: true)
+                bufferedEventByteCount = 0
 
                 switch currentEventType {
                 case "quick_reply":
@@ -1734,6 +1742,7 @@ private enum ChatServiceError: Error, CustomStringConvertible {
     case httpStatus(Int)
     case noActiveSession
     case stream(String)
+    case streamBufferExceeded(Int)
 
     var description: String {
         switch self {
@@ -1745,6 +1754,8 @@ private enum ChatServiceError: Error, CustomStringConvertible {
             return "还没有正在进行的会话"
         case .stream(let message):
             return "流式回复失败：\(message)"
+        case .streamBufferExceeded(let limit):
+            return "流式回复单个事件超过 \(limit) 字节，已停止读取"
         }
     }
 }

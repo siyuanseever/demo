@@ -47,8 +47,8 @@
 - [ ] **P0 Worktree 保护**：三个代码 Agent 只验证固定 worktree，缺失即报告，绝不自行删除、创建 branch 或换路径。
 - [ ] **P0 性能**：关键路径无可复现卡死，无超过 1 秒的主线程停顿；保留优化前后同场景证据。
 - [ ] **Critical 内存 A/B**：比较 `30c0d36` 前后相同场景的 resident/physical footprint、Allocations 和 memgraph。
-- [ ] **Critical MEM-001**：为 `task_threads` Mach allocation 的错误释放建立回归并修复。
-- [ ] **Critical MEM-002**：heartbeat 主线程投递增加 in-flight 背压，阻塞时 pending work 不得无界增长。
+- [ ] **Critical MEM-001**：产品修复已完成并通过 Catalyst 构建；等待 Checker 建立/执行独立回归。
+- [ ] **Critical MEM-002**：已增加单 tick in-flight 背压，临时压力程序验证 pending 始终 <= 1；等待 Checker 独立复验。
 - [ ] **Critical 内存 soak**：idle、连续发送、离线后端、页面切换和自动同步均满足内存斜率/回落门槛。
 - [ ] **P0 发送卡死取证**（PM-TASK-011）：建立 tap → task → encode → request resumed → backend received → response → UI applied 的脱敏事件链；实现 correlation ID 贯穿发送路径；实现 UI heartbeat 机制检测主线程阻塞；hang 时采集主线程 sample、CPU/内存、最后事件和后端日志窗口；覆盖后端在线/离线、首次/连续发送、群聊/单角色场景。
 - [ ] **P0 发送卡死复现**：覆盖后端在线/离线、首次/连续发送、群聊/单角色和不同数据规模。

@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-02（PM 每日扫描报告 pm-20260702T230000+0800-b646fbeb）
+> 最后更新时间：2026-07-03（Mac 内存事故止血与本机取证）
 
 ---
 
@@ -42,11 +42,11 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `4a2a8b0
 
 | 指标 | 当前状态 |
 |---|---|
-| Catalyst 构建 | 已通过（automation 分支证据） |
-| 启动持续存活/核心页面 | 报告互相矛盾，待独立复验 |
+| Catalyst 构建 | 本机 Debug Catalyst 构建通过；补齐遗漏的 `SendInstrumentation.swift` target membership |
+| 启动持续存活/核心页面 | 本机启动持续 8 分钟以上；夜谈、心流页面可达 |
 | 卡死复现与性能 trace | 未完成 |
 | 单条消息发送后卡死、后端无请求 | P0，用户再次复现 |
-| 内存持续增长至约 65GB | Critical，当前最高优先级 |
+| 内存持续增长至约 65GB | `fixed_pending_verification`：已修 MEM-001/MEM-002 和 SSE 1MB 上限，等待发送/同步/20 分钟 soak 独立复验 |
 | 自动刷新 | 当前 `syncIfNeeded()` 不执行同步，仍依赖手动刷新 |
 | 数据权威边界 | 已在规划中确认，尚未实现验收 |
 | 字段矩阵 | 未完成 |
@@ -58,17 +58,25 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `4a2a8b0
 
 ## 当前 P0
 
-1. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。
-2. 停止 PM/Executor 小时级轮询，按 P0 调度表错峰运行。
-3. 验证 PM 没有任何 Git 写操作，以及三个代码 Agent 的固定 worktree 保护。
-4. Checker 在同一 automation HEAD 上复核 Catalyst 构建、Python Gate 和 Executor 证据。
-5. Checker 对 `30c0d36` 前后执行内存 A/B，并复现 `MAC-MEM-GROWTH-001`。
-6. 为 `MEM-001` 错误 Mach 释放和 `MEM-002` heartbeat 无背压建立测试，交给 Fixer。
+1. Checker 对 `30c0d36` 前后执行内存 A/B，并复验 `MAC-MEM-GROWTH-001` 修复。
+2. 完成真实发送、离线后端、页面切换、同步和 20 分钟 soak；2GB 自动止损。
+3. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。
+4. 停止 PM/Executor 小时级轮询，按 P0 调度表错峰运行。
+5. 验证 PM 没有任何 Git 写操作，以及三个代码 Agent 的固定 worktree 保护。
+6. Checker 在同一 automation HEAD 上复核 Catalyst 构建、Python Gate 和 Executor 证据。
 7. 建立卡死复现场景和六条关键路径性能基线。
 8. 为发送路径建立脱敏阶段事件、correlation ID、UI heartbeat 和 hang 采样方案。
 9. 完成自动刷新触发矩阵与数据字段矩阵。
 10. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
 11. 核对最近更新记忆/日记和三篇关联日记的可见性。
+
+### 2026-07-03 内存止血证据
+
+- 空闲 116 秒 RSS：约 `104 MB → 69 MB`，未出现持续单调增长。
+- `vmmap`：physical footprint `41.8 MB`，peak `92.0 MB`。
+- memgraph：192 个系统 `NSXPCConnection/AppIntents` 泄漏，共约 `9.4 KB`；未发现 App 自有类型泄漏。
+- heartbeat 压力程序连续 5 次阻塞主线程，每次 pending tick 上限为 `1`，恢复后回到 `0`。
+- 尚缺真实 UI 发送、自动同步和 20 分钟 soak，因此 incident 不关闭。
 
 ---
 

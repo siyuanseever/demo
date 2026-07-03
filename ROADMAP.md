@@ -6,6 +6,16 @@
 
 现有 `ios/XiaodongwuYetanhui/` 工程同时承载 Apple 平台原型；本阶段以 Mac 实际运行体验为验收对象，不因目录名为 `ios` 而把任务归类为远期 iOS 工作。更长期的移动端、视觉资产和商业化方向仍见 [docs/ios_product_direction.md](docs/ios_product_direction.md)。
 
+### 当前唯一产品 P0：关闭 Mac 内存失控事故
+
+在 `MAC-MEM-GROWTH-001` 关闭前，暂停普通 UI 扩展、心流互动和数据展示新功能。当前执行顺序固定为：
+
+1. 修复已确认的 `MEM-001` Mach allocation 错误释放和 `MEM-002` heartbeat 无背压。
+2. 限制 SSE、诊断事件、Task 和同步结果的内存上界。
+3. 执行启动空闲、页面切换、连续发送、离线等待和同步场景；进程达到 2GB 立即停止并保存证据。
+4. 使用相同构建和数据规模比较 resident memory、physical footprint、Allocations 与 memgraph。
+5. 只有内存不再持续单调增长、关键场景可正常退出且 Checker 独立复验后，才恢复后续 Roadmap。
+
 ### 工作流 A：心流与夜谈双向互融
 
 目标不是在两个页面重复展示全部信息，而是让用户在当前情境中看见少量、相关、可进入详情的线索。

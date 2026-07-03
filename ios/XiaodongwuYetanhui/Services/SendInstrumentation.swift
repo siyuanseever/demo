@@ -9,7 +9,7 @@ final class SendInstrumentation {
         category: "SendInstrumentation"
     )
 
-    private let queue = DispatchQueue(label: "xiaodongwu.send.instrumentation", attributes: .concurrent)
+    private let queue = DispatchQueue(label: "xiaodongwu.send.instrumentation")
 
     private var activeSends: [String: SendTrackingState] = [:]
     private var recentEvents: [SendPhaseEvent] = []
@@ -18,6 +18,7 @@ final class SendInstrumentation {
     private var heartbeatTimer: DispatchSourceTimer?
     private var lastMainThreadTick: Date = Date()
     private var heartbeatCount: Int64 = 0
+    private var heartbeatTickPending = false
 
     private var hangDetectionTimer: DispatchSourceTimer?
     private let hangThreshold: TimeInterval = 1.0
@@ -37,7 +38,7 @@ final class SendInstrumentation {
             isGroupMode: isGroupMode,
             startedAt: Date()
         )
-        queue.async(flags: .barrier) { [weak self] in
+        queue.async { [weak self] in
             self?.activeSends[correlationID] = state
         }
         recordPhase(.sendTapped, correlationID: correlationID, metadata: [
@@ -55,7 +56,7 @@ final class SendInstrumentation {
             timestamp: Date(),
             metadata: metadata
         )
-        queue.async(flags: .barrier) { [weak self] in
+        queue.async { [weak self] in
             guard let self else { return }
             self.recentEvents.append(event)
             if self.recentEvents.count > self.maxRecentEvents {
@@ -74,7 +75,7 @@ final class SendInstrumentation {
             "success": success ? "true" : "false",
             "error": error ?? ""
         ])
-        queue.async(flags: .barrier) { [weak self] in
+        queue.async { [weak self] in
             guard let self else { return }
             if let state = self.activeSends[correlationID] {
                 let duration = Date().timeIntervalSince(state.startedAt)
@@ -101,7 +102,8 @@ final class SendInstrumentation {
             HeartbeatInfo(
                 lastMainThreadTick: lastMainThreadTick,
                 heartbeatCount: heartbeatCount,
-                currentGap: Date().timeIntervalSince(lastMainThreadTick)
+                currentGap: Date().timeIntervalSince(lastMainThreadTick),
+                pendingTickCount: heartbeatTickPending ? 1 : 0
             )
         }
     }
@@ -115,12 +117,19 @@ final class SendInstrumentation {
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now(), repeating: .milliseconds(200), leeway: .milliseconds(50))
         timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            let shouldScheduleTick = self.queue.sync {
+                guard !self.heartbeatTickPending else { return false }
+                self.heartbeatTickPending = true
+                return true
+            }
+            guard shouldScheduleTick else { return }
             DispatchQueue.main.async {
-                guard let self else { return }
                 let now = Date()
-                self.queue.async(flags: .barrier) {
+                self.queue.async {
                     self.lastMainThreadTick = now
                     self.heartbeatCount += 1
+                    self.heartbeatTickPending = false
                 }
             }
         }
@@ -135,17 +144,23 @@ final class SendInstrumentation {
             guard let self else { return }
             let now = Date()
             let gap = now.timeIntervalSince(self.heartbeatInfo.lastMainThreadTick)
-            if gap > self.hangThreshold {
-                if let lastCapture = self.lastHangCapturedAt,
-                   now.timeIntervalSince(lastCapture) < self.hangCaptureCooldown {
-                    return
-                }
-                self.lastHangCapturedAt = now
+            if gap > self.hangThreshold, self.shouldCaptureHang(at: now) {
                 self.captureHangSample(mainThreadGap: gap)
             }
         }
         timer.resume()
         hangDetectionTimer = timer
+    }
+
+    private func shouldCaptureHang(at now: Date) -> Bool {
+        queue.sync {
+            if let lastCapture = lastHangCapturedAt,
+               now.timeIntervalSince(lastCapture) < hangCaptureCooldown {
+                return false
+            }
+            lastHangCapturedAt = now
+            return true
+        }
     }
 
     private func captureHangSample(mainThreadGap: TimeInterval) {
@@ -161,11 +176,12 @@ final class SendInstrumentation {
             memoryUsage: Self.memoryUsage(),
             cpuUsage: Self.cpuUsage()
         )
+        let gapText = String(format: "%.1f", mainThreadGap)
+        let activeSendCount = activeSends.count
+        let lastPhase = activeSends.first?.lastPhase.rawValue ?? "none"
+        let memoryUsageMB = sample.memoryUsageMB
         logger.error(
-            "HANG_DETECTED gap=\(String(format: "%.1f", mainThreadGap), privacy: .public)s " +
-            "active_sends=\(activeSends.count, privacy: .public) " +
-            "last_phase=\(activeSends.first?.lastPhase.rawValue ?? "none", privacy: .public) " +
-            "memory_mb=\(sample.memoryUsageMB, privacy: .public)"
+            "HANG_DETECTED gap=\(gapText, privacy: .public)s active_sends=\(activeSendCount, privacy: .public) last_phase=\(lastPhase, privacy: .public) memory_mb=\(memoryUsageMB, privacy: .public)"
         )
         var eventDescriptions: [String] = []
         for event in events.suffix(10) {
@@ -200,7 +216,9 @@ final class SendInstrumentation {
         var thread_count: mach_msg_type_number_t = 0
         defer {
             if let thread_array = thread_array {
-                vm_deallocate(mach_task_self_, vm_address_t(UnsafePointer(thread_array).hashValue), vm_size_t(thread_count))
+                let address = vm_address_t(UInt(bitPattern: thread_array))
+                let size = vm_size_t(thread_count) * vm_size_t(MemoryLayout<thread_t>.stride)
+                vm_deallocate(mach_task_self_, address, size)
             }
         }
         kr = task_threads(mach_task_self_, &thread_array, &thread_count)
@@ -257,6 +275,7 @@ struct HeartbeatInfo {
     let lastMainThreadTick: Date
     let heartbeatCount: Int64
     let currentGap: TimeInterval
+    let pendingTickCount: Int
 }
 
 struct HangSample {

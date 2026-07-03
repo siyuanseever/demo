@@ -118,6 +118,7 @@
 		B00000000000000000000101 /* SecureSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000201 /* SecureSettingsStore.swift */; };
 		B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000202 /* LocalDeepSeekService.swift */; };
 		C00000000000000000000101 /* MacPrototypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000201 /* MacPrototypeView.swift */; };
+		D00000000000000000000101 /* SendInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000201 /* SendInstrumentation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -234,6 +235,7 @@
 		B00000000000000000000201 /* SecureSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureSettingsStore.swift; sourceTree = "<group>"; };
 		B00000000000000000000202 /* LocalDeepSeekService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDeepSeekService.swift; sourceTree = "<group>"; };
 		C00000000000000000000201 /* MacPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPrototypeView.swift; sourceTree = "<group>"; };
+		D00000000000000000000201 /* SendInstrumentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendInstrumentation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -298,6 +300,7 @@
 				000000000000000000000320 /* RecommendationService.swift */,
 				B00000000000000000000201 /* SecureSettingsStore.swift */,
 				B00000000000000000000202 /* LocalDeepSeekService.swift */,
+				D00000000000000000000201 /* SendInstrumentation.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -600,6 +603,7 @@
 				000000000000000000000130 /* RecommendationService.swift in Sources */,
 				B00000000000000000000101 /* SecureSettingsStore.swift in Sources */,
 				B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */,
+				D00000000000000000000101 /* SendInstrumentation.swift in Sources */,
 				000000000000000000000106 /* SharedViews.swift in Sources */,
 				C00000000000000000000101 /* MacPrototypeView.swift in Sources */,
 				000000000000000000000107 /* ChatView.swift in Sources */,
