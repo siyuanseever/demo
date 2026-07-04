@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-03（Mac 内存事故止血与本机取证）
+> 最后更新时间：2026-07-04（PM 日报，发送路径可观测性任务下发）
 
 ---
 
@@ -15,19 +15,18 @@ G0 自动化治理止血 + Mac Catalyst M0 基线与数据架构。
 
 ## 自动化实际状态
 
-当前不是“正常运行”，而是 **协议切换未生效**：
+当前不是"正常运行"，而是 **协议切换未生效**：
 
-- 审计时仓库 Prompt 已定义 v2，但最新 PM 输出仍为 v1；当前仓库已升级为 v3，仍需按激活清单更新实际定时任务。
-- PM 在同一天生成了多轮报告，并且每轮下发 3 个任务，违反“每日/每槽一个任务”。
-- Executor 对 `PM-TASK-004` 生成了两份报告，重复执行同一任务。
-- 两份 Executor 报告对应用启动状态分别写为“待人工验证”和“成功”，证据口径不一致。
-- PM 历史上在 main 提交规划文档；根据用户最新要求，后续改为只读 main、只写 handoff，不再创建 Git commit。
-- Checker state 尚无 `processed_executor_run_ids`，不能保证 Executor 回执只消费一次。
-- `checker_runs.jsonl` 存在记录未换行拼接，索引写入不够可靠。
-- 本轮治理编辑期间，运行中的其他 Agent 再次把 Web 修复和治理文档混合提交到 `main`（`f425ce1`），进一步证明新版 worktree、角色边界和单任务规则尚未在运行时生效。
-- 最新 PM 虽已降为单任务，但 `PM-TASK-009` 把自动化协议/state 修改交给 Executor，与 Executor 的禁止路径冲突；治理任务必须改为给用户/Codex的提醒。
+- 仓库 Prompt 已升级为 v3（`2026-07-02-governance-1`），但仍需按激活清单更新实际定时任务。
+- Checker 最新运行（2026-07-04 19:00）：Python Gate 1 通过（262/262, 100%），确认 MEM-001/MEM-002/SSE 缓冲区修复已合入 `d506635`。
+- Checker 成功执行了 fast-forward merge，将 `automation/quality-loop` 与 `main` 对齐到 `d506635`。
+- 三个待处理 issue：CHK-GIT-DIVERGED-001 resolved、CHK-EXECUTOR-DUPLICATE-001（Executor 重复执行 PM-TASK-004）、CHK-INDEX-FORMAT-001（checker_runs.jsonl 换行缺失）。
+- Fixer 最新运行（2026-07-03 13:02）：worktree_missing——从错误路径 `/Users/liangsiyuan/.codex/worktrees/161b/demo` (detached HEAD) 运行，无产出。
+- Checker worktree 仍有未提交的 `test_code_review_findings.py`。
+- `executor_state.json` 中 `claimed_task_keys` 为空但 `completed_task_keys` 有值——claim 原子性可疑。
+- PM 本日下发 1 个可执行任务（PM-TASK-012：发送路径可观测性），其他为 backlog 建议和 human note。
 
-Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `4a2a8b0`，分歧已经通过 merge 解决。automation worktree 当前有 Checker 的未提交测试修改，其他 Agent 必须等待其完成或报告 busy，不能覆盖。
+Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635`，分歧已通过 Checker fast-forward merge 解决。
 
 ---
 
@@ -69,6 +68,14 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `4a2a8b0
 9. 完成自动刷新触发矩阵与数据字段矩阵。
 10. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
 11. 核对最近更新记忆/日记和三篇关联日记的可见性。
+
+### 2026-07-04 PM 日报要点
+
+- **Python Gate**: 262/262, 100%（Checker 2026-07-04 确认）
+- **内存修复确认**: MEM-001/MEM-002/SSE 缓冲区修复已在 `d506635` 合入，等 Mac 环境独立复验
+- **已下发任务**: PM-TASK-012（发送路径可观测性：阶段事件 + correlation ID + UI heartbeat）→ 待 Executor 在 2026-07-05 06:00 slot 执行
+- **需用户操作**: 定时任务 v3 Prompt 激活、Fixer worktree 修复
+- **产品修复阻断**: 两个 P0 事故均因无 Mac 端可观测性而无法推进验证
 
 ### 2026-07-03 内存止血证据
 

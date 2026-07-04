@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "purpose": "按观察、机制、模式与干预分层，避免把体验直接跳译成创伤或诊断。",
+  "state_dimensions": [
+    "event",
+    "emotion",
+    "body",
+    "thought",
+    "urge",
+    "behavior",
+    "relationship_context",
+    "work_context",
+    "time_course",
+    "arousal",
+    "cognitive_capacity",
+    "safety"
+  ],
+  "explanation_layers": [
+    {
+      "id": "reality_and_context",
+      "label": "现实与情境",
+      "question": "外界是否真的存在拒绝、不公、剥削、危险、信息不足或资源约束？"
+    },
+    {
+      "id": "body_and_medical",
+      "label": "身体与医学鉴别",
+      "question": "睡眠、药物、疼痛、视觉疲劳、营养或疾病是否可能参与？"
+    },
+    {
+      "id": "arousal_and_load",
+      "label": "唤醒与负荷",
+      "question": "当前更像高唤醒、低唤醒、过载、耗竭还是状态残留？"
+    },
+    {
+      "id": "cognition_and_attention",
+      "label": "认知与注意",
+      "question": "是否出现读心、灾难化、反刍、归因偏差或注意收窄？"
+    },
+    {
+      "id": "relationship_and_social",
+      "label": "关系与社会动力",
+      "question": "依恋、拒绝敏感、角色期待、权力差异或情绪劳动如何参与？"
+    },
+    {
+      "id": "learned_protection",
+      "label": "学习史与保护模式",
+      "question": "某种警戒、讨好、撤退或自我攻击是否曾经具有保护功能？"
+    },
+    {
+      "id": "identity_values_meaning",
+      "label": "身份、价值与意义",
+      "question": "这件事触碰了什么身份、价值、归属或意义？"
+    },
+    {
+      "id": "support_and_action",
+      "label": "支持与行动",
+      "question": "此刻最小、可选、可停止且不增加负担的支持是什么？"
+    }
+  ],
+  "card_roles": [
+    "observation",
+    "mechanism",
+    "differential",
+    "personalized_pattern",
+    "therapeutic_framework",
+    "intervention"
+  ],
+  "epistemic_order": [
+    "known_fact",
+    "user_interpretation",
+    "candidate_mechanism",
+    "working_hypothesis",
+    "clinical_diagnosis"
+  ],
+  "retrieval_policy": {
+    "primary_mechanisms_max": 3,
+    "required_alternative_explanations": 1,
+    "prefer_observable_language": true,
+    "diagnosis_from_cards": false,
+    "intervention_requires_choice": true
+  }
+}

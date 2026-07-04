@@ -2016,8 +2016,9 @@ HTML = """<!doctype html>
       for (const card of knowledgeCards) {
         const tag = document.createElement("span");
         tag.className = "used-card";
-        tag.textContent = card.title;
-        tag.title = card.concept || "";
+        const sourceRef = card.source_ref || card.source || "";
+        tag.textContent = sourceRef ? `${card.title} · ${sourceRef}` : card.title;
+        tag.title = [card.concept || "", card.evidence_caveat || ""].filter(Boolean).join("\\n");
         tag.onclick = () => showKnowledgeDetail(card.id);
         cards.appendChild(tag);
       }
@@ -2288,11 +2289,27 @@ HTML = """<!doctype html>
           </div>
           <button type="button" onclick="closeDetail()">关闭</button>
         </div>
-        <div class="meta">domain: ${escapeHtml(data.card.domain)} · source: ${escapeHtml(data.card.source)}</div>
+        <div class="meta">领域：${escapeHtml(data.card.domain)} · 角色：${escapeHtml(data.card.card_role || "mechanism")} · 类型：${escapeHtml(data.card.concept_type || "established_concept")}</div>
+        <div class="meta">证据等级：${escapeHtml(data.card.evidence_level || "unspecified")}</div>
+        <div class="meta">来源：${escapeHtml(data.card.source_ref || data.card.source || "")}</div>
+        <div>${(data.card.sources || []).map(source => `
+          <a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.label)}</a>
+        `).join(" · ")}</div>
         <div>${(data.card.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
         <div class="content">${escapeHtml(data.card.concept)}</div>
         <div class="meta">适用：${escapeHtml(data.card.use_when)}</div>
         <div class="meta">小鹿表达：${escapeHtml(data.card.xiaolu_style)}</div>
+        <div class="content"><b>证据边界：</b>${escapeHtml(data.card.evidence_caveat || "")}</div>
+        <div class="content"><b>还需保留的解释：</b>${escapeHtml((data.card.differential_explanations || []).join("；"))}</div>
+        ${data.card.medical_differential ? `<div class="content"><b>身体因素提醒：</b>${escapeHtml(data.card.medical_differential)}</div>` : ""}
+        ${(data.card.low_load_actions || []).length ? `<div class="content"><b>可选低负担动作：</b>${escapeHtml(data.card.low_load_actions[0])}</div>` : ""}
+        ${data.card.action_safety ? `<div class="meta">动作安全：${escapeHtml(data.card.action_safety)}</div>` : ""}
+        <h3>相关概念</h3>
+        <div>${(data.related_cards || []).map(card => `
+          <button class="used-card" type="button" onclick="showKnowledgeDetail('${escapeHtml(card.id)}')">
+            ${escapeHtml(card.title)}
+          </button>
+        `).join("") || '<span class="meta">暂无相关概念。</span>'}</div>
         <h3>相关内容</h3>
         <div class="stack">${renderContentMini(data.related_content || [])}</div>
       `;
@@ -2842,12 +2859,15 @@ HTML = """<!doctype html>
       renderList(items, item => `
         <article class="card clickable" onclick="showKnowledgeDetail('${escapeHtml(item.id)}')">
           <h3>${escapeHtml(item.title)}</h3>
-          <div class="meta">domain: ${escapeHtml(item.domain)} · source: ${escapeHtml(item.source)}</div>
+          <div class="meta">领域：${escapeHtml(item.domain)} · 角色：${escapeHtml(item.card_role || "mechanism")} · 类型：${escapeHtml(item.concept_type || "established_concept")}</div>
+          <div class="meta">证据等级：${escapeHtml(item.evidence_level || "unspecified")}</div>
+          <div class="meta">来源：${escapeHtml(item.source_ref || item.source || "")}</div>
           <div>${(item.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
           <div class="content">${escapeHtml(item.concept)}</div>
           <div class="meta">适用：${escapeHtml(item.use_when)}</div>
           <div class="meta">小鹿表达：${escapeHtml(item.xiaolu_style)}</div>
           <div class="content">回应提示：${escapeHtml(item.response_hint)}</div>
+          <div class="content">证据边界：${escapeHtml(item.evidence_caveat || "")}</div>
         </article>
       `);
     }
@@ -3380,6 +3400,7 @@ class Handler(BaseHTTPRequestHandler):
         self.respond_json(
             {
                 "card": card,
+                "related_cards": self.app.orchestrator.knowledge.related_cards_for_knowledge(card_id),
                 "related_content": self.app.orchestrator.knowledge.related_content_for_knowledge(card_id),
             }
         )

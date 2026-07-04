@@ -181,6 +181,100 @@ class KnowledgeAccuracyTest(AccuracyTest):
         results = kr.retrieve("a" * 1000, limit=3)
         self.assert_true("retrieve_long_query", isinstance(results, list))
 
+        # 用户资料库应按章节加载，并保留可解释来源和安全字段
+        library_cards = [
+            card for card in kr.list_cards()
+            if card["id"].startswith("psych-library-")
+        ]
+        self.assert_equal("library_card_count", len(library_cards), 79)
+        self.assert_true(
+            "library_cards_have_source_refs",
+            all(card.get("source_ref") for card in library_cards),
+        )
+        self.assert_true(
+            "library_cards_have_alternatives",
+            all(card.get("differential_explanations") for card in library_cards),
+        )
+        self.assert_true(
+            "library_cards_have_concept_graph",
+            all(card.get("related_cards") for card in library_cards),
+        )
+        self.assert_equal(
+            "personalized_hypothesis_is_not_fact",
+            kr.get_card("psych-library-h3")["concept_type"],
+            "personalized_hypothesis",
+        )
+        self.assert_equal(
+            "contested_theory_is_marked",
+            kr.get_card("psych-library-3-6")["concept_type"],
+            "contested_theory",
+        )
+        self.assert_true(
+            "body_card_has_medical_differential",
+            bool(kr.get_card("psych-library-4-1")["medical_differential"]),
+        )
+        supplemental_cards = [
+            card for card in kr.list_cards()
+            if card.get("source_ref", "").startswith("补充资料：")
+            or card["id"] in {
+                "stress_executive_function_shift",
+                "arousal_carryover",
+                "appeasement_response",
+                "shame_triggered_self_attack",
+                "spotlight_effect",
+                "affiliative_mimicry",
+                "optional_pressure_and_release",
+            }
+        ]
+        self.assert_equal("supplemental_card_count", len(supplemental_cards), 16)
+        self.assert_true(
+            "supplemental_actions_are_bounded",
+            all(card.get("low_load_actions") and "action_safety" in card for card in supplemental_cards),
+        )
+        self.assert_true(
+            "dorsal_vagal_is_contested_alias",
+            "背侧迷走神经强制关机" in kr.get_card("psych-library-3-6")["aliases"],
+        )
+
+        scenario_expectations = [
+            ("她两个小时没回我，是不是讨厌我？", "psych-library-7-2"),
+            ("我逛街的时候眼睛特别累，脑袋不在线。", "psych-library-4-1"),
+            ("别人展示了一个很复杂的 Agent，我突然觉得自己很差。", "psych-library-2-6"),
+            ("我三天没出门，什么都不想做。", "psych-library-3-3"),
+            ("我明明在骑车，但脑子完全放松不下来。", "psych-library-2-1"),
+            ("我现在没工作，我是不是以后都找不到了？", "psych-library-9-3"),
+            ("这个公司让我觉得很剥削，但我不知道是不是我太敏感。", "psych-library-2-5"),
+            ("我只想打游戏，不想面对现实。", "psych-library-5-3"),
+        ]
+        for index, (query, expected_id) in enumerate(scenario_expectations, start=1):
+            card_ids = [card["id"] for card in kr.retrieve(query, limit=3)]
+            self.assert_true(
+                f"library_scenario_{index}",
+                expected_id in card_ids,
+                f"{expected_id} 应出现在 {card_ids} 中",
+            )
+
+        supplemental_scenarios = [
+            ("被人审视的时候我手臂特别紧，脑子突然空白", "stress_executive_function_shift"),
+            ("刚才很紧张，过会儿面试还是缓不过来", "arousal_carryover"),
+            ("面对强势领导我会自动赞同，明明不愿意也不敢说不", "appeasement_response"),
+            ("我总觉得所有人都在看我的小动作", "spotlight_effect"),
+            ("她吃水果我也跟着吃，我是不是在模仿她", "affiliative_mimicry"),
+            ("大厂流程很慢，是不是说明我能力不行", "attribution_under_uncertainty"),
+            ("两个圈子的人同时在场，我不知道该按哪套标准说话", "conflicting_audience_load"),
+            ("我一直刷新消息，什么都做不了", "asynchronous_waiting"),
+            ("我想用重被子强制让神经系统关机", "optional_pressure_and_release"),
+            ("不安慰她就生气，这是武器化脆弱吗", "asymmetric_vulnerability_labor"),
+            ("背侧迷走神经让我强制关机了", "psych-library-3-6"),
+        ]
+        for index, (query, expected_id) in enumerate(supplemental_scenarios, start=1):
+            card_ids = [card["id"] for card in kr.retrieve(query, limit=3)]
+            self.assert_true(
+                f"supplemental_scenario_{index}",
+                expected_id in card_ids,
+                f"{expected_id} 应出现在 {card_ids} 中",
+            )
+
         return self.results
 
 
