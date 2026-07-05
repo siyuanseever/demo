@@ -6,7 +6,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from app.memory.schema import MEMORY_SUBCATEGORIES, STATE_PROFILE_DOMAINS
+from app.memory.schema import (
+    MEMORY_SUBCATEGORIES,
+    STATE_PROFILE_DOMAINS,
+    normalize_memory_subcategory,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -466,6 +470,10 @@ class Store:
     def add_memory(self, session_id: str, memory: dict[str, Any]) -> str:
         memory_id = str(uuid.uuid4())
         now = utc_now()
+        subcategory = normalize_memory_subcategory(
+            memory["category"],
+            memory.get("subcategory"),
+        )
         with self.connect() as conn:
             conn.execute(
                 """
@@ -479,7 +487,7 @@ class Store:
                     memory_id,
                     "default",
                     memory["category"],
-                    memory.get("subcategory", "general"),
+                    subcategory,
                     json.dumps(memory.get("keywords", []), ensure_ascii=False),
                     memory["content"],
                     memory.get("evidence") or "",
@@ -918,6 +926,11 @@ class Store:
                 )
             memories = [row_to_dict(row) for row in cursor.fetchall()]
         for memory in memories:
+            memory["raw_subcategory"] = memory.get("subcategory", "")
+            memory["subcategory"] = normalize_memory_subcategory(
+                memory.get("category", ""),
+                memory.get("subcategory"),
+            )
             try:
                 memory["keywords"] = json.loads(memory["keywords"])
             except (TypeError, json.JSONDecodeError):
@@ -1140,13 +1153,23 @@ class Store:
             )
             candidates = [row_to_dict(row) for row in cursor.fetchall()]
         for candidate in candidates:
+            candidate["subcategory"] = normalize_memory_subcategory(
+                candidate.get("category", ""),
+                candidate.get("subcategory"),
+            )
             try:
                 candidate["keywords"] = json.loads(candidate["keywords"])
             except (TypeError, json.JSONDecodeError):
                 candidate["keywords"] = []
             overlap = keywords.intersection(candidate["keywords"])
             candidate["_score"] = (
-                2 * int(candidate["subcategory"] == memory.get("subcategory"))
+                2 * int(
+                    candidate["subcategory"]
+                    == normalize_memory_subcategory(
+                        memory.get("category", ""),
+                        memory.get("subcategory"),
+                    )
+                )
                 + len(overlap)
                 + int(memory.get("content", "")[:12] in candidate["content"])
             )
@@ -1290,7 +1313,10 @@ class Store:
                         item["id"],
                         item.get("user_id", "default"),
                         item.get("category", "memory"),
-                        item.get("subcategory", "general"),
+                        normalize_memory_subcategory(
+                            item.get("category", ""),
+                            item.get("subcategory"),
+                        ),
                         json.dumps(item.get("keywords", []), ensure_ascii=False),
                         item.get("status", "active"),
                         item.get("content", ""),

@@ -51,6 +51,43 @@ class MemoryStoreAccuracyTest(AccuracyTest):
         results = self.store.search_memories("test", limit=5)
         self.assert_true("search_memories_returns_list", isinstance(results, list))
 
+        # 小类必须收敛到每个大类固定的 8 个选项，未知值进入 general。
+        from app.memory.schema import MEMORY_SUBCATEGORIES
+
+        self.assert_true(
+            "memory_taxonomy_has_eight_fixed_subcategories",
+            all(len(subcategories) == 8 for subcategories in MEMORY_SUBCATEGORIES.values()),
+        )
+        memory_id = self.store.add_memory(
+            sid,
+            {
+                "category": "self_core",
+                "subcategory": "llm_invented_subcategory",
+                "content": "测试固定小类边界",
+                "evidence": "测试",
+                "keywords": ["测试"],
+            },
+        )
+        normalized_memory = next(
+            memory
+            for memory in self.store.list_memories(limit=20)
+            if memory["id"] == memory_id
+        )
+        self.assert_equal(
+            "unknown_memory_subcategory_falls_back_to_general",
+            normalized_memory["subcategory"],
+            "general",
+        )
+        self.assert_equal(
+            "unknown_memory_subcategory_preserves_no_new_bucket",
+            len([
+                item
+                for item in self.store.memory_taxonomy_counts()
+                if item["category"] == "self_core"
+            ]),
+            8,
+        )
+
         return self.results
 
 
@@ -235,6 +272,15 @@ class KnowledgeAccuracyTest(AccuracyTest):
             "dorsal_vagal_is_contested_alias",
             "背侧迷走神经强制关机" in kr.get_card("psych-library-3-6")["aliases"],
         )
+        self.assert_true(
+            "curated_triggers_are_merged",
+            "她不回我" in kr.get_card("psych-library-7-2")["retrieval_triggers"],
+        )
+        self.assert_equal(
+            "curated_overpathologizing_risk",
+            kr.get_card("psych-library-7-2")["risk_of_overpathologizing"],
+            "medium",
+        )
 
         scenario_expectations = [
             ("她两个小时没回我，是不是讨厌我？", "psych-library-7-2"),
@@ -274,6 +320,48 @@ class KnowledgeAccuracyTest(AccuracyTest):
                 expected_id in card_ids,
                 f"{expected_id} 应出现在 {card_ids} 中",
             )
+
+        response_plan = kr.retrieve_plan(
+            "我逛街的时候眼睛特别累，脑袋不在线。",
+            limit=3,
+        )
+        self.assert_true(
+            "response_plan_has_contract",
+            all(
+                key in response_plan
+                for key in [
+                    "extracted_state",
+                    "primary_cards",
+                    "alternative_explanations",
+                    "medical_differential",
+                    "rejected_overinterpretations",
+                    "response_strategy",
+                    "safety_flags",
+                ]
+            ),
+        )
+        self.assert_true(
+            "response_plan_primary_limit",
+            len(response_plan["primary_cards"]) <= 3,
+        )
+        self.assert_true(
+            "response_plan_preserves_alternatives",
+            bool(response_plan["alternative_explanations"]),
+        )
+        self.assert_true(
+            "response_plan_forces_medical_differential",
+            bool(response_plan["medical_differential"])
+            and "preserve_medical_differential" in response_plan["safety_flags"],
+        )
+        self.assert_true(
+            "response_plan_extracts_body_state",
+            "眼睛" in response_plan["extracted_state"]["body"],
+        )
+        generic_cards = kr.retrieve("我今天有点累", limit=4)
+        self.assert_true(
+            "personalized_hypothesis_is_gated",
+            all(card["concept_type"] != "personalized_hypothesis" for card in generic_cards),
+        )
 
         return self.results
 

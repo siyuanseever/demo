@@ -20,7 +20,12 @@ from app.intent.agent import IntentAgent
 from app.intent.router import IntentRouter
 from app.llm.base import LLMClient
 from app.knowledge.retriever import KnowledgeRetriever, render_knowledge_cards
-from app.memory.schema import MEMORY_CATEGORIES, STATE_PROFILE_DOMAINS, STATE_PROFILE_TRENDS
+from app.memory.schema import (
+    MEMORY_CATEGORIES,
+    STATE_PROFILE_DOMAINS,
+    STATE_PROFILE_TRENDS,
+    normalize_memory_subcategory,
+)
 from app.memory.store import Store
 
 
@@ -905,12 +910,25 @@ class ConversationOrchestrator:
                 except json.JSONDecodeError:
                     keywords = []
             memory_keywords.extend(keywords)
-        knowledge_cards = self.knowledge.retrieve(
+        knowledge_plan = self.knowledge.retrieve_plan(
             user_text,
             memory_keywords=[] if route_plan else memory_keywords,
             query_terms=knowledge_queries,
             limit=3,
         )
+        knowledge_cards = knowledge_plan["primary_cards"]
+        public_knowledge_plan = {
+            **knowledge_plan,
+            "primary_cards": [
+                {
+                    "id": card.get("id", ""),
+                    "title": card.get("title", ""),
+                    "concept_type": card.get("concept_type", ""),
+                    "source_ref": card.get("source_ref", ""),
+                }
+                for card in knowledge_cards
+            ],
+        }
         debug_trace["steps"].append({
             "name": "retrieve_context",
             "status": "done",
@@ -930,6 +948,7 @@ class ConversationOrchestrator:
                     for memory in memories[:8]
                 ],
                 "knowledge_cards": [card.get("title", "") for card in knowledge_cards],
+                "knowledge_plan": public_knowledge_plan,
             },
         })
         system_prompt = read_prompt("persona.md").format(
@@ -938,7 +957,7 @@ class ConversationOrchestrator:
             conversation_history=render_conversation_history(messages[:-1]),
             memories=render_memories(memories),
             state_profiles=render_state_profiles(state_profiles),
-            knowledge_cards=render_knowledge_cards(knowledge_cards),
+            knowledge_cards=render_knowledge_cards(knowledge_cards, knowledge_plan),
             role_plan=render_role_plan(route_plan),
         )
         if route_plan:
@@ -990,6 +1009,7 @@ class ConversationOrchestrator:
                 "reply": reply_content,
                 "group_messages": [],
                 "knowledge_cards": knowledge_cards,
+                "knowledge_plan": public_knowledge_plan,
                 "character": character.to_public_dict(),
                 "expression": {
                     "id": expression_id,
@@ -1061,6 +1081,7 @@ class ConversationOrchestrator:
             "reply": reply_content,
             "group_messages": [],
             "knowledge_cards": knowledge_cards,
+            "knowledge_plan": public_knowledge_plan,
             "character": character.to_public_dict(),
             "expression": {
                 "id": expression_id,
@@ -1851,7 +1872,10 @@ class ConversationOrchestrator:
         valid = []
         for memory in memories[:3]:
             if memory.get("category") in MEMORY_CATEGORIES and memory.get("content"):
-                memory.setdefault("subcategory", "general")
+                memory["subcategory"] = normalize_memory_subcategory(
+                    memory["category"],
+                    memory.get("subcategory"),
+                )
                 memory.setdefault("keywords", [])
                 if not isinstance(memory["keywords"], list):
                     memory["keywords"] = []

@@ -1,0 +1,146 @@
+{
+  "psych-library-7-2": {
+    "aliases": ["关系警报", "害怕失去连接", "等回复焦虑"],
+    "retrieval_triggers": ["她不回我", "是不是讨厌我", "是不是疏远我", "消息变慢"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-7-6": {
+    "aliases": ["被陪着稳定下来", "关系调节", "安全互动"],
+    "retrieval_triggers": ["被温柔听见就好一点", "有人陪就安心", "想被理解"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-7-3": {
+    "aliases": ["对冷淡敏感", "害怕被拒绝", "模糊信息解释成拒绝"],
+    "retrieval_triggers": ["她是不是烦我", "他是不是不要我了", "我是不是被讨厌了"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-5-4": {
+    "aliases": ["不想感受", "逃开痛苦体验", "回避内在感受"],
+    "retrieval_triggers": ["不想面对现实", "只想躲起来", "不想感受"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-5-3": {
+    "aliases": ["把自己包起来", "躲进游戏小说"],
+    "retrieval_triggers": ["只想打游戏", "想藏起来", "不想面对生活"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-9-3": {
+    "aliases": ["最坏情况自动化", "把风险推到极端"],
+    "retrieval_triggers": ["以后是不是都找不到工作", "完了", "彻底没希望"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-4-1": {
+    "aliases": ["脑力负荷", "信息过载", "脑袋不在线"],
+    "retrieval_triggers": ["眼睛特别累", "逛街很累", "脑子不在线", "走着比坐着累"],
+    "medical_differential": ["视疲劳", "睡眠不足", "体位性低血压", "贫血", "药物副作用", "眼科问题"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-9-7": {
+    "aliases": ["反复想", "脑内回放", "想不明白停不下"],
+    "retrieval_triggers": ["一直想", "反复分析", "停不下来", "想找到唯一答案"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-4-2": {
+    "aliases": ["感官过载", "视觉刺激过多", "人群过载"],
+    "retrieval_triggers": ["逛街很累", "灯光声音人流让我累", "眼睛疲劳"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-8-5": {
+    "aliases": ["不证明也可以存在", "允许白费", "不成长区"],
+    "retrieval_triggers": ["不想证明自己", "我需要一个不用努力的地方", "只想存在"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-3-2": {
+    "aliases": ["紧绷", "高速运转", "停不下来", "心慌"],
+    "retrieval_triggers": ["脑子停不下来", "非常警惕", "身体不平静", "睡不着"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-3-3": {
+    "aliases": ["麻木", "无力", "脑雾", "掉线"],
+    "retrieval_triggers": ["脑袋不在线", "什么都不想做", "身体沉重", "麻木"],
+    "medical_differential": ["抑郁相关疲劳", "睡眠不足", "贫血", "营养不足", "药物影响"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-3-5": {
+    "aliases": ["容忍窗口", "情绪窗口", "唤醒窗口"],
+    "retrieval_triggers": ["脑子不在线", "太焦虑无法思考", "麻木无力", "过载"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-h2": {
+    "aliases": ["复杂性威胁", "黑箱追赶", "别人展示复杂成果我就焦虑"],
+    "retrieval_triggers": ["别人展示复杂 Agent 我觉得自己很差", "他没讲怎么做但我很焦虑", "我必须马上搞懂"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-h4": {
+    "aliases": ["无法下台", "一直在表现", "脑内观众耗竭"],
+    "retrieval_triggers": ["面试社交后特别累", "我一直在表现", "感觉从未下台"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-h1": {
+    "aliases": ["警戒耗竭循环", "触发撤退循环"],
+    "retrieval_triggers": ["出去一趟后好几天不想出门", "表面休息但没恢复", "越累越警惕"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-h5": {
+    "aliases": ["一切悬而未决所以不能休息", "不能停下来"],
+    "retrieval_triggers": ["工作没定不能休息", "一切悬而未决", "我还不能放松", "还没获得想要的东西"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-6-1": {
+    "aliases": ["脑内监控", "自我检查系统", "内在考官"],
+    "retrieval_triggers": ["总是在看着自己", "无法下台", "一直检查自己表现"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-6-3": {
+    "aliases": ["脑内观众", "内化目光", "别人怎么看我"],
+    "retrieval_triggers": ["她会怎么看我", "面试官是不是觉得我不行", "我是不是表现很差"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-10-1": {
+    "aliases": ["我这个人有问题", "丢脸", "自我否定"],
+    "retrieval_triggers": ["我很差", "我不配", "我是不是废物", "我这个人不行"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-12-2": {
+    "aliases": ["接纳承诺", "Acceptance and Commitment Therapy"],
+    "retrieval_triggers": ["我必须先不痛苦才能生活", "价值行动", "接纳"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-12-3": {
+    "aliases": ["和想法拉开距离", "看见想法"],
+    "retrieval_triggers": ["我脑中出现一个预测", "我是不是一定完了"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-12-9": {
+    "aliases": ["落地练习", "回到当下", "定向练习"],
+    "retrieval_triggers": ["不真实", "太慌", "脑子飞走", "需要稳下来"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-12-5": {
+    "aliases": ["对自己友善", "自我善待", "共同人性"],
+    "retrieval_triggers": ["我太差了", "我不配休息", "我恨自己"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-2-8": {
+    "aliases": ["主观安全感", "身体相信安全", "安全感缺失"],
+    "retrieval_triggers": ["知道没危险但还是不安心", "周围一切都不给我安全感", "不能只是待在当下"],
+    "risk_of_overpathologizing": "low"
+  },
+  "psych-library-2-3": {
+    "aliases": ["动不了", "脑子空白", "卡住", "僵住"],
+    "retrieval_triggers": ["知道该做什么但动不了", "脑子空白", "面试时掉线", "身体沉重"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-2-1": {
+    "aliases": ["持续警戒", "高度警觉", "无法放松", "环境扫描", "危险监控"],
+    "retrieval_triggers": ["明明没事但放松不下来", "骑车时一直警惕", "周围环境无法让我安心", "一切悬而未决", "不能停下来"],
+    "medical_differential": ["睡眠不足", "咖啡因或药物影响", "甲状腺问题", "焦虑相关症状", "创伤相关症状"],
+    "risk_of_overpathologizing": "medium"
+  },
+  "psych-library-2-4": {
+    "aliases": ["撤退", "藏起来", "不想出门", "什么都不想管"],
+    "retrieval_triggers": ["三天没出门", "取消活动", "想把自己藏起来", "不想见人"],
+    "medical_differential": ["抑郁相关疲劳", "睡眠不足", "感染或身体疾病", "药物副作用", "营养不足"],
+    "risk_of_overpathologizing": "medium"
+  }
+}

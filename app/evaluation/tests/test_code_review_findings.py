@@ -1023,6 +1023,7 @@ class SyncTokenEmptyStringTest(AccuracyTest):
                     'sync_token and len(sync_token)',
                     'not settings.sync_token',
                     'sync_token is None',
+                    'not sync_token or not sync_token.strip()',
                 ]
             )
             uses_compare_digest = "compare_digest" in source_files

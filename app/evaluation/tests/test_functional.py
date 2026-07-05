@@ -136,6 +136,18 @@ class FunctionalTest:
             f"深度路径回复长度={len(reply)} 字",
             {"reply_chars": len(reply)},
         )
+        knowledge_plan = result.get("knowledge_plan", {})
+        self._record(
+            "deep_path_knowledge_plan", "知识检索",
+            bool(knowledge_plan.get("alternative_explanations"))
+            and isinstance(knowledge_plan.get("primary_cards"), list)
+            and len(knowledge_plan.get("primary_cards", [])) <= 3,
+            "深度路径返回结构化知识回应计划",
+            {
+                "primary_count": len(knowledge_plan.get("primary_cards", [])),
+                "safety_flags": knowledge_plan.get("safety_flags", []),
+            },
+        )
 
     def test_manual_character_path(self):
         """手动角色模式：不走 intent 识别，直接使用指定角色"""

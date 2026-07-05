@@ -1769,6 +1769,8 @@ private struct MacStateWorkspace: View {
             subtitle: "六个固定维度共同构成长程观察；空白也会明确显示。",
             isEmpty: false
         ) {
+            MacStateRadarCard(profiles: store.stateProfiles)
+
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), spacing: 12),
@@ -1784,6 +1786,181 @@ private struct MacStateWorkspace: View {
                 }
             }
         }
+    }
+}
+
+private struct MacStateRadarCard: View {
+    let profiles: [StateProfile]
+
+    private var values: [Double] {
+        macStateDomains.map { domain in
+            Double(profiles.first { $0.domain == domain.id }?.intensity ?? 0)
+        }
+    }
+
+    private var accessibilitySummary: String {
+        zip(macStateDomains, values)
+            .map { domain, value in
+                let renderedValue = value > 0 ? "\(Int(value))/10" : "资料不足"
+                return "\(domain.title) \(renderedValue)"
+            }
+            .joined(separator: "，")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("六维心理地图", systemImage: "hexagon")
+                        .font(.title3.bold())
+                    Text("这是关注度地图，不是能力评分；越靠外表示当前困扰、激活或重要程度越高。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("1–10")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.62), in: Capsule())
+            }
+
+            GeometryReader { geometry in
+                Canvas { context, size in
+                    let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                    let radius = min(size.width, size.height) * 0.32
+                    let axisCount = macStateDomains.count
+
+                    for level in 1...5 {
+                        let levelRadius = radius * CGFloat(level) / 5
+                        let grid = radarPath(
+                            center: center,
+                            radius: levelRadius,
+                            values: Array(repeating: 1, count: axisCount)
+                        )
+                        context.stroke(
+                            grid,
+                            with: .color(Color(red: 0.48, green: 0.42, blue: 0.60).opacity(0.16)),
+                            lineWidth: level == 5 ? 1.2 : 0.7
+                        )
+                    }
+
+                    for index in macStateDomains.indices {
+                        let endpoint = radarPoint(
+                            center: center,
+                            radius: radius,
+                            index: index,
+                            count: axisCount
+                        )
+                        var axis = Path()
+                        axis.move(to: center)
+                        axis.addLine(to: endpoint)
+                        context.stroke(
+                            axis,
+                            with: .color(Color(red: 0.48, green: 0.42, blue: 0.60).opacity(0.18)),
+                            lineWidth: 0.8
+                        )
+                    }
+
+                    let normalizedValues = values.map { CGFloat(min(max($0 / 10, 0), 1)) }
+                    let dataPath = radarPath(
+                        center: center,
+                        radius: radius,
+                        values: normalizedValues
+                    )
+                    context.fill(
+                        dataPath,
+                        with: .color(Color(red: 0.58, green: 0.48, blue: 0.72).opacity(0.22))
+                    )
+                    context.stroke(
+                        dataPath,
+                        with: .color(Color(red: 0.45, green: 0.35, blue: 0.62).opacity(0.88)),
+                        lineWidth: 2.2
+                    )
+
+                    for index in macStateDomains.indices {
+                        let valuePoint = radarPoint(
+                            center: center,
+                            radius: radius * normalizedValues[index],
+                            index: index,
+                            count: axisCount
+                        )
+                        let dot = Path(
+                            ellipseIn: CGRect(
+                                x: valuePoint.x - 4,
+                                y: valuePoint.y - 4,
+                                width: 8,
+                                height: 8
+                            )
+                        )
+                        context.fill(dot, with: .color(Color(red: 0.45, green: 0.35, blue: 0.62)))
+
+                        let labelPoint = radarPoint(
+                            center: center,
+                            radius: radius + 34,
+                            index: index,
+                            count: axisCount
+                        )
+                        let valueText = values[index] > 0 ? "\(Int(values[index]))" : "—"
+                        let label = Text("\(macStateDomains[index].title) \(valueText)")
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color.primary.opacity(0.78))
+                        context.draw(label, at: labelPoint, anchor: .center)
+                    }
+                }
+            }
+            .frame(minHeight: 330)
+            .accessibilityHidden(true)
+
+            Text("“—”表示尚未形成画像，不代表强度为 0。点击下方维度卡可查看阶段、证据和支持方向。")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(18)
+        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.78), lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("六维心理地图")
+        .accessibilityValue(accessibilitySummary)
+    }
+
+    private func radarPath(
+        center: CGPoint,
+        radius: CGFloat,
+        values: [CGFloat]
+    ) -> Path {
+        var path = Path()
+        for index in values.indices {
+            let point = radarPoint(
+                center: center,
+                radius: radius * values[index],
+                index: index,
+                count: values.count
+            )
+            if index == values.startIndex {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    private func radarPoint(
+        center: CGPoint,
+        radius: CGFloat,
+        index: Int,
+        count: Int
+    ) -> CGPoint {
+        let angle = -CGFloat.pi / 2 + CGFloat(index) * 2 * CGFloat.pi / CGFloat(count)
+        return CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
     }
 }
 

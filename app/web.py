@@ -2003,7 +2003,7 @@ HTML = """<!doctype html>
       return icons[action] || "";
     }
 
-    function appendKnowledgeCards(bubble, knowledgeCards = []) {
+    function appendKnowledgeCards(bubble, knowledgeCards = [], knowledgePlan = {}) {
       if (!knowledgeCards.length) return;
       const oldCards = bubble.querySelector(".used-cards");
       if (oldCards) oldCards.remove();
@@ -2021,6 +2021,24 @@ HTML = """<!doctype html>
         tag.title = [card.concept || "", card.evidence_caveat || ""].filter(Boolean).join("\\n");
         tag.onclick = () => showKnowledgeDetail(card.id);
         cards.appendChild(tag);
+      }
+      const alternatives = Array.isArray(knowledgePlan.alternative_explanations)
+        ? knowledgePlan.alternative_explanations
+        : [];
+      if (alternatives.length) {
+        const boundary = document.createElement("div");
+        boundary.className = "meta";
+        boundary.textContent = "同时保留其他解释：" + alternatives[0];
+        cards.appendChild(boundary);
+      }
+      const medical = Array.isArray(knowledgePlan.medical_differential)
+        ? knowledgePlan.medical_differential
+        : [];
+      if (medical.length) {
+        const medicalNote = document.createElement("div");
+        medicalNote.className = "meta";
+        medicalNote.textContent = "身体因素不能排除：" + medical.slice(0, 2).join("；");
+        cards.appendChild(medicalNote);
       }
       bubble.appendChild(cards);
     }
@@ -2106,7 +2124,11 @@ HTML = """<!doctype html>
       } else {
         body.classList.add("expanded");
       }
-      appendKnowledgeCards(bubble, knowledgeCards);
+      appendKnowledgeCards(
+        bubble,
+        knowledgeCards,
+        options.knowledgePlan || options.knowledge_plan || {}
+      );
       row.appendChild(bubble);
       messages.appendChild(row);
       messages.scrollTop = messages.scrollHeight;
@@ -2239,7 +2261,11 @@ HTML = """<!doctype html>
       if (bubble) {
         bubble.style.borderStyle = "";
         bubble.style.opacity = "";
-        appendKnowledgeCards(bubble, knowledgeCards || []);
+        appendKnowledgeCards(
+          bubble,
+          knowledgeCards || [],
+          (options && (options.knowledgePlan || options.knowledge_plan)) || {}
+        );
       }
     }
 
@@ -2290,7 +2316,7 @@ HTML = """<!doctype html>
           <button type="button" onclick="closeDetail()">关闭</button>
         </div>
         <div class="meta">领域：${escapeHtml(data.card.domain)} · 角色：${escapeHtml(data.card.card_role || "mechanism")} · 类型：${escapeHtml(data.card.concept_type || "established_concept")}</div>
-        <div class="meta">证据等级：${escapeHtml(data.card.evidence_level || "unspecified")}</div>
+        <div class="meta">证据等级：${escapeHtml(data.card.evidence_level || "unspecified")} · 过度病理化风险：${escapeHtml(data.card.risk_of_overpathologizing || "medium")}</div>
         <div class="meta">来源：${escapeHtml(data.card.source_ref || data.card.source || "")}</div>
         <div>${(data.card.sources || []).map(source => `
           <a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.label)}</a>
@@ -2301,7 +2327,7 @@ HTML = """<!doctype html>
         <div class="meta">小鹿表达：${escapeHtml(data.card.xiaolu_style)}</div>
         <div class="content"><b>证据边界：</b>${escapeHtml(data.card.evidence_caveat || "")}</div>
         <div class="content"><b>还需保留的解释：</b>${escapeHtml((data.card.differential_explanations || []).join("；"))}</div>
-        ${data.card.medical_differential ? `<div class="content"><b>身体因素提醒：</b>${escapeHtml(data.card.medical_differential)}</div>` : ""}
+        ${(data.card.medical_differential || []).length ? `<div class="content"><b>身体因素提醒：</b>${escapeHtml(data.card.medical_differential.join("；"))}</div>` : ""}
         ${(data.card.low_load_actions || []).length ? `<div class="content"><b>可选低负担动作：</b>${escapeHtml(data.card.low_load_actions[0])}</div>` : ""}
         ${data.card.action_safety ? `<div class="meta">动作安全：${escapeHtml(data.card.action_safety)}</div>` : ""}
         <h3>相关概念</h3>
@@ -2363,7 +2389,10 @@ HTML = """<!doctype html>
               }
               addMessage("deer", d.reply, d.knowledge_cards || [],
                 d.character?.id || activeCharacterId,
-                { expressionId: d.expression?.id || "" }
+                {
+                  expressionId: d.expression?.id || "",
+                  knowledgePlan: d.knowledge_plan || {}
+                }
               );
               if (d.character?.id) {
                 activeCharacterId = d.character.id;
@@ -2389,7 +2418,16 @@ HTML = """<!doctype html>
         } catch (sseError) {
           addSystem("流式连接不可用，切换普通请求...");
           data = await post("/api/chat", { session_id: currentSessionId, text, character_id: sendingCharacterId });
-          addMessage("deer", data.reply, data.knowledge_cards || [], data.character?.id || activeCharacterId, { expressionId: data.expression?.id || "" });
+          addMessage(
+            "deer",
+            data.reply,
+            data.knowledge_cards || [],
+            data.character?.id || activeCharacterId,
+            {
+              expressionId: data.expression?.id || "",
+              knowledgePlan: data.knowledge_plan || {}
+            }
+          );
         }
         lastDebugTrace = data.debug_trace || null;
         renderDevPanel(lastDebugTrace);
@@ -2860,7 +2898,7 @@ HTML = """<!doctype html>
         <article class="card clickable" onclick="showKnowledgeDetail('${escapeHtml(item.id)}')">
           <h3>${escapeHtml(item.title)}</h3>
           <div class="meta">领域：${escapeHtml(item.domain)} · 角色：${escapeHtml(item.card_role || "mechanism")} · 类型：${escapeHtml(item.concept_type || "established_concept")}</div>
-          <div class="meta">证据等级：${escapeHtml(item.evidence_level || "unspecified")}</div>
+          <div class="meta">证据等级：${escapeHtml(item.evidence_level || "unspecified")} · 过度病理化风险：${escapeHtml(item.risk_of_overpathologizing || "medium")}</div>
           <div class="meta">来源：${escapeHtml(item.source_ref || item.source || "")}</div>
           <div>${(item.tags || []).map(k => `<span class="pill">${escapeHtml(k)}</span>`).join("")}</div>
           <div class="content">${escapeHtml(item.concept)}</div>
