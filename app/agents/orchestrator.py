@@ -896,9 +896,9 @@ class ConversationOrchestrator:
             user_text,
             query_terms=memory_queries,
             relevant_limit=5,
-            recent_limit=3,
+            recent_limit=1,
             important_limit=2,
-            important_threshold=7,
+            important_threshold=5,
             total_limit=10,
         )
         memory_keywords = []

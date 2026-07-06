@@ -543,6 +543,20 @@ class Store:
         *,
         merge_note: str = "",
     ) -> None:
+        normalized_updates = dict(updates)
+        if "subcategory" in normalized_updates:
+            category = str(normalized_updates.get("category") or "").strip()
+            if not category:
+                with self.connect() as conn:
+                    row = conn.execute(
+                        "SELECT category FROM memories WHERE id = ?",
+                        (memory_id,),
+                    ).fetchone()
+                category = str(row["category"] if row else "")
+            normalized_updates["subcategory"] = normalize_memory_subcategory(
+                category,
+                normalized_updates.get("subcategory"),
+            )
         fields = []
         values = []
         for key in (
@@ -554,12 +568,12 @@ class Store:
             "importance",
             "status",
         ):
-            if key in updates:
+            if key in normalized_updates:
                 fields.append(f"{key} = ?")
-                values.append(updates[key])
-        if "keywords" in updates:
+                values.append(normalized_updates[key])
+        if "keywords" in normalized_updates:
             fields.append("keywords = ?")
-            values.append(json.dumps(updates["keywords"], ensure_ascii=False))
+            values.append(json.dumps(normalized_updates["keywords"], ensure_ascii=False))
         if merge_note:
             fields.append("merge_note = ?")
             values.append(merge_note)
@@ -977,6 +991,7 @@ class Store:
         limit: int = 8,
     ) -> list[dict[str, Any]]:
         tokens = []
+        normalized_query = str(query or "").strip().lower()
         for token in tokenize_query(query):
             if token not in tokens:
                 tokens.append(token)
@@ -993,6 +1008,11 @@ class Store:
             keywords = memory.get("keywords", [])
             if not isinstance(keywords, list):
                 keywords = []
+            normalized_keywords = [
+                str(keyword or "").strip().lower()
+                for keyword in keywords
+                if str(keyword or "").strip()
+            ]
             haystack = " ".join(
                 [
                     memory.get("category", ""),
@@ -1003,16 +1023,20 @@ class Store:
                 ]
             )
             score = 0.0
+            for keyword in normalized_keywords:
+                if keyword in normalized_query:
+                    score += 5 + min(len(keyword), 6)
             for token in tokens:
                 if not token:
                     continue
-                if token in keywords:
+                normalized_token = token.lower()
+                if normalized_token in normalized_keywords:
                     score += 4
-                if token in memory.get("content", ""):
+                if normalized_token in memory.get("content", "").lower():
                     score += 3
-                if token in memory.get("evidence", ""):
+                if normalized_token in memory.get("evidence", "").lower():
                     score += 2
-                if token in haystack:
+                if normalized_token in haystack.lower():
                     score += 1
             if score > 0:
                 score += float(memory.get("importance", 1)) * 0.2
@@ -1027,12 +1051,12 @@ class Store:
         *,
         query_terms: list[str] | None = None,
         relevant_limit: int = 5,
-        recent_limit: int = 3,
+        recent_limit: int = 1,
         important_limit: int = 2,
-        important_threshold: int = 7,
+        important_threshold: int = 5,
         total_limit: int = 10,
     ) -> list[dict[str, Any]]:
-        """四层混合检索：相关记忆 + 近期记忆 + 重要记忆 + 合并去重。
+        """相关检索优先；无相关结果时才回退到重要与近期记忆。
 
         Args:
             query: 用户输入文本。
@@ -1044,7 +1068,7 @@ class Store:
             total_limit: 合并去重后总量上限。
 
         Returns:
-            去重后的记忆列表，按层级优先级排序（相关 > 重要 > 近期）。
+            相关记忆，或无相关结果时的少量背景记忆。
         """
         seen_ids: set[str] = set()
         result: list[dict[str, Any]] = []
@@ -1063,8 +1087,10 @@ class Store:
             limit=relevant_limit,
         )
         _dedup_append(relevant)
+        if result:
+            return result[:total_limit]
 
-        # Layer 2: 重要记忆 — importance >= threshold 的 active 记忆
+        # Fallback 1: 重要记忆 — 只在无相关结果时提供少量背景。
         important_rows = self.recent_memories(limit=200)
         important_memories = [
             dict(row) for row in important_rows
@@ -1072,7 +1098,7 @@ class Store:
         ]
         _dedup_append(important_memories[:important_limit])
 
-        # Layer 3: 近期记忆 — 最近更新的 active 记忆，按 updated_at DESC
+        # Fallback 2: 近期记忆 — 避免在每个正常查询中固定注入同一批记忆。
         with self.connect() as conn:
             cursor = conn.execute(
                 """
@@ -1147,7 +1173,7 @@ class Store:
                 WHERE status = 'active'
                   AND category = ?
                 ORDER BY updated_at DESC
-                LIMIT 30
+                LIMIT 200
                 """,
                 (memory["category"],),
             )

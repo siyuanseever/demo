@@ -170,7 +170,87 @@ def normalize_memory_subcategory(category: str, subcategory: str | None) -> str:
             "unknown_future": "uncertainty",
         },
     }
-    return aliases.get(category, {}).get(normalized, "general")
+    exact_alias = aliases.get(category, {}).get(normalized)
+    if exact_alias:
+        return exact_alias
+
+    pattern_aliases = {
+        "self_core": (
+            (("critic", "judgment", "productivity", "stagnation"), "inner_critic"),
+            (("self_worth", "self_image", "self_loathing", "ideal_self"), "self_image"),
+            (("self_care", "self_kindness", "compassion"), "self_compassion"),
+            (("autonomy", "boundary"), "boundary"),
+            (("energy", "motivation", "creative_expression"), "energy_source"),
+            (("value", "philosophy", "belief", "meaning", "existential"), "values"),
+            (("identity", "authentic", "belonging", "lost_self", "life_narrative"), "identity"),
+        ),
+        "emotion_pattern": (
+            (("freeze", "paralysis", "inertia", "withdrawal", "avoidance"), "freeze_response"),
+            (("shame", "self_blame", "self_criticism", "guilt", "inferiority"), "shame"),
+            (("anger", "disgust", "frustration", "resistance"), "anger"),
+            (("loneliness", "isolation", "disconnection"), "loneliness"),
+            (("numb", "dissociat", "meaninglessness"), "numbness"),
+            (("grief", "sadness", "loss", "longing", "despair", "hopeless", "depress", "core_pain"), "grief"),
+            (("anxiety", "fear", "pressure", "overwhelm", "hypervigilance", "rumination"), "anxiety"),
+        ),
+        "body_response": (
+            (("sleep", "insomnia"), "sleep"),
+            (("freeze", "collapse", "shutdown"), "collapse"),
+            (("sensory", "eye_strain"), "sensory_overload"),
+            (("pain", "headache", "discomfort"), "pain"),
+            (("tension", "hyperarousal", "chest"), "tension"),
+            (("fatigue", "dizziness", "illness_fragility"), "fatigue"),
+            (("sensation", "touch", "warming"), "somatic_signal"),
+        ),
+        "relationship_pattern": (
+            (("mother", "father", "parent", "family"), "family"),
+            (("workplace", "authority", "leadership", "career"), "work_relation"),
+            (("boundary", "control", "conflict", "injustice"), "boundary_conflict"),
+            (("rejection", "cold_violence", "loss_and_disconnection"), "rejection"),
+            (("attachment", "unrequited", "intimacy", "love"), "attachment_trigger"),
+            (("support", "remembered", "social_isolation"), "support_need"),
+        ),
+        "trauma_shadow": (
+            (("abandon", "rejection", "betrayal", "support_void"), "abandonment"),
+            (("humiliat", "worthless", "imposter", "educational"), "humiliation"),
+            (("suppress", "power_abuse", "exploitation"), "suppression"),
+            (("hypervigilance",), "hypervigilance"),
+            (("trigger", "repetition"), "trigger"),
+            (("fear", "anxiety", "hopeless", "collapse"), "fear"),
+            (("family", "developmental", "early_onset", "parental"), "dark_part"),
+        ),
+        "resource_support": (
+            (("therap", "doctor", "professional"), "professional_support"),
+            (("music", "reading", "creative", "cultural", "expression"), "creative_resource"),
+            (("person", "teacher", "role_model", "social", "network", "family"), "person"),
+            (("nature", "environment", "place"), "place"),
+            (("ritual", "anchor", "memory", "transitional_object"), "ritual"),
+            (("strength", "kindness", "love_for_others"), "inner_strength"),
+            (("activity", "coping", "self_care", "small_step", "soothing"), "activity"),
+        ),
+        "life_habit": (
+            (("sleep", "rest", "break"), "rest"),
+            (("eye", "screen", "digital"), "digital_habit"),
+            (("space", "environment", "home"), "environment"),
+            (("food", "meal"), "food"),
+            (("movement", "exercise"), "movement"),
+            (("work",), "work_rhythm"),
+            (("routine", "habit", "pattern", "care"), "routine"),
+        ),
+        "goal_action": (
+            (("career", "job", "work"), "career"),
+            (("uncertain", "unknown"), "uncertainty"),
+            (("decision", "choice", "clarification"), "decision"),
+            (("avoid",), "avoidance"),
+            (("learn", "study"), "learning"),
+            (("project",), "project"),
+            (("action", "step", "plan", "habit", "intention"), "small_step"),
+        ),
+    }
+    for patterns, target in pattern_aliases.get(category, ()):
+        if any(pattern in normalized for pattern in patterns):
+            return target
+    return "general"
 
 
 STATE_PROFILE_DOMAINS = (

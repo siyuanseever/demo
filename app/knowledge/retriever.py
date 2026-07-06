@@ -35,6 +35,7 @@ QUERY_EXPANSIONS = {
     "什么都不想做": ["无力", "麻木", "撤退", "耗竭"],
     "放松不下来": ["无法放松", "持续警戒", "高唤醒", "未决感"],
     "找不到工作": ["失业", "灾难化", "身份威胁", "合理担忧"],
+    "以后都找不到": ["灾难化", "最坏情况自动化", "合理担忧"],
     "剥削": ["不公", "控制型领导", "工作", "现实证据"],
     "打游戏": ["游戏", "自我冬眠", "恢复性活动", "体验性回避"],
     "背侧迷走": ["多迷走神经理论", "撤退", "低唤醒", "争议"],
@@ -117,18 +118,24 @@ def _apply_overrides(
     return merged_cards
 
 
-def _search_text(card: dict[str, Any]) -> str:
+def _strong_search_text(card: dict[str, Any]) -> str:
     values = [
         card.get("title", ""),
         card.get("name_zh", ""),
         card.get("name_en", ""),
+        *card.get("aliases", []),
+        *card.get("tags", []),
+        *card.get("retrieval_triggers", []),
+    ]
+    return " ".join(str(value) for value in values).lower()
+
+
+def _weak_search_text(card: dict[str, Any]) -> str:
+    values = [
         card.get("domain", ""),
         card.get("use_when", ""),
         card.get("concept", ""),
         card.get("full_content", ""),
-        *card.get("aliases", []),
-        *card.get("tags", []),
-        *card.get("retrieval_triggers", []),
     ]
     return " ".join(str(value) for value in values).lower()
 
@@ -268,13 +275,21 @@ class KnowledgeRetriever:
         normalized_query = query.lower()
         scored = []
         for card in self.cards:
-            haystack = _search_text(card)
+            strong_haystack = _strong_search_text(card)
+            weak_haystack = _weak_search_text(card)
+            haystack = f"{strong_haystack} {weak_haystack}"
             score = 0
-            matched_tokens = 0
+            strong_matches = 0
+            weak_matches = 0
             for token in tokens:
-                if token and token in haystack:
-                    score += 2 + min(len(token), 6)
-                    matched_tokens += 1
+                if not token:
+                    continue
+                if token in strong_haystack:
+                    score += 4 + min(len(token), 6)
+                    strong_matches += 1
+                elif len(token) >= 2 and token in weak_haystack:
+                    score += 1 + min(len(token), 3)
+                    weak_matches += 1
             direct_matches = 0
             for keyword in [
                 *card.get("tags", []),
@@ -285,6 +300,8 @@ class KnowledgeRetriever:
                 if normalized_keyword and normalized_keyword in normalized_query:
                     score += 5 + min(len(normalized_keyword), 8)
                     direct_matches += 1
+            if not direct_matches and not strong_matches and weak_matches < 2:
+                continue
             if card.get("concept_type") == "personalized_hypothesis":
                 has_history_support = any(
                     str(keyword or "").strip().lower() in haystack
@@ -292,21 +309,28 @@ class KnowledgeRetriever:
                     if str(keyword or "").strip()
                 )
                 if not direct_matches and not has_history_support and (
-                    matched_tokens < 2 or score < 18
+                    strong_matches + weak_matches < 2 or score < 18
                 ):
                     continue
                 score -= 6
+            elif card.get("concept_type") == "working_concept":
+                score -= 4
+            elif card.get("concept_type") == "clinical_concept":
+                score -= 2
             if score > 0:
-                scored.append((score, card))
+                scored.append(
+                    (score, direct_matches, strong_matches, weak_matches, card)
+                )
         scored.sort(
             key=lambda item: (
-                item[0],
-                item[1].get("source_section", ""),
-                item[1].get("title", ""),
+                -item[0],
+                -item[1],
+                -item[2],
+                -item[3],
+                item[4].get("title", ""),
             ),
-            reverse=True,
         )
-        return [card for _, card in scored[:limit]]
+        return [item[4] for item in scored[:limit]]
 
     def retrieve_plan(
         self,
