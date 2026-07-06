@@ -3499,6 +3499,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_chat_stream(self, payload: dict) -> None:
         """SSE 流式推送双路径回复。"""
+        correlation_id = self.headers.get("X-Correlation-ID", "").strip()
+        compact_response = self.headers.get("X-Sensen-Compact-SSE", "") == "1"
+        if correlation_id:
+            self.logger.info(
+                "chat stream received correlation=%s compact=%s",
+                correlation_id,
+                compact_response,
+            )
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -3511,6 +3519,8 @@ class Handler(BaseHTTPRequestHandler):
                 payload["text"],
                 character_id=payload.get("character_id"),
             ):
+                if compact_response:
+                    sse_chunk = self._compact_chat_stream_chunk(sse_chunk)
                 self.wfile.write(sse_chunk.encode("utf-8"))
                 self.wfile.flush()
         except BrokenPipeError:
@@ -3525,6 +3535,65 @@ class Handler(BaseHTTPRequestHandler):
                 pass
         finally:
             self.close_connection = True
+
+    @staticmethod
+    def _compact_chat_stream_chunk(chunk: str) -> str:
+        lines = chunk.strip().splitlines()
+        event_type = next(
+            (line.removeprefix("event:").strip() for line in lines if line.startswith("event:")),
+            "message",
+        )
+        if event_type not in {"deep_reply", "final"}:
+            return chunk
+        raw_data = next(
+            (line.removeprefix("data:").strip() for line in lines if line.startswith("data:")),
+            "",
+        )
+        try:
+            payload = json.loads(raw_data)
+        except (TypeError, json.JSONDecodeError):
+            return chunk
+        if not isinstance(payload, dict):
+            return chunk
+
+        def compact_identity(value: object) -> dict:
+            return {"id": value.get("id", "")} if isinstance(value, dict) else {}
+
+        compact_cards = []
+        for card in payload.get("knowledge_cards") or []:
+            if not isinstance(card, dict):
+                continue
+            compact_cards.append({
+                "id": card.get("id", ""),
+                "title": card.get("title", ""),
+                "concept": card.get("concept", ""),
+            })
+
+        compact_group_messages = []
+        for item in payload.get("group_messages") or []:
+            if not isinstance(item, dict):
+                continue
+            compact_group_messages.append({
+                "role": item.get("role", ""),
+                "text": item.get("text", ""),
+                "action": item.get("action", ""),
+                "character": compact_identity(item.get("character")),
+                "expression": compact_identity(item.get("expression")),
+                "expression_id": item.get("expression_id", ""),
+            })
+
+        compact_payload = {
+            "reply": payload.get("reply", ""),
+            "group_messages": compact_group_messages,
+            "knowledge_cards": compact_cards,
+            "character": compact_identity(payload.get("character")),
+            "expression": compact_identity(payload.get("expression")),
+            "route_plan": payload.get("route_plan"),
+        }
+        return (
+            f"event: {event_type}\n"
+            f"data: {json.dumps(compact_payload, ensure_ascii=False)}\n\n"
+        )
 
     def respond_json(self, payload: dict, status: int = 200) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")

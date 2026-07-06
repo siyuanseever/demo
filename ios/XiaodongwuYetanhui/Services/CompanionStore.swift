@@ -935,8 +935,7 @@ final class CompanionStore: ObservableObject {
             fallbackReply: fallbackReply,
             correlationID: correlationID
         ) { [weak self] update in
-            guard let self else { return }
-            self.applyStreamUpdate(update)
+            self?.applyStreamUpdate(update)
         }
         let response = streamResult.response
         SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
@@ -957,18 +956,13 @@ final class CompanionStore: ObservableObject {
             baseURL: response.backendURL,
             detail: response.usedFallback
                 ? "这轮消息使用了 iOS 原型回复：\(response.errorDetail ?? "未知错误")"
-                : "这轮消息来自本地 Web 后端。",
+                : "这轮消息来自本地 Python 服务。",
             lastCheckedAt: Date()
         )
         chatNotice = response.notice
         isChatCheckInVisible = shouldSuggestCheckIn && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + response.reply)
         refreshInteractionOffers()
         isSending = false
-        if !response.usedFallback, let sessionID = response.sessionID {
-            Task {
-                await syncSessionFromBackend(sessionID)
-            }
-        }
         SendInstrumentation.shared.recordPhase(.storeApplyFinished, correlationID: correlationID)
         SendInstrumentation.shared.endSend(correlationID, success: !response.usedFallback)
     }

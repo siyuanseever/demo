@@ -485,10 +485,11 @@ final class ChatService {
         isGroupMode: Bool = false,
         fallbackReply: String? = nil,
         correlationID: String = "",
-        onUpdate: @escaping (ChatServiceStreamUpdate) async -> Void
+        onUpdate: @escaping @MainActor (ChatServiceStreamUpdate) -> Void
     ) async -> ChatServiceStreamResult {
         var deliveredStageCount = 0
         var latestResponse: ChatServiceResponse?
+        var receivedDeepReply = false
 
         do {
             let sessionID = try await currentSessionID()
@@ -501,6 +502,7 @@ final class ChatService {
                 )
             )
             request.timeoutInterval = 90
+            request.setValue("1", forHTTPHeaderField: "X-Sensen-Compact-SSE")
             if !correlationID.isEmpty {
                 request.setValue(correlationID, forHTTPHeaderField: "X-Correlation-ID")
             }
@@ -568,10 +570,13 @@ final class ChatService {
                     let response = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)
                     latestResponse = response
                     deliveredStageCount += 1
+                    receivedDeepReply = true
                     await onUpdate(ChatServiceStreamUpdate(stage: .deep, response: response, correlationID: correlationID))
                 case "final":
-                    let body = try JSONDecoder().decode(ChatResponseBody.self, from: data)
-                    latestResponse = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)
+                    if !receivedDeepReply {
+                        let body = try JSONDecoder().decode(ChatResponseBody.self, from: data)
+                        latestResponse = makeResponse(sessionID: sessionID, body: body, fallbackCharacter: character)
+                    }
                 case "error":
                     let body = try JSONDecoder().decode(StreamErrorResponseBody.self, from: data)
                     throw ChatServiceError.stream(body.error)
