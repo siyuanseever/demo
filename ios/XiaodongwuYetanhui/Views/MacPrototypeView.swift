@@ -216,72 +216,76 @@ private struct MacConversationWorkspace: View {
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                MacConversationHeader()
-
-                Divider()
-
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 14) {
-                            ForEach(store.messages) { message in
-                                MacMessageRow(message: message)
-                                    .id(message.id)
-                            }
-
-                            if let summary = store.latestCloseSummary {
-                                MacSessionCloseResultCard(summary: summary)
-                                    .id(summary.id)
-                            }
-
-                            if store.isSending {
-                                MacThinkingRow(
-                                    character: store.selectedCharacter,
-                                    status: store.chatOperationStatus
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 24)
-                        .frame(maxWidth: 820)
-                        .frame(maxWidth: .infinity)
-                    }
-                    .background(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.99, green: 0.98, blue: 0.95),
-                                Color(red: 0.95, green: 0.97, blue: 0.93),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .onChange(of: store.messages.count) {
-                        guard let lastID = store.messages.last?.id else { return }
-                        withAnimation(.easeOut(duration: 0.22)) {
-                            proxy.scrollTo(lastID, anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: store.latestCloseSummary?.id) {
-                        guard let summaryID = store.latestCloseSummary?.id else { return }
-                        withAnimation(.easeOut(duration: 0.28)) {
-                            proxy.scrollTo(summaryID, anchor: .bottom)
-                        }
-                    }
-                }
-
-                Divider()
-
-                MacComposer(draft: $draft, isFocused: $isComposerFocused)
-                    .environmentObject(store)
-            }
+        VStack(spacing: 0) {
+            MacConversationTopBar()
+                .environmentObject(store)
 
             Divider()
 
-            MacConversationInspector()
-                .environmentObject(store)
-                .frame(width: 260)
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 16) {
+                                ForEach(store.messages) { message in
+                                    MacMessageRow(message: message)
+                                        .id(message.id)
+                                }
+
+                                if let summary = store.latestCloseSummary {
+                                    MacSessionCloseResultCard(summary: summary)
+                                        .id(summary.id)
+                                }
+
+                                if store.isSending {
+                                    MacThinkingRow(
+                                        character: store.selectedCharacter,
+                                        status: store.chatOperationStatus
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 28)
+                            .frame(maxWidth: 900)
+                            .frame(maxWidth: .infinity)
+                        }
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.99, green: 0.98, blue: 0.95),
+                                    Color(red: 0.95, green: 0.97, blue: 0.93),
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .onChange(of: store.messages.count) {
+                            guard let lastID = store.messages.last?.id else { return }
+                            withAnimation(.easeOut(duration: 0.22)) {
+                                proxy.scrollTo(lastID, anchor: .bottom)
+                            }
+                        }
+                        .onChange(of: store.latestCloseSummary?.id) {
+                            guard let summaryID = store.latestCloseSummary?.id else { return }
+                            withAnimation(.easeOut(duration: 0.28)) {
+                                proxy.scrollTo(summaryID, anchor: .bottom)
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    MacComposer(draft: $draft, isFocused: $isComposerFocused)
+                        .environmentObject(store)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider()
+
+                MacConversationSidebar()
+                    .environmentObject(store)
+                    .frame(width: 300)
+            }
         }
         .task {
             isComposerFocused = true
@@ -289,46 +293,76 @@ private struct MacConversationWorkspace: View {
     }
 }
 
-private struct MacConversationHeader: View {
+private struct MacConversationTopBar: View {
     @EnvironmentObject private var store: CompanionStore
 
     var body: some View {
-        HStack(spacing: 12) {
-            CharacterAvatar(character: store.selectedCharacter, size: 34)
+        HStack(spacing: 16) {
+            HStack(spacing: 12) {
+                CharacterAvatar(character: store.selectedCharacter, size: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("和 \(store.selectedCharacter.name) 夜谈")
-                    .font(.subheadline.bold())
-                Text(store.sessionNotice ?? "你可以慢慢说，不需要先整理好。")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("和 \(store.selectedCharacter.name) 夜谈")
+                        .font(.headline)
+                    Text(store.sessionNotice ?? "你可以慢慢说，不需要先整理好。")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
 
-            Button {
-                store.startNewSession()
-            } label: {
-                Label("新会话", systemImage: "plus")
+            if !store.starMapInsight.primaryGoalTitle.isEmpty {
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.caption)
+                            .foregroundStyle(Color(red: 0.46, green: 0.39, blue: 0.66))
+                        Text("心流导航")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(store.starMapInsight.primaryGoalTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(red: 0.46, green: 0.39, blue: 0.66))
+                    if !store.starMapInsight.primaryGoalNextStep.isEmpty {
+                        Text(store.starMapInsight.primaryGoalNextStep)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color(red: 0.93, green: 0.91, blue: 0.96), in: RoundedRectangle(cornerRadius: 12))
+                .onTapGesture {
+                    store.triggerFlowRitual(intention: store.starMapInsight.primaryGoalNextStep)
+                }
             }
 
-            Button {
-                Task {
-                    _ = await store.closeCurrentSession()
+            HStack(spacing: 8) {
+                Button {
+                    store.startNewSession()
+                } label: {
+                    Label("新会话", systemImage: "plus")
                 }
-            } label: {
-                Label(
-                    store.summarizingSessionID == nil ? "结束并总结" : "正在总结",
-                    systemImage: "checkmark.circle"
-                )
+
+                Button {
+                    Task {
+                        _ = await store.closeCurrentSession()
+                    }
+                } label: {
+                    Label(
+                        store.summarizingSessionID == nil ? "结束并总结" : "正在总结",
+                        systemImage: "sparkles"
+                    )
+                }
+                .disabled(store.summarizingSessionID != nil)
             }
-            .disabled(store.isSending || store.summarizingSessionID != nil)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
         .padding(.horizontal, 20)
-        .padding(.vertical, 7)
+        .padding(.vertical, 12)
         .background(.regularMaterial)
     }
 }
@@ -367,29 +401,29 @@ private struct MacMessageRow: View {
                     Spacer(minLength: 90)
                 }
 
-                VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 5) {
+                VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 6) {
                     if message.role == .assistant {
                         Text(store.character(id: message.characterID)?.name ?? store.selectedCharacter.name)
-                            .font(.caption)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
 
-                    VStack(alignment: .leading, spacing: 9) {
+                    VStack(alignment: .leading, spacing: 10) {
                         if let routeSummary = message.routeSummary, !routeSummary.isEmpty {
                             Label(routeSummary, systemImage: "wand.and.stars")
-                                .font(.caption2)
+                                .font(.callout)
                                 .foregroundStyle(.secondary)
                         }
 
                         Text(message.content)
-                            .font(.system(size: 15))
+                            .font(.system(size: 17))
                             .foregroundStyle(message.role == .user ? Color.primary.opacity(0.72) : Color.primary)
                             .textSelection(.enabled)
 
                         if !message.knowledgeCards.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 7) {
                                 Label("本轮参考知识", systemImage: "leaf.fill")
-                                    .font(.caption2.bold())
+                                    .font(.callout.bold())
                                     .foregroundStyle(.secondary)
 
                                 ForEach(message.knowledgeCards) { card in
@@ -400,11 +434,11 @@ private struct MacMessageRow: View {
                                             Text(card.title)
                                                 .lineLimit(1)
                                             Image(systemName: "chevron.right")
-                                                .font(.caption2)
+                                                .font(.caption)
                                         }
-                                        .font(.caption)
-                                        .padding(.horizontal, 9)
-                                        .padding(.vertical, 5)
+                                        .font(.subheadline)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
                                         .background(Color.white.opacity(0.48), in: Capsule())
                                     }
                                     .buttonStyle(.plain)
@@ -412,8 +446,8 @@ private struct MacMessageRow: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 11)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
                     .background(
                         message.role == .user
                             ? Color.gray.opacity(0.10)
@@ -844,18 +878,18 @@ private struct MacComposer: View {
     }
 }
 
-private struct MacConversationInspector: View {
+private struct MacConversationSidebar: View {
     @EnvironmentObject private var store: CompanionStore
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(spacing: 12) {
-                    CharacterAvatar(character: store.selectedCharacter, size: 88)
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(spacing: 14) {
+                    CharacterAvatar(character: store.selectedCharacter, size: 96)
                     Text(store.selectedCharacter.name)
-                        .font(.title3.bold())
+                        .font(.title2.bold())
                     Text(store.selectedCharacter.tagline)
-                        .font(.callout)
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -863,61 +897,125 @@ private struct MacConversationInspector: View {
 
                 Divider()
 
-                MacInspectorSection(title: "当前连接") {
+                MacSidebarSection(title: "当前连接") {
                     Label(store.backendStatus.state.rawValue, systemImage: "network")
+                        .font(.subheadline)
                     Text(store.backendStatus.baseURL)
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
 
-                MacInspectorSection(title: "心流导航") {
-                    if !store.starMapInsight.primaryGoalTitle.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(store.starMapInsight.primaryGoalTitle)
-                                .font(.caption.bold())
-                                .foregroundStyle(Color(red: 0.46, green: 0.39, blue: 0.66))
-                            if !store.starMapInsight.primaryGoalNextStep.isEmpty {
-                                Text(store.starMapInsight.primaryGoalNextStep)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
+                MacSidebarSection(title: "最近记忆") {
+                    if store.memories.isEmpty {
+                        Text("还没有记忆，多聊几次就会有了。")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(store.memories.prefix(3))) { memory in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(memory.content)
+                                        .font(.callout)
+                                        .lineLimit(2)
+                                    HStack(spacing: 6) {
+                                        Text(macMemoryCategoryTitle(memory.category))
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(red: 0.90, green: 0.87, blue: 0.94), in: Capsule())
+                                        if !memory.keywords.isEmpty {
+                                            Text(memory.keywords.prefix(2).joined(separator: "、"))
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                }
+                                .padding(10)
+                                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
                             }
                         }
-                        .padding(8)
-                        .background(Color(red: 0.93, green: 0.91, blue: 0.96), in: RoundedRectangle(cornerRadius: 10))
-                    } else {
-                        Text("完成几次夜谈总结后，这里会显示心流导航。")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
                 }
 
-                MacInspectorSection(title: "这次夜谈") {
+                MacSidebarSection(title: "长期状态") {
+                    let profiles = store.stateProfiles
+                    if profiles.isEmpty {
+                        Text("还没有状态评估，完成几次夜谈总结后会生成。")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(profiles.prefix(4)) { profile in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(macStateDomainTitle(profile.domain))
+                                            .font(.caption.bold())
+                                        Spacer()
+                                        Text(profile.trend.isEmpty ? "—" : profile.trend)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Text(profile.stage.isEmpty ? "正在观察中" : profile.stage)
+                                        .font(.callout)
+                                        .lineLimit(1)
+                                    if !profile.supportStrategy.isEmpty {
+                                        Text(profile.supportStrategy)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                                .padding(10)
+                                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+                    }
+                }
+
+                MacSidebarSection(title: "这次夜谈") {
                     Label("\(store.messages.count) 条消息", systemImage: "text.bubble")
+                        .font(.subheadline)
                     #if targetEnvironment(macCatalyst)
                     Label("本机后端双阶段模式", systemImage: "brain")
+                        .font(.subheadline)
                     #else
                     Label(
                         store.isLocalAIConfigured ? "本机 API 模式" : "后端服务模式",
                         systemImage: "brain"
                     )
+                    .font(.subheadline)
                     #endif
                 }
 
                 if let notice = store.sessionNotice {
                     Text(notice)
-                        .font(.caption)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                        .padding(12)
+                        .padding(14)
                         .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
                 }
 
                 Spacer(minLength: 20)
             }
-            .padding(20)
+            .padding(22)
         }
         .background(Color(red: 0.96, green: 0.94, blue: 0.90))
+    }
+}
+
+private struct MacSidebarSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            content
+        }
     }
 }
 
@@ -1212,22 +1310,6 @@ private struct MacFlowReminderCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 0.94, green: 0.96, blue: 0.90), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-}
-
-private struct MacInspectorSection<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(title)
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
-            content
-                .font(.callout)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
