@@ -1,12 +1,72 @@
 import Foundation
 
+// MARK: - 与 Python 后端 parse_json_object 完全一致的 JSON 容错解析
+
+/// 等价于 Python 后端的 `parse_json_object(content)`：
+/// 1. 先尝试 json.loads 整段文本
+/// 2. 失败则提取第一个 { 到最后一个 } 的子串再解析
+/// 3. 都失败返回 nil
+private func parseJSONObject(_ content: String) -> [String: Any]? {
+    let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty else { return nil }
+
+    // 先尝试直接解析
+    if let data = text.data(using: .utf8),
+       let obj = try? JSONSerialization.jsonObject(with: data, options: []),
+       let dict = obj as? [String: Any] {
+        return dict
+    }
+
+    // 失败则提取第一个 { 到最后一个 } 再解析（和 Python 后端 parse_json_object 一致）
+    guard let start = text.firstIndex(of: "{"),
+          let end = text.lastIndex(of: "}"),
+          start < end else { return nil }
+
+    let substring = String(text[start...end])
+    if let data = substring.data(using: .utf8),
+       let obj = try? JSONSerialization.jsonObject(with: data, options: [.mutableContainers, .fragmentsAllowed]),
+       let dict = obj as? [String: Any] {
+        return dict
+    }
+
+    return nil
+}
+
+/// 从 parseJSONObject 的结果中安全提取值
+private func stringFromDict(_ dict: [String: Any], _ key: String) -> String {
+    (dict[key] as? String) ?? ""
+}
+
+private func stringArrayFromDict(_ dict: [String: Any], _ key: String) -> [String] {
+    guard let arr = dict[key] as? [Any] else { return [] }
+    return arr.compactMap { $0 as? String }
+}
+
+private func intFromDict(_ dict: [String: Any], _ key: String) -> Int {
+    (dict[key] as? Int) ?? 0
+}
+
+private func doubleFromDict(_ dict: [String: Any], _ key: String) -> Double {
+    (dict[key] as? Double) ?? 0.0
+}
+
+private func dictFromDict(_ dict: [String: Any], _ key: String) -> [String: Any] {
+    (dict[key] as? [String: Any]) ?? [:]
+}
+
+private func dictArrayFromDict(_ dict: [String: Any], _ key: String) -> [[String: Any]] {
+    guard let arr = dict[key] as? [Any] else { return [] }
+    return arr.compactMap { $0 as? [String: Any] }
+}
+
 struct LocalChatResult {
     let sessionID: String
     let userMessage: ChatMessage
-    let assistantMessages: [ChatMessage]
+    let quickReply: ChatMessage?
+    let deepReply: ChatMessage
 }
 
-struct LocalJournalDraft: Decodable {
+struct LocalJournalDraft {
     let summary: String
     let emotionCurve: [String]
     let keywords: [String]
@@ -14,19 +74,9 @@ struct LocalJournalDraft: Decodable {
     let suggestedNextStep: String
     let moodScore: Int
     let dominantEmotion: String
-
-    enum CodingKeys: String, CodingKey {
-        case summary
-        case emotionCurve = "emotion_curve"
-        case keywords
-        case insights
-        case suggestedNextStep = "suggested_next_step"
-        case moodScore = "mood_score"
-        case dominantEmotion = "dominant_emotion"
-    }
 }
 
-struct LocalMemoryDraft: Decodable {
+struct LocalMemoryDraft {
     let category: String
     let subcategory: String
     let keywords: [String]
@@ -36,7 +86,7 @@ struct LocalMemoryDraft: Decodable {
     let importance: Int
 }
 
-struct LocalStateProfileDraft: Decodable {
+struct LocalStateProfileDraft {
     let action: String?
     let domain: String
     let stage: String
@@ -46,21 +96,9 @@ struct LocalStateProfileDraft: Decodable {
     let confidence: Double
     let evidence: [String]
     let supportStrategy: String
-
-    enum CodingKeys: String, CodingKey {
-        case action
-        case domain
-        case stage
-        case summary
-        case intensity
-        case trend
-        case confidence
-        case evidence
-        case supportStrategy = "support_strategy"
-    }
 }
 
-private struct LocalRoutePlan: Codable {
+private struct LocalRoutePlan {
     let userState: String
     let coreNeed: String
     let riskLevel: String
@@ -72,20 +110,6 @@ private struct LocalRoutePlan: Codable {
     let knowledgeQueries: [String]
     let responseGuidance: String
     let reason: String
-
-    enum CodingKeys: String, CodingKey {
-        case userState = "user_state"
-        case coreNeed = "core_need"
-        case riskLevel = "risk_level"
-        case responseMode = "response_mode"
-        case characterID = "character_id"
-        case expressionID = "expression_id"
-        case knowledgeNeeds = "knowledge_needs"
-        case memoryQueries = "memory_queries"
-        case knowledgeQueries = "knowledge_queries"
-        case responseGuidance = "response_guidance"
-        case reason
-    }
 
     var metadata: [String: Any] {
         [
@@ -111,14 +135,9 @@ private struct LocalRoutePlan: Codable {
     }
 }
 
-private struct LocalReplyDraft: Decodable {
+private struct LocalReplyDraft {
     let reply: String
     let expressionID: String?
-
-    enum CodingKeys: String, CodingKey {
-        case reply
-        case expressionID = "expression_id"
-    }
 }
 
 private struct LocalKnowledgeItem {
@@ -129,6 +148,11 @@ private struct LocalKnowledgeItem {
 final class LocalDeepSeekService {
     private let session: URLSession
     private var sessionID: String?
+    var currentSessionID: String? { sessionID }
+
+    func clearSession() {
+        sessionID = nil
+    }
 
     init(session: URLSession = .shared) {
         self.session = session
@@ -136,6 +160,53 @@ final class LocalDeepSeekService {
 
     func resetSession() {
         sessionID = nil
+    }
+
+    func testConnection(apiKey: String) async throws -> Bool {
+        fputs("[DeepSeek Test] 开始测试连接...\n", stderr)
+        let requestBody = DeepSeekRequest(
+            model: "deepseek-chat",
+            messages: [
+                DeepSeekMessage(role: "user", content: "ping")
+            ],
+            temperature: 0.7,
+            maxTokens: 10,
+            stream: false,
+            responseFormat: nil,
+            thinking: DeepSeekThinking(type: "disabled"),
+            reasoningEffort: nil
+        )
+        var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        do {
+            request.httpBody = try JSONEncoder().encode(requestBody)
+            fputs("[DeepSeek Test] 请求体编码成功，大小: \(request.httpBody?.count ?? 0) bytes\n", stderr)
+        } catch {
+            fputs("[DeepSeek Test] 请求体编码失败: \(error)\n", stderr)
+            throw error
+        }
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                fputs("[DeepSeek Test] 无效响应类型\n", stderr)
+                throw LocalDeepSeekError.invalidResponse
+            }
+            fputs("[DeepSeek Test] HTTP 状态码: \(httpResponse.statusCode)\n", stderr)
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                let detail = String(data: data, encoding: .utf8) ?? ""
+                fputs("[DeepSeek Test] HTTP 错误: \(detail)\n", stderr)
+                throw LocalDeepSeekError.httpStatus(httpResponse.statusCode, detail)
+            }
+            fputs("[DeepSeek Test] 连接测试成功!\n", stderr)
+            return true
+        } catch {
+            fputs("[DeepSeek Test] 请求失败: \(error.localizedDescription)\n", stderr)
+            fputs("[DeepSeek Test] 错误详情: \(error)\n", stderr)
+            throw error
+        }
     }
 
     func useSession(_ sessionID: String) {
@@ -166,10 +237,51 @@ final class LocalDeepSeekService {
         database.upsertLocalStateProfiles(sessionID: sessionID, profiles: extraction.stateProfiles)
         database.endLocalSession(sessionID)
         self.sessionID = nil
+
+        let closeMemories = extraction.memories.map { memory in
+            SessionCloseMemory(
+                id: UUID().uuidString,
+                category: memory.category,
+                subcategory: memory.subcategory,
+                content: memory.content,
+                keywords: memory.keywords,
+                action: "create",
+                reason: memory.evidence,
+                confidence: memory.confidence,
+                importance: memory.importance
+            )
+        }
+
+        let closeStateProfiles = extraction.stateProfiles.map { profile in
+            SessionCloseStateProfile(
+                domain: profile.domain,
+                stage: profile.stage,
+                summary: profile.summary,
+                intensity: profile.intensity,
+                trend: profile.trend,
+                confidence: profile.confidence,
+                evidence: profile.evidence,
+                supportStrategy: profile.supportStrategy,
+                action: profile.action ?? "no_change",
+                reason: ""
+            )
+        }
+
         return SessionCloseSummary(
             journalSummary: extraction.journal.summary,
             memoryCount: extraction.memories.count,
-            stateProfileCount: extraction.stateProfiles.filter { $0.action != "no_change" }.count
+            stateProfileCount: extraction.stateProfiles.filter { $0.action != "no_change" }.count,
+            journal: SessionCloseJournal(
+                summary: extraction.journal.summary,
+                emotionCurve: extraction.journal.emotionCurve,
+                keywords: extraction.journal.keywords,
+                insights: extraction.journal.insights,
+                suggestedNextStep: extraction.journal.suggestedNextStep,
+                moodScore: extraction.journal.moodScore,
+                dominantEmotion: extraction.journal.dominantEmotion
+            ),
+            memories: closeMemories,
+            stateProfiles: closeStateProfiles
         )
     }
 
@@ -177,14 +289,18 @@ final class LocalDeepSeekService {
         text: String,
         character: CompanionCharacter,
         apiKey: String,
-        database: SQLiteDatabase
+        database: SQLiteDatabase,
+        onQuickReply: ((ChatMessage) -> Void)? = nil
     ) async throws -> LocalChatResult {
+        fputs("[LocalDeepSeek] send 开始，text: \(text)\n", stderr)
         let activeSessionID: String
         if let sessionID {
             activeSessionID = sessionID
+            fputs("[LocalDeepSeek] 复用已有 session: \(activeSessionID)\n", stderr)
         } else {
             activeSessionID = database.createLocalSession()
             sessionID = activeSessionID
+            fputs("[LocalDeepSeek] 创建新 session: \(activeSessionID)\n", stderr)
         }
 
         let userMessage = database.addLocalMessage(
@@ -192,14 +308,26 @@ final class LocalDeepSeekService {
             role: .user,
             content: text
         )
+        fputs("[LocalDeepSeek] 用户消息已保存\n", stderr)
         let history = database.messages(sessionID: activeSessionID, limit: 24)
         let profiles = database.stateProfiles(limit: 8)
-        let plan = try await requestPlan(
-            apiKey: apiKey,
-            history: history,
-            profiles: profiles,
-            fallbackCharacter: character
-        )
+        fputs("[LocalDeepSeek] 历史消息数: \(history.count), 状态画像数: \(profiles.count)\n", stderr)
+        
+        fputs("[LocalDeepSeek] 开始 requestPlan...\n", stderr)
+        let plan: LocalRoutePlan
+        do {
+            plan = try await requestPlan(
+                apiKey: apiKey,
+                history: history,
+                profiles: profiles,
+                fallbackCharacter: character
+            )
+            fputs("[LocalDeepSeek] requestPlan 成功, character_id: \(plan.characterID)\n", stderr)
+        } catch {
+            fputs("[LocalDeepSeek] requestPlan 失败: \(error)\n", stderr)
+            throw error
+        }
+        
         let selectedCharacter = CompanionFixtures.character(id: plan.characterID) ?? character
         let memories = database.contextMemories(
             queryTerms: plan.memoryQueries,
@@ -209,31 +337,93 @@ final class LocalDeepSeekService {
             queryTerms: plan.knowledgeNeeds + plan.knowledgeQueries,
             limit: 3
         )
-        let reply = try await requestReply(
-            apiKey: apiKey,
-            character: selectedCharacter,
-            history: history,
-            memories: memories,
-            profiles: profiles,
-            knowledgeCards: knowledgeCards,
-            plan: plan
-        )
-        let expressionID = selectedCharacter.expression(id: reply.expressionID ?? plan.expressionID)?.id
+        
+        fputs("[LocalDeepSeek] 开始 requestQuickReply...\n", stderr)
+        let quickReply: LocalReplyDraft?
+        do {
+            quickReply = try await requestQuickReply(
+                apiKey: apiKey,
+                character: selectedCharacter,
+                history: history,
+                plan: plan
+            )
+            if let qr = quickReply {
+                fputs("[LocalDeepSeek] requestQuickReply 成功, 回复长度: \(qr.reply.count)\n", stderr)
+            }
+        } catch {
+            fputs("[LocalDeepSeek] requestQuickReply 失败: \(error)\n", stderr)
+            quickReply = nil
+        }
+        
+        let quickExpressionID = selectedCharacter.expression(id: quickReply?.expressionID ?? plan.expressionID)?.id
+            ?? selectedCharacter.defaultExpressionID
+        var quickMessage: ChatMessage? = nil
+        if let qr = quickReply {
+            let qm = database.addLocalMessage(
+                sessionID: activeSessionID,
+                role: .assistant,
+                content: qr.reply,
+                characterID: selectedCharacter.id,
+                expressionID: quickExpressionID,
+                model: "deepseek-chat",
+                routePlan: plan.metadata,
+                knowledgeCards: []
+            )
+            quickMessage = ChatMessage(
+                id: qm.id,
+                role: qm.role,
+                content: qm.content,
+                characterID: qm.characterID,
+                createdAt: qm.createdAt,
+                groupRole: qm.groupRole,
+                action: qm.action,
+                expressionID: qm.expressionID,
+                routeSummary: nil,
+                knowledgeCards: []
+            )
+            fputs("[LocalDeepSeek] 快速回复消息已保存\n", stderr)
+            if let callback = onQuickReply, let qm = quickMessage {
+                callback(qm)
+                fputs("[LocalDeepSeek] 快速回复回调已触发\n", stderr)
+            }
+        }
+        
+        fputs("[LocalDeepSeek] 开始 requestDeepReply...\n", stderr)
+        let deepReply: LocalReplyDraft
+        do {
+            deepReply = try await requestDeepReply(
+                apiKey: apiKey,
+                character: selectedCharacter,
+                history: history,
+                memories: memories,
+                profiles: profiles,
+                knowledgeCards: knowledgeCards,
+                plan: plan
+            )
+            fputs("[LocalDeepSeek] requestDeepReply 成功, 回复长度: \(deepReply.reply.count)\n", stderr)
+        } catch {
+            fputs("[LocalDeepSeek] requestDeepReply 失败: \(error)\n", stderr)
+            throw error
+        }
+        
+        let deepExpressionID = selectedCharacter.expression(id: deepReply.expressionID ?? plan.expressionID)?.id
             ?? selectedCharacter.defaultExpressionID
         let assistantMessage = database.addLocalMessage(
             sessionID: activeSessionID,
             role: .assistant,
-            content: reply.reply,
+            content: deepReply.reply,
             characterID: selectedCharacter.id,
-            expressionID: expressionID,
+            expressionID: deepExpressionID,
             model: "deepseek-chat",
             routePlan: plan.metadata,
             knowledgeCards: knowledgeCards
         )
+        fputs("[LocalDeepSeek] 深度回复消息已保存\n", stderr)
         return LocalChatResult(
             sessionID: activeSessionID,
             userMessage: userMessage,
-            assistantMessages: [ChatMessage(
+            quickReply: quickMessage,
+            deepReply: ChatMessage(
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: assistantMessage.content,
@@ -244,7 +434,7 @@ final class LocalDeepSeekService {
                 expressionID: assistantMessage.expressionID,
                 routeSummary: plan.summary,
                 knowledgeCards: knowledgeCards
-            )]
+            )
         )
     }
 
@@ -254,8 +444,9 @@ final class LocalDeepSeekService {
         profiles: [StateProfile],
         fallbackCharacter: CompanionCharacter
     ) async throws -> LocalRoutePlan {
-        let historyText = history.suffix(12).map {
-            "\($0.role == .user ? "用户" : "陪伴者")：\($0.content)"
+        let historyText = history.suffix(12).map { msg in
+            let content = msg.content.count > 600 ? String(msg.content.prefix(600)) + "..." : msg.content
+            return "\(msg.role == .user ? "用户" : "陪伴者")：\(content)"
         }.joined(separator: "\n")
         let profileText = profiles.map {
             "- [\($0.domain)] \($0.stage)：\($0.summary)；趋势 \($0.trend)，强度 \($0.intensity)/10"
@@ -286,15 +477,109 @@ final class LocalDeepSeekService {
         response_guidance, reason。
         默认形态可参考 \(fallbackCharacter.id)，但应根据本轮真实需要重新选择。
         """
-        return try await requestJSON(
+        let request = try buildJSONRequest(
             apiKey: apiKey,
             messages: [DeepSeekMessage(role: "system", content: prompt)],
-            maxTokens: 900,
+            maxTokens: 2200,
             thinking: true
+        )
+        let (data, _) = try await session.data(for: request)
+        let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        guard let content = payload.choices.first?.message.content else {
+            throw LocalDeepSeekError.invalidResponse
+        }
+        fputs("[LocalDeepSeek] requestPlan: content 长度: \(content.count)\n", stderr)
+
+        // 和 Python 后端 parse_json_object 一致的容错解析
+        guard let dict = parseJSONObject(content) else {
+            fputs("[LocalDeepSeek] requestPlan: JSON 解析失败\n", stderr)
+            throw LocalDeepSeekError.invalidResponse
+        }
+        fputs("[LocalDeepSeek] requestPlan: JSON 解析成功\n", stderr)
+        return LocalRoutePlan(
+            userState: stringFromDict(dict, "user_state"),
+            coreNeed: stringFromDict(dict, "core_need"),
+            riskLevel: stringFromDict(dict, "risk_level").isEmpty ? "low" : stringFromDict(dict, "risk_level"),
+            responseMode: stringFromDict(dict, "response_mode").isEmpty ? "validate" : stringFromDict(dict, "response_mode"),
+            characterID: stringFromDict(dict, "character_id").isEmpty ? fallbackCharacter.id : stringFromDict(dict, "character_id"),
+            expressionID: stringFromDict(dict, "expression_id").isEmpty ? fallbackCharacter.defaultExpressionID : stringFromDict(dict, "expression_id"),
+            knowledgeNeeds: stringArrayFromDict(dict, "knowledge_needs"),
+            memoryQueries: stringArrayFromDict(dict, "memory_queries"),
+            knowledgeQueries: stringArrayFromDict(dict, "knowledge_queries"),
+            responseGuidance: stringFromDict(dict, "response_guidance"),
+            reason: stringFromDict(dict, "reason")
         )
     }
 
-    private func requestReply(
+    private func buildJSONRequest(
+        apiKey: String,
+        messages: [DeepSeekMessage],
+        maxTokens: Int,
+        thinking: Bool
+    ) throws -> URLRequest {
+        var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = thinking ? 120 : 90
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            DeepSeekRequest(
+                model: "deepseek-chat",
+                messages: messages,
+                temperature: thinking ? nil : 0.7,
+                maxTokens: maxTokens,
+                stream: false,
+                responseFormat: DeepSeekResponseFormat(type: "json_object"),
+                thinking: DeepSeekThinking(type: thinking ? "enabled" : "disabled"),
+                reasoningEffort: thinking ? "high" : nil
+            )
+        )
+        return request
+    }
+
+    private func requestQuickReply(
+        apiKey: String,
+        character: CompanionCharacter,
+        history: [ChatMessage],
+        plan: LocalRoutePlan
+    ) async throws -> LocalReplyDraft {
+        let prompt = """
+        你是 \(character.name)，一位温柔的陪伴者。请根据以下信息，给出一个简短、温暖、即时的回应，让用户感到被听见和理解。
+
+        核心需要：\(plan.coreNeed)
+        回复方式：\(plan.responseMode)
+        表情：\(plan.expressionID)
+
+        用户最后一句话：\(history.last?.content ?? "")
+
+        请用 1-2 句话回应，不要深入分析，只需表达理解和陪伴。
+        输出格式：JSON，包含 reply 和 expression_id 字段。
+        """
+        let request = try buildJSONRequest(
+            apiKey: apiKey,
+            messages: [DeepSeekMessage(role: "system", content: prompt)],
+            maxTokens: 300,
+            thinking: false
+        )
+        let (data, _) = try await session.data(for: request)
+        let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        guard let content = payload.choices.first?.message.content else {
+            throw LocalDeepSeekError.invalidResponse
+        }
+        fputs("[LocalDeepSeek] requestQuickReply: content 长度: \(content.count)\n", stderr)
+        if let dict = parseJSONObject(content) {
+            return LocalReplyDraft(
+                reply: stringFromDict(dict, "reply"),
+                expressionID: stringFromDict(dict, "expression_id").isEmpty ? plan.expressionID : stringFromDict(dict, "expression_id")
+            )
+        }
+        return LocalReplyDraft(
+            reply: content.trimmingCharacters(in: .whitespacesAndNewlines),
+            expressionID: plan.expressionID
+        )
+    }
+
+    private func requestDeepReply(
         apiKey: String,
         character: CompanionCharacter,
         history: [ChatMessage],
@@ -310,16 +595,39 @@ final class LocalDeepSeekService {
             knowledgeCards: knowledgeCards,
             plan: plan
         )
-        return try await requestJSON(
+        fputs("[LocalDeepSeek] requestDeepReply: 历史消息数: \(history.count)\n", stderr)
+        let recentHistory = history.suffix(6).map { msg in
+            let content = msg.content.count > 400 ? String(msg.content.prefix(400)) + "..." : msg.content
+            return "\(msg.role == .user ? "用户" : character.name)：\(content)"
+        }.joined(separator: "\n")
+        let promptWithHistory = prompt + "\n\n当前对话历史（最近几条）：\n\(recentHistory)\n"
+        let lastUserText = history.last?.content ?? ""
+        let request = try buildJSONRequest(
             apiKey: apiKey,
-            messages: [DeepSeekMessage(role: "system", content: prompt)] + history.map {
-                DeepSeekMessage(
-                    role: $0.role == .user ? "user" : "assistant",
-                    content: $0.content
-                )
-            },
+            messages: [
+                DeepSeekMessage(role: "system", content: promptWithHistory),
+                DeepSeekMessage(role: "user", content: lastUserText)
+            ],
             maxTokens: 1400,
             thinking: false
+        )
+        let (data, _) = try await session.data(for: request)
+        let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        guard let content = payload.choices.first?.message.content else {
+            throw LocalDeepSeekError.invalidResponse
+        }
+        fputs("[LocalDeepSeek] requestDeepReply: content 长度: \(content.count)\n", stderr)
+        if let dict = parseJSONObject(content) {
+            fputs("[LocalDeepSeek] requestDeepReply: JSON 解析成功\n", stderr)
+            return LocalReplyDraft(
+                reply: stringFromDict(dict, "reply"),
+                expressionID: stringFromDict(dict, "expression_id").isEmpty ? plan.expressionID : stringFromDict(dict, "expression_id")
+            )
+        }
+        fputs("[LocalDeepSeek] requestDeepReply: JSON 解析失败，使用原始文本\n", stderr)
+        return LocalReplyDraft(
+            reply: content.trimmingCharacters(in: .whitespacesAndNewlines),
+            expressionID: plan.expressionID
         )
     }
 
@@ -334,76 +642,67 @@ final class LocalDeepSeekService {
         let profileText = currentProfiles.map {
             "- [\($0.domain)] \($0.stage)：\($0.summary)；证据：\($0.evidence)"
         }.joined(separator: "\n")
-        var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 120
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            DeepSeekRequest(
-                model: "deepseek-chat",
-                messages: [
-                    DeepSeekMessage(
-                        role: "system",
-                        content: """
-                        你负责把一次中文心理陪伴对话整理为结构化数据。不要诊断，不要夸大，不要凭空补充事实。
-                        只输出 JSON 对象，包含 journal、memories、state_profiles。
-                        memories 只保留未来确实有帮助的稳定事实、偏好、关系模式或重要经历，0-5 条。
-                        state_profiles 必须审阅六个 domain：self_relation、emotion_regulation、relationship、agency_boundary、trauma_pattern、meaning_value。
-                        每个 domain 输出一次；证据不足使用 action=no_change，不要为了填满而猜测。
-                        action=create|update 时，summary 必须整合仍然成立的旧画像与本次新证据，不能只写本次增量。
-                        mood_score 使用 -5 到 5；confidence 使用 0 到 1；importance 使用 1 到 5。
-                        """
-                    ),
-                    DeepSeekMessage(
-                        role: "user",
-                        content: """
-                        对话：
-                        \(transcript)
+        let request = try buildJSONRequest(
+            apiKey: apiKey,
+            messages: [
+                DeepSeekMessage(
+                    role: "system",
+                    content: """
+                    你负责把一次中文心理陪伴对话整理为结构化数据。不要诊断，不要夸大，不要凭空补充事实。
+                    只输出 JSON 对象，包含 journal、memories、state_profiles。
+                    memories 只保留未来确实有帮助的稳定事实、偏好、关系模式或重要经历，0-5 条。
+                    state_profiles 必须审阅六个 domain：self_relation、emotion_regulation、relationship、agency_boundary、trauma_pattern、meaning_value。
+                    每个 domain 输出一次；证据不足使用 action=no_change，不要为了填满而猜测。
+                    action=create|update 时，summary 必须整合仍然成立的旧画像与本次新证据，不能只写本次增量。
+                    mood_score 使用 -5 到 5；confidence 使用 0 到 1；importance 使用 1 到 5。
+                    """
+                ),
+                DeepSeekMessage(
+                    role: "user",
+                    content: """
+                    对话：
+                    \(transcript)
 
-                        当前已有长期画像：
-                        \(profileText.isEmpty ? "暂无" : profileText)
+                    当前已有长期画像：
+                    \(profileText.isEmpty ? "暂无" : profileText)
 
-                        JSON 格式：
-                        {
-                          "journal": {
-                            "summary": "",
-                            "emotion_curve": [],
-                            "keywords": [],
-                            "insights": [],
-                            "suggested_next_step": "",
-                            "mood_score": 0,
-                            "dominant_emotion": ""
-                          },
-                          "memories": [{
-                            "category": "",
-                            "subcategory": "general",
-                            "keywords": [],
-                            "content": "",
-                            "evidence": "",
-                            "confidence": 0.7,
-                            "importance": 3
-                          }],
-                          "state_profiles": [{
-                            "action": "create | update | no_change",
-                            "domain": "",
-                            "stage": "",
-                            "summary": "",
-                            "intensity": 5,
-                            "trend": "stable",
-                            "confidence": 0.7,
-                            "evidence": [],
-                            "support_strategy": ""
-                          }]
-                        }
-                        """
-                    ),
-                ],
-                temperature: 0.2,
-                maxTokens: 2200,
-                stream: false,
-                responseFormat: DeepSeekResponseFormat(type: "json_object")
-            )
+                    JSON 格式：
+                    {
+                      "journal": {
+                        "summary": "",
+                        "emotion_curve": [],
+                        "keywords": [],
+                        "insights": [],
+                        "suggested_next_step": "",
+                        "mood_score": 0,
+                        "dominant_emotion": ""
+                      },
+                      "memories": [{
+                        "category": "",
+                        "subcategory": "general",
+                        "keywords": [],
+                        "content": "",
+                        "evidence": "",
+                        "confidence": 0.7,
+                        "importance": 3
+                      }],
+                      "state_profiles": [{
+                        "action": "create | update | no_change",
+                        "domain": "",
+                        "stage": "",
+                        "summary": "",
+                        "intensity": 5,
+                        "trend": "stable",
+                        "confidence": 0.7,
+                        "evidence": [],
+                        "support_strategy": ""
+                      }]
+                    }
+                    """
+                ),
+            ],
+            maxTokens: 2200,
+            thinking: false
         )
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -419,7 +718,64 @@ final class LocalDeepSeekService {
         else {
             throw LocalDeepSeekError.invalidResponse
         }
-        return try JSONDecoder().decode(LocalSessionExtraction.self, from: contentData)
+        fputs("[LocalDeepSeek] requestSessionExtraction: content 长度: \(content.count)\n", stderr)
+        guard let root = parseJSONObject(content) else {
+            fputs("[LocalDeepSeek] requestSessionExtraction: JSON 解析失败\n", stderr)
+            throw LocalDeepSeekError.invalidResponse
+        }
+        fputs("[LocalDeepSeek] requestSessionExtraction: JSON 解析成功\n", stderr)
+
+        // 解析 journal
+        let journalDict = dictFromDict(root, "journal")
+        let journal = LocalJournalDraft(
+            summary: stringFromDict(journalDict, "summary"),
+            emotionCurve: stringArrayFromDict(journalDict, "emotion_curve"),
+            keywords: stringArrayFromDict(journalDict, "keywords"),
+            insights: stringArrayFromDict(journalDict, "insights"),
+            suggestedNextStep: stringFromDict(journalDict, "suggested_next_step"),
+            moodScore: intFromDict(journalDict, "mood_score"),
+            dominantEmotion: stringFromDict(journalDict, "dominant_emotion")
+        )
+
+        // 解析 memories
+        let memoryItems = dictArrayFromDict(root, "memories")
+        let memories = memoryItems.compactMap { item -> LocalMemoryDraft? in
+            let content = stringFromDict(item, "content")
+            guard !content.isEmpty else { return nil }
+            return LocalMemoryDraft(
+                category: stringFromDict(item, "category"),
+                subcategory: stringFromDict(item, "subcategory").isEmpty ? "general" : stringFromDict(item, "subcategory"),
+                keywords: stringArrayFromDict(item, "keywords"),
+                content: content,
+                evidence: stringFromDict(item, "evidence"),
+                confidence: doubleFromDict(item, "confidence") == 0 ? 0.7 : doubleFromDict(item, "confidence"),
+                importance: intFromDict(item, "importance") == 0 ? 3 : intFromDict(item, "importance")
+            )
+        }
+
+        // 解析 state_profiles
+        let profileItems = dictArrayFromDict(root, "state_profiles")
+        let stateProfiles = profileItems.compactMap { item -> LocalStateProfileDraft? in
+            let domain = stringFromDict(item, "domain")
+            guard !domain.isEmpty else { return nil }
+            return LocalStateProfileDraft(
+                action: stringFromDict(item, "action").isEmpty ? "no_change" : stringFromDict(item, "action"),
+                domain: domain,
+                stage: stringFromDict(item, "stage"),
+                summary: stringFromDict(item, "summary"),
+                intensity: intFromDict(item, "intensity") == 0 ? 5 : intFromDict(item, "intensity"),
+                trend: stringFromDict(item, "trend").isEmpty ? "stable" : stringFromDict(item, "trend"),
+                confidence: doubleFromDict(item, "confidence") == 0 ? 0.7 : doubleFromDict(item, "confidence"),
+                evidence: stringArrayFromDict(item, "evidence"),
+                supportStrategy: stringFromDict(item, "support_strategy")
+            )
+        }
+
+        return LocalSessionExtraction(
+            journal: journal,
+            memories: memories,
+            stateProfiles: stateProfiles
+        )
     }
 
     private func systemPrompt(
@@ -433,6 +789,8 @@ final class LocalDeepSeekService {
         let profileText = profiles.map { "- \($0.domain)：\($0.summary)" }.joined(separator: "\n")
         let knowledgeText = knowledgeCards.map { "- \($0.title)：\($0.concept)" }.joined(separator: "\n")
         return """
+        JSON 格式输出要求：你必须严格按照 JSON 格式输出，只输出 JSON，不要输出任何解释性文字。JSON 格式为 {"reply":"回复正文","expression_id":"表情 id"}。
+        
         你是森森物语里的\(character.name)，是一位温和、清醒、有边界的自我理解型心理陪伴者，不是治疗师，也不做诊断。
 
         回应要求：
@@ -461,6 +819,8 @@ final class LocalDeepSeekService {
 
         本轮检索到的心理知识卡：
         \(knowledgeText.isEmpty ? "暂无；不要为了展示知识而强行解释。" : knowledgeText)
+
+        再次强调：你必须输出有效的 JSON 格式，包含 reply 和 expression_id 两个字段。
         """
     }
 
@@ -488,21 +848,44 @@ final class LocalDeepSeekService {
             )
         )
         let (data, response) = try await session.data(for: request)
+        fputs("[LocalDeepSeek] requestJSON: 响应数据大小: \(data.count) bytes\n", stderr)
         guard let httpResponse = response as? HTTPURLResponse else {
+            fputs("[LocalDeepSeek] requestJSON: 无效响应类型\n", stderr)
             throw LocalDeepSeekError.invalidResponse
         }
+        fputs("[LocalDeepSeek] requestJSON: HTTP 状态码: \(httpResponse.statusCode)\n", stderr)
         guard (200..<300).contains(httpResponse.statusCode) else {
             let detail = String(data: data, encoding: .utf8) ?? ""
+            fputs("[LocalDeepSeek] requestJSON: HTTP 错误 \(httpResponse.statusCode): \(detail)\n", stderr)
             throw LocalDeepSeekError.httpStatus(httpResponse.statusCode, detail)
         }
-        let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        let responseStr = String(data: data, encoding: .utf8) ?? ""
+        fputs("[LocalDeepSeek] requestJSON: 响应内容前500字符: \(String(responseStr.prefix(500)))\n", stderr)
+        let payload: DeepSeekResponse
+        do {
+            payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        } catch {
+            fputs("[LocalDeepSeek] requestJSON: 外层 JSON 解码失败: \(error)\n", stderr)
+            fputs("[LocalDeepSeek] requestJSON: 原始响应: \(responseStr)\n", stderr)
+            throw error
+        }
         guard
             let content = payload.choices.first?.message.content,
             let contentData = content.data(using: .utf8)
         else {
+            fputs("[LocalDeepSeek] requestJSON: 无效响应内容\n", stderr)
             throw LocalDeepSeekError.invalidResponse
         }
-        return try JSONDecoder().decode(Response.self, from: contentData)
+        fputs("[LocalDeepSeek] requestJSON: content 长度: \(content.count)\n", stderr)
+        let result: Response
+        do {
+            result = try JSONDecoder().decode(Response.self, from: contentData)
+        } catch {
+            fputs("[LocalDeepSeek] requestJSON: 内层 JSON 解码失败: \(error)\n", stderr)
+            fputs("[LocalDeepSeek] requestJSON: content: \(content)\n", stderr)
+            throw error
+        }
+        return result
     }
 
     private static func retrieveKnowledgeCards(queryTerms: [String], limit: Int) -> [KnowledgeCard] {
@@ -605,16 +988,10 @@ private struct DeepSeekChoice: Decodable {
     let message: DeepSeekMessage
 }
 
-private struct LocalSessionExtraction: Decodable {
+private struct LocalSessionExtraction {
     let journal: LocalJournalDraft
     let memories: [LocalMemoryDraft]
     let stateProfiles: [LocalStateProfileDraft]
-
-    enum CodingKeys: String, CodingKey {
-        case journal
-        case memories
-        case stateProfiles = "state_profiles"
-    }
 }
 
 enum LocalDeepSeekError: LocalizedError {

@@ -1,10 +1,12 @@
 import SwiftUI
+import MobileCoreServices
 
 struct SettingsView: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var apiKey = ""
     @State private var macBackendURL = ""
     @State private var macSyncToken = ""
+    @State private var customDatabasePath = ""
 
     var body: some View {
         ZStack {
@@ -15,9 +17,6 @@ struct SettingsView: View {
                         title: "设置",
                         subtitle: settingsSubtitle
                     )
-                    #if targetEnvironment(macCatalyst)
-                    MacBackendModePanel()
-                    #else
                     LocalAISettingsPanel(
                         apiKey: $apiKey,
                         isConfigured: store.isLocalAIConfigured,
@@ -27,6 +26,30 @@ struct SettingsView: View {
                             apiKey = ""
                         },
                         clear: store.clearDeepSeekAPIKey
+                    )
+                    #if targetEnvironment(macCatalyst)
+                    DatabasePathPanel(
+                        customPath: $customDatabasePath,
+                        currentPath: store.currentDatabasePath,
+                        save: {
+                            store.saveCustomDatabasePath(customDatabasePath)
+                        },
+                        reset: store.resetDatabasePath,
+                        selectFile: {
+                            let picker = UIDocumentPickerViewController(documentTypes: ["public.item"], in: .open)
+                            picker.allowsMultipleSelection = false
+                            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let window = windowScene.windows.first,
+                               let rootViewController = window.rootViewController
+                            {
+                                rootViewController.present(picker, animated: true)
+                                picker.delegate = DocumentPickerDelegate { url in
+                                    DispatchQueue.main.async {
+                                        customDatabasePath = url.path
+                                    }
+                                }
+                            }
+                        }
                     )
                     #endif
                     MacConnectionPanel(
@@ -69,12 +92,13 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             macBackendURL = store.macBackendURL
+            customDatabasePath = store.customDatabasePath
         }
     }
 
     private var settingsSubtitle: String {
         #if targetEnvironment(macCatalyst)
-        return "Mac 原型默认连接同一台电脑上的 Python 后端。DeepSeek Key 放在后端 .env 里，不需要在这里重复填写。"
+        return "配置 DeepSeek API Key 后，Mac 可直接调用模型，不依赖 Python 后端。后端仍用于数据拉取和会话同步。"
         #else
         return "手机可以独立保存和对话；需要时再与同一局域网里的 Mac 同步。"
         #endif
@@ -121,18 +145,13 @@ private struct MacBackendModePanel: View {
                     Label("本机后端模式", systemImage: "macbook.and.desktopcomputer")
                         .font(.headline)
                     Spacer()
-                    Text("推荐")
+                    Text("可选")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.green)
+                        .foregroundStyle(Color.warmBrown)
                 }
 
-                Text("Mac App 只负责界面和数据展示；聊天、总结、记忆合并仍由 Python 后端处理。这样不会把 DeepSeek API Key 写进 App，也不需要同步令牌。")
+                Text("Mac App 可以脱离 Python 后端直接调用 DeepSeek；后端仅用于数据拉取和会话同步。如果你暂时不想用本地 Key，可以继续依赖 Python 后端。")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label("请先启动后端：python3 -m app.web。默认地址是 http://127.0.0.1:8765。", systemImage: "terminal.fill")
-                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -151,18 +170,24 @@ private struct LocalAISettingsPanel: View {
         SoftPanel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Label("手机独立模式", systemImage: "iphone.gen3")
-                        .font(.headline)
+                    localModeHeaderLabel(isConfigured: isConfigured)
                     Spacer()
                     Text(isConfigured ? "已启用" : "未配置")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(isConfigured ? Color.green : Color.warmBrown)
                 }
 
+                #if targetEnvironment(macCatalyst)
+                Text("配置后，Mac 直接调用 DeepSeek，session 和消息保存在沙盒数据库中；不再依赖 Python 后端，可以彻底绕开 SSE 不稳定的问题。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                #else
                 Text("配置后，聊天会由手机直接调用 DeepSeek，session 和消息保存在手机数据库中，不需要连接 Mac。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                #endif
 
                 SecureField(isConfigured ? "输入新 Key 可替换现有 Key" : "DeepSeek API Key", text: $apiKey)
                     .textInputAutocapitalization(.never)
@@ -196,12 +221,23 @@ private struct LocalAISettingsPanel: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Label("API Key 仅保存在这台设备的系统钥匙串，不会写入数据库或同步给 Mac。", systemImage: "lock.shield.fill")
+                Label("API Key 仅保存在这台 Mac 的系统钥匙串，不会写入数据库或同步给其他设备。", systemImage: "lock.shield.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    @ViewBuilder
+    private func localModeHeaderLabel(isConfigured: Bool) -> some View {
+        #if targetEnvironment(macCatalyst)
+        Label("Mac 直接调用 DeepSeek", systemImage: "macbook")
+            .font(.headline)
+        #else
+        Label("手机独立模式", systemImage: "iphone.gen3")
+            .font(.headline)
+        #endif
     }
 }
 
@@ -396,5 +432,89 @@ private struct SettingsDataCount: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct DatabasePathPanel: View {
+    @Binding var customPath: String
+    let currentPath: String?
+    let save: () -> Void
+    let reset: () -> Void
+    let selectFile: () -> Void
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("数据库路径", systemImage: "database")
+                    .font(.headline)
+
+                Text("Mac 可以直接使用项目目录里的 app.db，实现与 Python 后端共享数据，无需来回同步。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let currentPath {
+                    Text("当前数据库：\(currentPath)")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Color.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                TextField("例如 /Users/xxx/work/agent/demo/data/app.db", text: $customPath)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.callout.monospaced())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 11)
+                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+
+                HStack(spacing: 10) {
+                    Button(action: selectFile) {
+                        Label("选择文件", systemImage: "folder")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.warmBrown)
+
+                    Button(action: save) {
+                        Label("保存路径", systemImage: "checkmark")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.warmBrown)
+                    .disabled(customPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button(role: .destructive, action: reset) {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("重置为默认路径")
+                }
+
+                Text("修改后需要重启 App 才能生效。建议在关闭 Python 后端后再切换数据库。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+class DocumentPickerDelegate: NSObject, UIDocumentPickerDelegate {
+    private let completion: (URL) -> Void
+
+    init(completion: @escaping (URL) -> Void) {
+        self.completion = completion
+        super.init()
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        if let url = urls.first {
+            completion(url)
+        }
+        controller.dismiss(animated: true)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        controller.dismiss(animated: true)
     }
 }

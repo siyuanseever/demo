@@ -3,9 +3,11 @@ import SQLite3
 
 final class SQLiteDatabase {
     private var handle: OpaquePointer?
+    let path: String
 
     init() throws {
         let databaseURL = try Self.preparedDatabaseURL()
+        path = databaseURL.path
         if sqlite3_open(databaseURL.path, &handle) != SQLITE_OK {
             throw DatabaseError.openFailed(String(cString: sqlite3_errmsg(handle)))
         }
@@ -182,6 +184,14 @@ final class SQLiteDatabase {
             sql: "UPDATE sessions SET ended_at = ? WHERE id = ?",
             bindings: [Self.string(from: Date()), sessionID]
         )
+    }
+
+    func deleteSession(_ sessionID: String) {
+        execute(sql: "DELETE FROM messages WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM memories WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM journals WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM user_state_profiles WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM sessions WHERE id = ?", bindings: [sessionID])
     }
 
     func addLocalJournal(sessionID: String, journal: LocalJournalDraft) {
@@ -985,6 +995,19 @@ final class SQLiteDatabase {
 
     private static func preparedDatabaseURL() throws -> URL {
         let fileManager = FileManager.default
+
+        #if targetEnvironment(macCatalyst)
+        if
+            let customPath = UserDefaults.standard.string(forKey: "sensen.customDatabasePath.v1"),
+            !customPath.isEmpty
+        {
+            let customURL = URL(fileURLWithPath: customPath)
+            if fileManager.fileExists(atPath: customURL.path) {
+                return customURL
+            }
+        }
+        #endif
+
         let documentsURL = try fileManager.url(
             for: .documentDirectory,
             in: .userDomainMask,

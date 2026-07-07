@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct MacPrototypeView: View {
     @EnvironmentObject private var store: CompanionStore
@@ -19,6 +22,17 @@ struct MacPrototypeView: View {
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 1040, minHeight: 700)
         .background(Color(red: 0.98, green: 0.96, blue: 0.92))
+        .sheet(isPresented: Binding(
+            get: { store.flowRitualIntention != nil },
+            set: { if !$0 { store.dismissFlowRitual() } }
+        )) {
+            if let intention = store.flowRitualIntention {
+                MacFlowRitualSheet(intention: intention)
+                    .environmentObject(store)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
+        }
     }
 }
 
@@ -322,6 +336,7 @@ private struct MacConversationHeader: View {
 private struct MacMessageRow: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var selectedKnowledgeCard: KnowledgeCard?
+    @State private var showCopyToast = false
     let message: ChatMessage
 
     var body: some View {
@@ -333,6 +348,13 @@ private struct MacMessageRow: View {
                 .padding(.vertical, 8)
                 .background(.thinMaterial, in: Capsule())
                 .frame(maxWidth: .infinity)
+                .contextMenu {
+                    Button(action: {
+                        copyMessage()
+                    }) {
+                        Label("复制", systemImage: "doc.on.doc")
+                    }
+                }
         } else {
             HStack(alignment: .top, spacing: 10) {
                 if message.role == .assistant {
@@ -406,6 +428,13 @@ private struct MacMessageRow: View {
                 }
             }
             .frame(maxWidth: .infinity)
+            .contextMenu {
+                Button(action: {
+                    copyMessage()
+                }) {
+                    Label("复制", systemImage: "doc.on.doc")
+                }
+            }
             .popover(item: $selectedKnowledgeCard) { card in
                 VStack(alignment: .leading, spacing: 12) {
                     Label("知识卡", systemImage: "leaf.fill")
@@ -423,6 +452,31 @@ private struct MacMessageRow: View {
                 .padding(20)
                 .frame(width: 340)
             }
+            .overlay(alignment: .center) {
+                if showCopyToast {
+                    Text("已复制")
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.7))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                        .transition(.opacity.combined(with: .scale))
+                }
+            }
+        }
+    }
+
+    private func copyMessage() {
+        #if os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(message.content, forType: .string)
+        #else
+        UIPasteboard.general.string = message.content
+        #endif
+        showCopyToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showCopyToast = false
         }
     }
 }
@@ -817,6 +871,28 @@ private struct MacConversationInspector: View {
                         .textSelection(.enabled)
                 }
 
+                MacInspectorSection(title: "心流导航") {
+                    if !store.starMapInsight.primaryGoalTitle.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(store.starMapInsight.primaryGoalTitle)
+                                .font(.caption.bold())
+                                .foregroundStyle(Color(red: 0.46, green: 0.39, blue: 0.66))
+                            if !store.starMapInsight.primaryGoalNextStep.isEmpty {
+                                Text(store.starMapInsight.primaryGoalNextStep)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(8)
+                        .background(Color(red: 0.93, green: 0.91, blue: 0.96), in: RoundedRectangle(cornerRadius: 10))
+                    } else {
+                        Text("完成几次夜谈总结后，这里会显示心流导航。")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 MacInspectorSection(title: "这次夜谈") {
                     Label("\(store.messages.count) 条消息", systemImage: "text.bubble")
                     #if targetEnvironment(macCatalyst)
@@ -865,7 +941,8 @@ private struct MacFlowWorkspace: View {
                         reason: insight.primaryGoalReason,
                         nextStep: insight.primaryGoalNextStep,
                         challenge: insight.primaryGoalChallenge,
-                        tint: Color(red: 0.84, green: 0.79, blue: 0.92)
+                        tint: Color(red: 0.84, green: 0.79, blue: 0.92),
+                        goalType: .primary
                     )
 
                     if insight.hasSecondaryGoal {
@@ -875,7 +952,8 @@ private struct MacFlowWorkspace: View {
                             reason: insight.secondaryGoalReason,
                             nextStep: insight.secondaryGoalNextStep,
                             challenge: insight.secondaryGoalChallenge,
-                            tint: Color(red: 0.78, green: 0.88, blue: 0.84)
+                            tint: Color(red: 0.78, green: 0.88, blue: 0.84),
+                            goalType: .secondary
                         )
                     } else {
                         MacFlowPlaceholderGoalCard()
@@ -988,12 +1066,19 @@ private struct MacFlowHeaderCard: View {
 }
 
 private struct MacFlowGoalCard: View {
+    @EnvironmentObject private var store: CompanionStore
     let role: String
     let title: String
     let reason: String
     let nextStep: String
     let challenge: String
     let tint: Color
+    let goalType: GoalType
+
+    enum GoalType {
+        case primary
+        case secondary
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1022,13 +1107,39 @@ private struct MacFlowGoalCard: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 8) {
                 Label("下一步", systemImage: "arrow.right.circle.fill")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
                 Text(nextStep.isEmpty ? "先完成几次夜谈总结，再生成更具体的小步骤。" : nextStep)
                     .font(.callout.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    Task {
+                        if store.starMapInsight.isMockInsight {
+                            await store.refreshStarMapInsight(forceRefresh: true)
+                        } else {
+                            let intention = goalType == .primary
+                                ? store.starMapInsight.primaryGoalNextStep
+                                : store.starMapInsight.secondaryGoalNextStep
+                            store.triggerFlowRitual(intention: intention)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("开始")
+                        Image(systemName: "play.circle.fill")
+                            .font(.caption)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.7), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(store.starMapInsight.isMockInsight || nextStep.isEmpty)
+                .opacity(store.starMapInsight.isMockInsight || nextStep.isEmpty ? 0.5 : 1)
             }
         }
         .padding(16)
@@ -1123,6 +1234,7 @@ private struct MacInspectorSection<Content: View>: View {
 private struct MacSessionsWorkspace: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var expandedSessionID: String?
+    @State private var deletingSessionID: String?
     let openConversation: () -> Void
 
     var body: some View {
@@ -1183,27 +1295,59 @@ private struct MacSessionsWorkspace: View {
                     }
                     .padding(.top, 8)
                 } label: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(session.preview.isEmpty ? "一次安静的夜谈" : session.preview)
-                                .font(.headline)
-                                .lineLimit(2)
-                            Spacer()
-                            Text(macShortDate(session.createdAt))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(session.preview.isEmpty ? "一次安静的夜谈" : session.preview)
+                                    .font(.headline)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                Spacer()
+                                Text(macShortDate(session.createdAt))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            HStack(spacing: 12) {
+                                Label("\(session.messageCount) 条消息", systemImage: "bubble.left")
+                                Label("\(journal == nil ? 0 : 1) 篇日记", systemImage: "book.closed")
+                                Label("\(memories.count) 条记忆", systemImage: "books.vertical")
+                                if let journal, !journal.dominantEmotion.isEmpty {
+                                    Label(journal.dominantEmotion, systemImage: "heart.text.square")
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
 
-                        HStack(spacing: 12) {
-                            Label("\(session.messageCount) 条消息", systemImage: "bubble.left")
-                            Label("\(journal == nil ? 0 : 1) 篇日记", systemImage: "book.closed")
-                            Label("\(memories.count) 条记忆", systemImage: "books.vertical")
-                            if let journal, !journal.dominantEmotion.isEmpty {
-                                Label(journal.dominantEmotion, systemImage: "heart.text.square")
-                            }
+                        Button(role: .destructive) {
+                            deletingSessionID = session.id
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.red.opacity(0.7))
+                                .padding(8)
                         }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .buttonStyle(.plain)
+                        .frame(width: 32, height: 32)
+                        .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .accessibilityLabel("删除会话")
+                        .confirmationDialog("确认删除", isPresented: Binding(
+                            get: { deletingSessionID == session.id },
+                            set: { if !$0 { deletingSessionID = nil } }
+                        )) {
+                            Button("删除会话及关联数据", role: .destructive) {
+                                if deletingSessionID == session.id {
+                                    store.deleteSession(session.id)
+                                    deletingSessionID = nil
+                                }
+                            }
+                            Button("取消", role: .cancel) {
+                                deletingSessionID = nil
+                            }
+                        } message: {
+                            Text("删除后将无法恢复，包括关联的日记和记忆。")
+                        }
                     }
                 }
                 .padding(16)
@@ -2493,5 +2637,215 @@ private struct MacCollectionWorkspace<Content: View>: View {
                 endPoint: .bottomTrailing
             )
         )
+    }
+}
+
+private struct MacFlowRitualSheet: View {
+    @EnvironmentObject private var store: CompanionStore
+    @State private var draft: String
+    @FocusState private var isDraftFocused: Bool
+    @State private var activeIntention: String?
+    @State private var isClosing = false
+
+    init(intention: String) {
+        _draft = State(initialValue: intention)
+    }
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.93, green: 0.91, blue: 0.96).ignoresSafeArea()
+            if let activeIntention, isClosing {
+                closingView(intention: activeIntention)
+            } else if let activeIntention {
+                activeView(intention: activeIntention)
+            } else {
+                preparationView
+            }
+        }
+        .frame(maxWidth: 600, maxHeight: 500)
+    }
+
+    private var preparationView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("这一轮，只靠近一件事")
+                        .font(.title2.bold())
+                        .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                    Text("目标已经尽量缩小。你仍然可以改成此刻更合适的表达。")
+                        .font(.callout)
+                        .lineSpacing(6)
+                        .foregroundStyle(Color(red: 0.45, green: 0.42, blue: 0.50))
+                }
+
+                TextField("写下一件此刻愿意靠近的事", text: $draft, axis: .vertical)
+                    .font(.body)
+                    .lineLimit(2...4)
+                    .focused($isDraftFocused)
+                    .padding(16)
+                    .background(Color(red: 0.97, green: 0.94, blue: 0.91), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("为什么这个难度可能合适")
+                        .font(.caption)
+                        .foregroundStyle(Color(red: 0.51, green: 0.46, blue: 0.55))
+                    Text(store.starMapInsight.flowSupport)
+                        .font(.caption)
+                        .lineSpacing(5)
+                        .foregroundStyle(Color(red: 0.45, green: 0.42, blue: 0.50))
+                }
+                .padding(14)
+                .background(Color.white.opacity(0.46), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+
+                MacFlowSuggestionLayout(items: suggestions) { suggestion in
+                    draft = suggestion
+                    isDraftFocused = false
+                }
+
+                Button {
+                    begin()
+                } label: {
+                    Text("先只做这一件事")
+                        .font(.body.bold())
+                        .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(red: 0.85, green: 0.80, blue: 0.91), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(cleanDraft.isEmpty)
+                .opacity(cleanDraft.isEmpty ? 0.42 : 1)
+
+                Text("这里不会计时，不会打卡，也不会评价你做了多少。")
+                    .font(.caption)
+                    .foregroundStyle(Color(red: 0.55, green: 0.51, blue: 0.59))
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .padding(24)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func activeView(intention: String) -> some View {
+        VStack(spacing: 28) {
+            Spacer()
+            Image(systemName: "moon.stars.fill")
+                .font(.system(size: 42, weight: .light))
+                .foregroundStyle(Color(red: 0.54, green: 0.47, blue: 0.65))
+            Text(intention)
+                .font(.title2.bold())
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                .padding(.horizontal, 28)
+            Text("不需要马上完成。\n注意力回来时，就再靠近一点点。")
+                .font(.callout)
+                .lineSpacing(7)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color(red: 0.47, green: 0.42, blue: 0.50))
+            Spacer()
+            Button("先停在这里") {
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    isClosing = true
+                }
+            }
+            .font(.body)
+            .foregroundStyle(Color(red: 0.37, green: 0.33, blue: 0.41))
+            .buttonStyle(.plain)
+            .padding(.bottom, 26)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func closingView(intention: String) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Spacer()
+            Text("先停在这里")
+                .font(.title2.bold())
+                .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+            Text(intention)
+                .font(.body)
+                .lineSpacing(7)
+                .foregroundStyle(Color(red: 0.41, green: 0.35, blue: 0.46))
+                .fixedSize(horizontal: false, vertical: true)
+            Text("不总结成果。只留下此刻最接近的一句话。")
+                .font(.callout)
+                .foregroundStyle(Color(red: 0.51, green: 0.46, blue: 0.55))
+
+            VStack(spacing: 11) {
+                ForEach(["更清楚一点", "还在里面", "今天先到这里"], id: \.self) { ending in
+                    Button {
+                        store.recordFlowMoment(intention: intention, ending: ending)
+                        store.dismissFlowRitual()
+                    } label: {
+                        Text(ending)
+                            .font(.body)
+                            .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 13)
+                            .background(Color(red: 0.97, green: 0.94, blue: 0.91), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button("不留痕迹，直接离开") {
+                store.dismissFlowRitual()
+            }
+            .font(.callout)
+            .foregroundStyle(Color(red: 0.55, green: 0.51, blue: 0.59))
+            .frame(maxWidth: .infinity, alignment: .center)
+            Spacer()
+        }
+        .padding(28)
+    }
+
+    private var suggestions: [String] {
+        let candidates = [
+            store.starMapInsight.primaryGoalNextStep,
+            store.starMapInsight.secondaryGoalNextStep,
+        ] + store.starMapInsight.flowConditions
+        var result: [String] = []
+        for candidate in candidates {
+            let item = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !item.isEmpty, !result.contains(item), result.count < 5 {
+                result.append(item)
+            }
+        }
+        return result
+    }
+
+    private var cleanDraft: String {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func begin() {
+        guard !cleanDraft.isEmpty else { return }
+        isDraftFocused = false
+        isClosing = false
+        withAnimation(.easeInOut(duration: 0.28)) {
+            activeIntention = cleanDraft
+        }
+    }
+}
+
+private struct MacFlowSuggestionLayout: View {
+    let items: [String]
+    let select: (String) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 10)], alignment: .leading, spacing: 10) {
+            ForEach(items, id: \.self) { item in
+                Button(item) {
+                    select(item)
+                }
+                .font(.caption)
+                .foregroundStyle(Color(red: 0.41, green: 0.35, blue: 0.46))
+                .buttonStyle(.plain)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity)
+                .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
+        }
     }
 }

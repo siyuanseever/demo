@@ -6,6 +6,7 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 project="$repo_root/ios/XiaodongwuYetanhui.xcodeproj"
 derived_data="$repo_root/ios/DerivedData-Mac"
 app="$derived_data/Build/Products/Debug-maccatalyst/XiaodongwuYetanhui.app"
+executable="$app/Contents/MacOS/XiaodongwuYetanhui"
 
 xcodebuild \
   -quiet \
@@ -17,4 +18,4 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   build
 
-open -n "$app"
+SENSEN_REPO_ROOT="$repo_root" "$executable" &

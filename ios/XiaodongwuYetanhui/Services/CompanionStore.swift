@@ -46,7 +46,10 @@ final class CompanionStore: ObservableObject {
     @Published var isMoodRefreshing = false
     @Published var chatOperationStatus: String?
     @Published var flowContext = FlowContext.empty
+    @Published var flowRitualIntention: String? = nil
     @Published var todayPlanItems: [PlanItem] = []
+    @Published var customDatabasePath = ""
+    @Published var currentDatabasePath: String?
 
     private let chatService = ChatService()
     private let localDeepSeekService = LocalDeepSeekService()
@@ -58,6 +61,7 @@ final class CompanionStore: ObservableObject {
     private let bailanDiaryStorageKey = "sensen.bailanDiaryEntries.v1"
     private let recommendationStorageKey = "xiaolu.recommendations.v1"
     private let todayPlanStorageKey = "sensen.todayPlanItems.v1"
+    private let customDatabasePathKey = "sensen.customDatabasePath.v1"
     private var lastHomeEncouragementRefreshAt: Date?
     private var hasAttemptedFlowInsightLoad = false
     private let logger = Logger(
@@ -70,9 +74,15 @@ final class CompanionStore: ObservableObject {
     }
 
     init() {
+        fputs("[CompanionStore] init 开始\n", stderr)
         backendStatus.baseURL = chatService.backendURLDescription
         macBackendURL = UserDefaults.standard.string(forKey: "sensen.macBackendURL") ?? chatService.backendURLDescription
-        isLocalAIConfigured = secureSettings.deepSeekAPIKey()?.isEmpty == false
+        customDatabasePath = UserDefaults.standard.string(forKey: customDatabasePathKey) ?? ""
+        fputs("[CompanionStore] customDatabasePath: \(customDatabasePath)\n", stderr)
+        let apiKey = secureSettings.deepSeekAPIKey()
+        fputs("[CompanionStore] 读取到的 API Key: \(apiKey ?? "nil")\n", stderr)
+        isLocalAIConfigured = apiKey?.isEmpty == false
+        fputs("[CompanionStore] isLocalAIConfigured: \(isLocalAIConfigured)\n", stderr)
         isMacSyncTokenConfigured = secureSettings.macSyncToken()?.isEmpty == false
         careMoments = loadCareMoments()
         flowMoments = loadFlowMoments()
@@ -82,11 +92,38 @@ final class CompanionStore: ObservableObject {
         todayPlanItems = loadTodayPlanItems()
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]
         load()
+        #if targetEnvironment(macCatalyst)
+        if isLocalAIConfigured, let apiKey = apiKey {
+            fputs("[CompanionStore] 启动 DeepSeek 连接测试...\n", stderr)
+            Task {
+                await testLocalDeepSeekConnection(apiKey: apiKey)
+                if ProcessInfo.processInfo.environment["SENSEN_AUTO_TEST"] == "1" {
+                    fputs("[CompanionStore] 自动测试模式启用，跳过自动发送（避免写入测试数据）\n", stderr)
+                }
+            }
+        }
+        #endif
+        fputs("[CompanionStore] init 结束\n", stderr)
     }
+
+    #if targetEnvironment(macCatalyst)
+    private func testLocalDeepSeekConnection(apiKey: String) async {
+        fputs("[CompanionStore] testLocalDeepSeekConnection 开始\n", stderr)
+        do {
+            let result = try await localDeepSeekService.testConnection(apiKey: apiKey)
+            fputs("[CompanionStore] DeepSeek 连接测试成功: \(result)\n", stderr)
+            logger.info("DeepSeek 连接测试成功")
+        } catch {
+            fputs("[CompanionStore] DeepSeek 连接测试失败: \(error)\n", stderr)
+            logger.error("DeepSeek 连接测试失败: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+    #endif
 
     func load() {
         do {
             let database = try SQLiteDatabase()
+            currentDatabasePath = database.path
             sessions = database.sessions()
             memories = database.memories()
             journals = database.journals()
@@ -101,6 +138,7 @@ final class CompanionStore: ObservableObject {
             loadError = nil
         } catch {
             loadError = "暂时没有读到本地数据库，先进入原型体验。"
+            currentDatabasePath = nil
             sessions = []
             memories = []
             journals = []
@@ -200,8 +238,26 @@ final class CompanionStore: ObservableObject {
         }
     }
 
+    func deleteSession(_ sessionID: String) {
+        do {
+            let database = try SQLiteDatabase()
+            database.deleteSession(sessionID)
+            if localDeepSeekService.currentSessionID == sessionID {
+                localDeepSeekService.clearSession()
+            }
+            load()
+            if messages.contains(where: { $0.id == sessionID }) {
+                messages = [Self.greetingMessage(characterID: selectedCharacterID)]
+            }
+            sessionNotice = "会话已删除。"
+        } catch {
+            sessionNotice = "删除失败：\(Self.describe(error))"
+        }
+    }
+
     func sendDraft(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        fputs("[sendDraft] 收到消息: \(trimmed), isSending: \(isSending)\n", stderr)
         guard !trimmed.isEmpty, !isSending else { return }
         await sendChatText(trimmed, fallbackReply: nil, shouldSuggestCheckIn: true)
     }
@@ -236,6 +292,28 @@ final class CompanionStore: ObservableObject {
         } catch {
             localAISettingsNotice = error.localizedDescription
         }
+    }
+
+    func saveCustomDatabasePath(_ path: String) {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            sessionNotice = "请输入有效的数据库路径。"
+            return
+        }
+        let url = URL(fileURLWithPath: trimmed)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            sessionNotice = "指定的数据库文件不存在：\(trimmed)"
+            return
+        }
+        UserDefaults.standard.set(trimmed, forKey: customDatabasePathKey)
+        customDatabasePath = trimmed
+        sessionNotice = "数据库路径已保存，重启 App 后生效。"
+    }
+
+    func resetDatabasePath() {
+        UserDefaults.standard.removeObject(forKey: customDatabasePathKey)
+        customDatabasePath = ""
+        sessionNotice = "已重置为默认数据库路径，重启 App 后生效。"
     }
 
     func saveMacBackendURL(_ rawValue: String) {
@@ -280,9 +358,6 @@ final class CompanionStore: ObservableObject {
         sessionNotice = "正在结束并总结这次夜谈..."
         do {
             let summary: SessionCloseSummary
-            #if targetEnvironment(macCatalyst)
-            summary = try await chatService.closeCurrentSession()
-            #else
             if isLocalAIConfigured, let apiKey = secureSettings.deepSeekAPIKey() {
                 summary = try await localDeepSeekService.closeCurrentSession(
                     apiKey: apiKey,
@@ -291,18 +366,12 @@ final class CompanionStore: ObservableObject {
             } else {
                 summary = try await chatService.closeCurrentSession()
             }
-            #endif
-            #if targetEnvironment(macCatalyst)
-            sessionNotice = "已总结：处理 \(summary.memoryCount) 条记忆，评估 \(summary.stateProfiles.count) 项长期状态。"
-            await syncAllFromBackend(forceStarMapRefresh: true)
-            #else
             sessionNotice = isLocalAIConfigured
                 ? summary.journalSummary
                 : "已总结：新增或处理 \(summary.memoryCount) 条记忆，长期状态更新 \(summary.stateProfileCount) 条。"
             if !isLocalAIConfigured {
                 await syncAllFromBackend(forceStarMapRefresh: true)
             }
-            #endif
             load()
             latestCloseSummary = summary
             messages.append(
@@ -704,6 +773,14 @@ final class CompanionStore: ObservableObject {
         buildFlowContext()
     }
 
+    func triggerFlowRitual(intention: String) {
+        flowRitualIntention = intention
+    }
+
+    func dismissFlowRitual() {
+        flowRitualIntention = nil
+    }
+
     func recordBailanDiary(content: String, response: String) {
         let cleanContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanContent.isEmpty else { return }
@@ -890,22 +967,17 @@ final class CompanionStore: ObservableObject {
         chatOperationStatus = "正在连接本机后端…"
         logger.info("[\(correlationID, privacy: .public)] chat request started mode=\(self.isGroupMode ? "auto" : "manual", privacy: .public)")
 
-        #if targetEnvironment(macCatalyst)
-        await sendBackendChatText(
-            text,
-            character: character,
-            fallbackReply: fallbackReply,
-            shouldSuggestCheckIn: shouldSuggestCheckIn,
-            correlationID: correlationID
-        )
-        #else
-        if let apiKey = secureSettings.deepSeekAPIKey(), !apiKey.isEmpty {
+        let apiKey = secureSettings.deepSeekAPIKey()
+        fputs("[sendChatText] 读取 API Key: \(apiKey ?? "nil"), 空: \(apiKey?.isEmpty ?? true)\n", stderr)
+        if let apiKey, !apiKey.isEmpty {
+            fputs("[sendChatText] 进入本地 DeepSeek 模式\n", stderr)
             await sendLocalChatText(
                 text,
                 character: character,
                 apiKey: apiKey,
                 fallbackReply: fallbackReply,
-                shouldSuggestCheckIn: shouldSuggestCheckIn
+                shouldSuggestCheckIn: shouldSuggestCheckIn,
+                correlationID: correlationID
             )
             return
         }
@@ -917,7 +989,6 @@ final class CompanionStore: ObservableObject {
             shouldSuggestCheckIn: shouldSuggestCheckIn,
             correlationID: correlationID
         )
-        #endif
     }
 
     private func sendBackendChatText(
@@ -1033,20 +1104,43 @@ final class CompanionStore: ObservableObject {
         character: CompanionCharacter,
         apiKey: String,
         fallbackReply: String?,
-        shouldSuggestCheckIn: Bool
+        shouldSuggestCheckIn: Bool,
+        correlationID: String
     ) async {
+        fputs("[sendLocalChatText] 开始, correlationID: \(correlationID)\n", stderr)
+        SendInstrumentation.shared.recordPhase(.requestEncodeStarted, correlationID: correlationID)
+        chatOperationStatus = "正在直接连接 DeepSeek…"
         do {
             let database = try SQLiteDatabase()
+            fputs("[sendLocalChatText] 数据库打开成功, path: \(database.path)\n", stderr)
             let result = try await localDeepSeekService.send(
                 text: text,
                 character: character,
                 apiKey: apiKey,
                 database: database
+            ) { quickReply in
+                Task { @MainActor in
+                    self.messages.append(quickReply)
+                    SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: correlationID)
+                    self.chatOperationStatus = "已收到快速回应，正在继续识别意图并深入理解…"
+                    fputs("[sendLocalChatText] 快速回复已添加到UI\n", stderr)
+                }
+            }
+            fputs("[sendLocalChatText] send 成功, 快速回复: \(result.quickReply != nil), 深度回复: \(result.deepReply.content.count)字符\n", stderr)
+            SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
+            messages.append(result.deepReply)
+            chatNotice = "本地模式：直接连接 DeepSeek。"
+            backendStatus = BackendConnectionStatus(
+                state: .online,
+                baseURL: "DeepSeek API",
+                detail: "这轮消息通过本地 DeepSeek API 直接生成。",
+                lastCheckedAt: Date()
             )
-            messages.append(contentsOf: result.assistantMessages)
-            chatNotice = "本地模式：无需连接 Mac。"
             load()
+            logger.info("[\(correlationID, privacy: .public)] local chat completed")
+            fputs("[sendLocalChatText] 完成\n", stderr)
         } catch {
+            fputs("[sendLocalChatText] 失败: \(error)\n", stderr)
             let fallback = fallbackReply ?? "这一轮暂时没有成功连接 DeepSeek。你刚才写下的话已经保存在手机上，可以稍后再试。"
             let fallbackMessage = ChatMessage(
                 id: UUID().uuidString,
@@ -1058,13 +1152,22 @@ final class CompanionStore: ObservableObject {
             )
             messages.append(fallbackMessage)
             chatNotice = error.localizedDescription
-            logger.error("local chat failed: \(error.localizedDescription, privacy: .public)")
+            backendStatus = BackendConnectionStatus(
+                state: .fallback,
+                baseURL: "DeepSeek API",
+                detail: "本地 DeepSeek 调用失败：\(error.localizedDescription)",
+                lastCheckedAt: Date()
+            )
+            logger.error("[\(correlationID, privacy: .public)] local chat failed: \(error.localizedDescription, privacy: .public)")
         }
         chatOperationStatus = nil
         isChatCheckInVisible = shouldSuggestCheckIn
             && interactionService.shouldSuggestEmotionCheckIn(from: text + " " + (messages.last?.content ?? ""))
         refreshInteractionOffers()
         isSending = false
+        SendInstrumentation.shared.recordPhase(.storeApplyFinished, correlationID: correlationID)
+        let failed = chatNotice?.contains("失败") ?? false
+        SendInstrumentation.shared.endSend(correlationID, success: !failed)
     }
 
     private static func greetingMessage(characterID: String) -> ChatMessage {

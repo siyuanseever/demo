@@ -1357,6 +1357,7 @@ private struct CurrentConversationText: View {
                     .multilineTextAlignment(isUser ? .trailing : .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+                    .textSelection(.enabled)
 
                 if isWaitingForReply {
                     HStack(spacing: 7) {
@@ -1453,6 +1454,7 @@ private struct LatestConversationRow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
+                .textSelection(.enabled)
                 .background(
                     isUser ? Color(hex: 0xf5ecff).opacity(0.82) : character.bubbleColor.opacity(0.88),
                     in: RoundedRectangle(cornerRadius: 17, style: .continuous)
@@ -2495,12 +2497,23 @@ struct SessionHistoryView: View {
                         EmptyHintView(systemImage: "clock.arrow.circlepath", title: "还没有历史会话", detail: "当本地数据库里有 sessions 时，这里会显示每一次夜谈。")
                     } else {
                         ForEach(store.sessions) { session in
-                            NavigationLink {
-                                SessionDetailView(session: session, openSession: openSession)
-                            } label: {
-                                SessionHistoryCard(session: session)
+                            HStack {
+                                NavigationLink {
+                                    SessionDetailView(session: session, openSession: openSession)
+                                } label: {
+                                    SessionHistoryCard(session: session)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button(role: .destructive, action: {
+                                    store.deleteSession(session.id)
+                                }) {
+                                    Image(systemName: "trash")
+                                        .font(.caption)
+                                        .foregroundStyle(.red.opacity(0.7))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -3114,6 +3127,7 @@ private struct CharacterPicker: View {
 
 private struct MessageBubble: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var showActions = false
     let message: ChatMessage
 
     var body: some View {
@@ -3144,6 +3158,10 @@ private struct MessageBubble: View {
                         .lineSpacing(4)
                         .foregroundStyle(Color.nightInk)
                         .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .onTapGesture {
+                            showActions.toggle()
+                        }
 
                     if !message.knowledgeCards.isEmpty {
                         KnowledgeCardStrip(cards: message.knowledgeCards)
@@ -3163,9 +3181,24 @@ private struct MessageBubble: View {
                         .foregroundStyle(Color.warmBrown)
                 }
             }
+
+            if showActions {
+                HStack(spacing: 12) {
+                    Button(action: {
+                        UIPasteboard.general.string = message.content
+                        showActions = false
+                    }) {
+                        Label("复制", systemImage: "doc.on.doc")
+                            .font(.caption)
+                            .foregroundStyle(Color.warmBrown)
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 }
+
 
 private struct MessageMetaRow: View {
     let groupRole: String
