@@ -25,3 +25,6 @@ data/
 eval_reports/
 prompt-evaluation-report/
 project-architecture-visualization/
+
+# 临时测试文件，禁止提交（可能含有 API Key 等敏感信息）
+test_*.swift
