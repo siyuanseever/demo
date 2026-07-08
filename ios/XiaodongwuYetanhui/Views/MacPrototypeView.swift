@@ -21,7 +21,7 @@ struct MacPrototypeView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 1040, minHeight: 700)
-        .background(Color(red: 0.98, green: 0.96, blue: 0.92))
+        .background(Color.pageBackground)
         .sheet(isPresented: Binding(
             get: { store.flowRitualIntention != nil },
             set: { if !$0 { store.dismissFlowRitual() } }
@@ -31,6 +31,7 @@ struct MacPrototypeView: View {
                     .environmentObject(store)
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
+                    .interactiveDismissDisabled(false)
             }
         }
     }
@@ -252,8 +253,8 @@ private struct MacConversationWorkspace: View {
                         .background(
                             LinearGradient(
                                 colors: [
-                                    Color(red: 0.99, green: 0.98, blue: 0.95),
-                                    Color(red: 0.95, green: 0.97, blue: 0.93),
+                                    Color.conversationBgTop,
+                                    Color.conversationBgBottom,
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -314,28 +315,34 @@ private struct MacConversationTopBar: View {
             Spacer()
 
             if !store.starMapInsight.primaryGoalTitle.isEmpty {
-                VStack(alignment: .trailing, spacing: 4) {
-                    HStack(spacing: 6) {
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack(spacing: 8) {
                         Image(systemName: "sparkles")
-                            .font(.caption)
-                            .foregroundStyle(Color(red: 0.46, green: 0.39, blue: 0.66))
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentPurple)
                         Text("心流导航")
-                            .font(.caption.bold())
+                            .font(.subheadline.bold())
                             .foregroundStyle(.secondary)
                     }
                     Text(store.starMapInsight.primaryGoalTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color(red: 0.46, green: 0.39, blue: 0.66))
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Color.accentPurple)
                     if !store.starMapInsight.primaryGoalNextStep.isEmpty {
                         Text(store.starMapInsight.primaryGoalNextStep)
-                            .font(.caption)
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(2)
+                    }
+                    if !store.starMapInsight.flowSupport.isEmpty {
+                        Text(store.starMapInsight.flowSupport)
+                            .font(.callout)
+                            .foregroundStyle(.secondary.opacity(0.8))
+                            .lineLimit(2)
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Color(red: 0.93, green: 0.91, blue: 0.96), in: RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(Color.accentPurpleLight, in: RoundedRectangle(cornerRadius: 14))
                 .onTapGesture {
                     store.triggerFlowRitual(intention: store.starMapInsight.primaryGoalNextStep)
                 }
@@ -439,7 +446,7 @@ private struct MacMessageRow: View {
                                         .font(.subheadline)
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
-                                        .background(Color.white.opacity(0.48), in: Capsule())
+                                        .background(Color.overlaySubtle, in: Capsule())
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -492,8 +499,8 @@ private struct MacMessageRow: View {
                         .font(.caption)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.7))
-                        .foregroundColor(.white)
+                        .background(Color.toastBackground.opacity(0.7))
+                        .foregroundColor(Color.toastText)
                         .cornerRadius(8)
                         .transition(.opacity.combined(with: .scale))
                 }
@@ -523,7 +530,7 @@ private struct MacSessionCloseResultCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.title2)
-                    .foregroundStyle(Color(red: 0.38, green: 0.52, blue: 0.34))
+                    .foregroundStyle(Color.accentGreen)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("本次夜谈已整理")
@@ -581,8 +588,8 @@ private struct MacSessionCloseResultCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color(red: 0.94, green: 0.97, blue: 0.91),
-                    Color(red: 0.98, green: 0.93, blue: 0.90),
+                    Color.cardGradientTop,
+                    Color.cardGradientBottom,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -591,7 +598,7 @@ private struct MacSessionCloseResultCard: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.78))
+                .stroke(Color.overlayMax)
         }
     }
 }
@@ -679,7 +686,7 @@ private struct MacCloseMemoryRow: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -739,7 +746,7 @@ private struct MacCloseStateRow: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -791,7 +798,7 @@ private struct MacCloseSection<Content: View>: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.42), in: RoundedRectangle(cornerRadius: 15))
+        .background(Color.overlaySubtle, in: RoundedRectangle(cornerRadius: 15))
     }
 }
 
@@ -842,7 +849,7 @@ private struct MacComposer: View {
                     .focused(isFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
+                    .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 14))
                     .overlay {
                         RoundedRectangle(cornerRadius: 14)
                             .stroke(Color.secondary.opacity(0.16))
@@ -855,7 +862,7 @@ private struct MacComposer: View {
                         .frame(width: 34, height: 34)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.46, green: 0.39, blue: 0.66))
+                .tint(Color.accentPurple)
                 .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.isSending)
                 .keyboardShortcut(.return, modifiers: [.command])
             }
@@ -880,6 +887,7 @@ private struct MacComposer: View {
 
 private struct MacConversationSidebar: View {
     @EnvironmentObject private var store: CompanionStore
+    @State private var selectedProfile: StateProfile?
 
     var body: some View {
         ScrollView {
@@ -897,46 +905,8 @@ private struct MacConversationSidebar: View {
 
                 Divider()
 
-                MacSidebarSection(title: "当前连接") {
-                    Label(store.backendStatus.state.rawValue, systemImage: "network")
-                        .font(.subheadline)
-                    Text(store.backendStatus.baseURL)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                MacSidebarSection(title: "最近记忆") {
-                    if store.memories.isEmpty {
-                        Text("还没有记忆，多聊几次就会有了。")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(Array(store.memories.prefix(3))) { memory in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(memory.content)
-                                        .font(.callout)
-                                        .lineLimit(2)
-                                    HStack(spacing: 6) {
-                                        Text(macMemoryCategoryTitle(memory.category))
-                                            .font(.caption2)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color(red: 0.90, green: 0.87, blue: 0.94), in: Capsule())
-                                        if !memory.keywords.isEmpty {
-                                            Text(memory.keywords.prefix(2).joined(separator: "、"))
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(1)
-                                        }
-                                    }
-                                }
-                                .padding(10)
-                                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
-                            }
-                        }
-                    }
+                MacSidebarSection(title: "心理地图") {
+                    MacHexagonRadarChart(profiles: store.stateProfiles)
                 }
 
                 MacSidebarSection(title: "长期状态") {
@@ -947,28 +917,33 @@ private struct MacConversationSidebar: View {
                             .foregroundStyle(.secondary)
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(profiles.prefix(4)) { profile in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Text(macStateDomainTitle(profile.domain))
-                                            .font(.caption.bold())
-                                        Spacer()
-                                        Text(profile.trend.isEmpty ? "—" : profile.trend)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                            ForEach(profiles.prefix(6)) { profile in
+                                Button {
+                                    selectedProfile = profile
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack {
+                                            Text(macStateDomainTitle(profile.domain))
+                                                .font(.caption.bold())
+                                            Spacer()
+                                            Text(profile.trend.isEmpty ? "—" : profile.trend)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Text(profile.stage.isEmpty ? "正在观察中" : profile.stage)
+                                            .font(.callout)
+                                            .lineLimit(1)
+                                        if !profile.supportStrategy.isEmpty {
+                                            Text(profile.supportStrategy)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .lineLimit(2)
+                                        }
                                     }
-                                    Text(profile.stage.isEmpty ? "正在观察中" : profile.stage)
-                                        .font(.callout)
-                                        .lineLimit(1)
-                                    if !profile.supportStrategy.isEmpty {
-                                        Text(profile.supportStrategy)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                    }
+                                    .padding(10)
+                                    .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 10))
                                 }
-                                .padding(10)
-                                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -994,14 +969,112 @@ private struct MacConversationSidebar: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .padding(14)
-                        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+                        .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 12))
                 }
 
                 Spacer(minLength: 20)
             }
             .padding(22)
         }
-        .background(Color(red: 0.96, green: 0.94, blue: 0.90))
+        .background(Color.sidebarBackground)
+        .sheet(item: $selectedProfile) { profile in
+            MacStateProfileDetailSheet(profile: profile)
+                .environmentObject(store)
+        }
+    }
+}
+
+private struct MacStateProfileDetailSheet: View {
+    let profile: StateProfile
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack {
+                    Text(macStateDomainTitle(profile.domain))
+                        .font(.title2.bold())
+                    Spacer()
+                    Button("关闭") {
+                        dismiss()
+                    }
+                    .font(.subheadline)
+                }
+
+                if !profile.stage.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("当前阶段")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+                        Text(profile.stage)
+                            .font(.body)
+                    }
+                }
+
+                if !profile.summary.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("总结")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+                        Text(profile.summary)
+                            .font(.body)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("趋势")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.secondary)
+                    Text(profile.trend.isEmpty ? "暂无数据" : profile.trend)
+                        .font(.body)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("强度")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.secondary)
+                    Text("\(profile.intensity)/10")
+                        .font(.body)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("置信度")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.secondary)
+                    Text(String(format: "%.1f%%", profile.confidence * 100))
+                        .font(.body)
+                }
+
+                if !profile.evidence.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("证据")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+                        Text(profile.evidence)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                if !profile.supportStrategy.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("支持策略")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
+                        Text(profile.supportStrategy)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(24)
+        }
+        .frame(maxWidth: 400)
     }
 }
 
@@ -1039,7 +1112,7 @@ private struct MacFlowWorkspace: View {
                         reason: insight.primaryGoalReason,
                         nextStep: insight.primaryGoalNextStep,
                         challenge: insight.primaryGoalChallenge,
-                        tint: Color(red: 0.84, green: 0.79, blue: 0.92),
+                        tint: Color.decorativeLavender,
                         goalType: .primary
                     )
 
@@ -1050,7 +1123,7 @@ private struct MacFlowWorkspace: View {
                             reason: insight.secondaryGoalReason,
                             nextStep: insight.secondaryGoalNextStep,
                             challenge: insight.secondaryGoalChallenge,
-                            tint: Color(red: 0.78, green: 0.88, blue: 0.84),
+                            tint: Color.decorativeMint,
                             goalType: .secondary
                         )
                     } else {
@@ -1102,7 +1175,7 @@ private struct MacFlowWorkspace: View {
                         )
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(Color(red: 0.46, green: 0.39, blue: 0.66))
+                    .tint(Color.accentPurple)
                     .disabled(store.isFlowInsightRefreshing)
 
                     Text(store.flowInsightNotice)
@@ -1134,7 +1207,7 @@ private struct MacFlowHeaderCard: View {
 
             Text(insight.coreInsight)
                 .font(.title2.bold())
-                .foregroundStyle(Color(red: 0.22, green: 0.20, blue: 0.28))
+                .foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(insight.coreInsightDetail)
@@ -1152,8 +1225,8 @@ private struct MacFlowHeaderCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color(red: 0.92, green: 0.88, blue: 0.98),
-                    Color(red: 0.98, green: 0.92, blue: 0.86),
+                    Color.flowHeaderGradientTop,
+                    Color.flowHeaderGradientBottom,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -1190,7 +1263,7 @@ private struct MacFlowGoalCard: View {
                         .font(.caption.bold())
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.55), in: Capsule())
+                        .background(Color.overlayLight, in: Capsule())
                 }
             }
 
@@ -1233,7 +1306,7 @@ private struct MacFlowGoalCard: View {
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.7), in: Capsule())
+                    .background(Color.overlayHeavy, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .disabled(store.starMapInsight.isMockInsight || nextStep.isEmpty)
@@ -1260,7 +1333,7 @@ private struct MacFlowPlaceholderGoalCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 230, alignment: .topLeading)
-        .background(Color.white.opacity(0.50), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.secondary.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
@@ -1288,7 +1361,7 @@ private struct MacFlowInfoCard: View {
         }
         .padding(15)
         .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
-        .background(Color.white.opacity(0.62), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -1309,7 +1382,7 @@ private struct MacFlowReminderCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.94, green: 0.96, blue: 0.90), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.cardGreenBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -1373,7 +1446,7 @@ private struct MacSessionsWorkspace: View {
                             Label("继续这次夜谈", systemImage: "arrow.right.circle.fill")
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(Color(red: 0.46, green: 0.39, blue: 0.66))
+                        .tint(Color.accentPurple)
                     }
                     .padding(.top, 8)
                 } label: {
@@ -1433,7 +1506,7 @@ private struct MacSessionsWorkspace: View {
                     }
                 }
                 .padding(16)
-                .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+                .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 14))
             }
         }
     }
@@ -1502,7 +1575,7 @@ private struct MacMemoryCategoryCard: View {
                 HStack {
                     Image(systemName: category.systemImage)
                         .font(.title3)
-                        .foregroundStyle(Color(red: 0.35, green: 0.43, blue: 0.30))
+                        .foregroundStyle(Color.accentMutedGreen)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(category.title)
                             .font(.headline)
@@ -1529,10 +1602,10 @@ private struct MacMemoryCategoryCard: View {
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 16))
+        .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 16))
         .overlay {
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.72))
+                .stroke(Color.overlayHeavy)
         }
     }
 }
@@ -1709,8 +1782,8 @@ private struct MacMoodWeekOverviewCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color(red: 0.93, green: 0.95, blue: 0.88),
-                    Color(red: 0.96, green: 0.92, blue: 0.90),
+                    Color.moodWeekGradientTop,
+                    Color.moodWeekGradientBottom,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -1720,10 +1793,10 @@ private struct MacMoodWeekOverviewCard: View {
     }
 
     private func moodColor(_ score: Double) -> Color {
-        if score >= 2 { return Color(red: 0.35, green: 0.55, blue: 0.35) }
-        if score >= 0 { return Color(red: 0.55, green: 0.50, blue: 0.30) }
-        if score >= -2 { return Color(red: 0.60, green: 0.40, blue: 0.30) }
-        return Color(red: 0.55, green: 0.30, blue: 0.35)
+        if score >= 2 { return Color.moodPositive }
+        if score >= 0 { return Color.moodNeutral }
+        if score >= -2 { return Color.moodMildNegative }
+        return Color.moodNegative
     }
 }
 
@@ -1813,7 +1886,7 @@ private struct MacMoodTrendChart: View {
                             }
                         }
                     }
-                    .stroke(Color(red: 0.42, green: 0.35, blue: 0.62), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+                    .stroke(Color.chartLineAccent, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
                 }
             }
             .frame(height: 190)
@@ -1829,7 +1902,7 @@ private struct MacMoodTrendChart: View {
             .font(.caption)
         }
         .padding(15)
-        .background(Color.white.opacity(0.64), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var averageScore: Double? {
@@ -1916,7 +1989,7 @@ private struct MacMoodDailyCard: View {
             }
         }
         .padding(14)
-        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var dayLabel: String {
@@ -1935,10 +2008,10 @@ private struct MacMoodDailyCard: View {
     }
 
     private func moodColor(_ score: Double) -> Color {
-        if score >= 2 { return Color(red: 0.35, green: 0.55, blue: 0.35) }
-        if score >= 0 { return Color(red: 0.55, green: 0.50, blue: 0.30) }
-        if score >= -2 { return Color(red: 0.60, green: 0.40, blue: 0.30) }
-        return Color(red: 0.55, green: 0.30, blue: 0.35)
+        if score >= 2 { return Color.moodPositive }
+        if score >= 0 { return Color.moodNeutral }
+        if score >= -2 { return Color.moodMildNegative }
+        return Color.moodNegative
     }
 }
 
@@ -1955,7 +2028,7 @@ private struct MacSessionEmotionCurveCard: View {
                     .font(.caption.bold())
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.62), in: Capsule())
+                    .background(Color.overlayMedium, in: Capsule())
                 Text(macShortDate(journal.createdAt))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -1966,11 +2039,11 @@ private struct MacSessionEmotionCurveCard: View {
                     ForEach(journal.emotionCurve, id: \.self) { emotion in
                         Text(emotion)
                             .font(.caption.bold())
-                            .foregroundStyle(Color(red: 0.36, green: 0.39, blue: 0.31))
+                            .foregroundStyle(Color.textGreenMuted)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(
-                                Color.white.opacity(0.62),
+                                Color.overlayMedium,
                                 in: Capsule()
                             )
                     }
@@ -1982,7 +2055,7 @@ private struct MacSessionEmotionCurveCard: View {
             }
         }
         .padding(14)
-        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -2048,7 +2121,7 @@ private struct MacStateRadarCard: View {
                     .font(.caption.bold())
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.62), in: Capsule())
+                    .background(Color.overlayMedium, in: Capsule())
             }
 
             GeometryReader { geometry in
@@ -2066,7 +2139,7 @@ private struct MacStateRadarCard: View {
                         )
                         context.stroke(
                             grid,
-                            with: .color(Color(red: 0.48, green: 0.42, blue: 0.60).opacity(0.16)),
+                            with: .color(Color.chartStroke.opacity(0.16)),
                             lineWidth: level == 5 ? 1.2 : 0.7
                         )
                     }
@@ -2083,7 +2156,7 @@ private struct MacStateRadarCard: View {
                         axis.addLine(to: endpoint)
                         context.stroke(
                             axis,
-                            with: .color(Color(red: 0.48, green: 0.42, blue: 0.60).opacity(0.18)),
+                            with: .color(Color.chartStroke.opacity(0.18)),
                             lineWidth: 0.8
                         )
                     }
@@ -2096,11 +2169,11 @@ private struct MacStateRadarCard: View {
                     )
                     context.fill(
                         dataPath,
-                        with: .color(Color(red: 0.58, green: 0.48, blue: 0.72).opacity(0.22))
+                        with: .color(Color.chartFillLight.opacity(0.22))
                     )
                     context.stroke(
                         dataPath,
-                        with: .color(Color(red: 0.45, green: 0.35, blue: 0.62).opacity(0.88)),
+                        with: .color(Color.chartStroke.opacity(0.88)),
                         lineWidth: 2.2
                     )
 
@@ -2119,7 +2192,7 @@ private struct MacStateRadarCard: View {
                                 height: 8
                             )
                         )
-                        context.fill(dot, with: .color(Color(red: 0.45, green: 0.35, blue: 0.62)))
+                        context.fill(dot, with: .color(Color.chartStroke))
 
                         let labelPoint = radarPoint(
                             center: center,
@@ -2143,10 +2216,10 @@ private struct MacStateRadarCard: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(18)
-        .background(Color.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 18))
+        .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 18))
         .overlay {
             RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.78), lineWidth: 1)
+                .stroke(Color.overlayMax, lineWidth: 1)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("六维心理地图")
@@ -2235,7 +2308,7 @@ private struct MacSessionJournalSummary: View {
             }
         }
         .padding(13)
-        .background(Color(red: 0.94, green: 0.96, blue: 0.90), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.cardGreenBackground, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -2247,7 +2320,7 @@ private struct MacMemoryCompactRow: View {
             HStack {
                 Text(memory.subcategory)
                     .font(.caption.bold())
-                    .foregroundStyle(Color(red: 0.34, green: 0.42, blue: 0.29))
+                    .foregroundStyle(Color.accentMutedGreen)
                 Spacer()
                 Text(macShortDate(memory.updatedAt))
                     .font(.caption2)
@@ -2259,7 +2332,7 @@ private struct MacMemoryCompactRow: View {
                 .textSelection(.enabled)
         }
         .padding(10)
-        .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -2293,7 +2366,7 @@ private struct MacMemoryDetailCard: View {
                 HStack {
                     Text("\(memory.category) · \(memory.subcategory)")
                         .font(.caption.bold())
-                        .foregroundStyle(Color(red: 0.35, green: 0.40, blue: 0.28))
+                        .foregroundStyle(Color.textGreenMuted)
                     Spacer()
                     Text(macShortDate(memory.updatedAt))
                         .font(.caption)
@@ -2307,7 +2380,7 @@ private struct MacMemoryDetailCard: View {
             }
         }
         .padding(15)
-        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -2320,10 +2393,10 @@ private struct MacTagFlow: View {
                 ForEach(items, id: \.self) { item in
                     Text(item)
                         .font(.caption2.bold())
-                        .foregroundStyle(Color(red: 0.36, green: 0.39, blue: 0.31))
+                        .foregroundStyle(Color.textGreenMuted)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.62), in: Capsule())
+                        .background(Color.overlayMedium, in: Capsule())
                 }
             }
         }
@@ -2434,8 +2507,8 @@ private struct MacWeeklyReportCard: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color(red: 0.91, green: 0.94, blue: 0.84),
-                    Color(red: 0.96, green: 0.90, blue: 0.86),
+                    Color.flowGradientTop,
+                    Color.flowGradientBottom,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -2505,11 +2578,11 @@ private struct MacJournalDetailCard: View {
                     .font(.caption.bold())
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.62), in: Capsule())
+                    .background(Color.overlayMedium, in: Capsule())
             }
         }
         .padding(15)
-        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -2522,7 +2595,7 @@ private struct MacStateDomainCard: View {
             HStack {
                 Image(systemName: domain.systemImage)
                     .font(.title3)
-                    .foregroundStyle(Color(red: 0.42, green: 0.37, blue: 0.59))
+                    .foregroundStyle(Color.textSecondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(domain.title)
                         .font(.headline)
@@ -2536,7 +2609,7 @@ private struct MacStateDomainCard: View {
                         .font(.caption2.bold())
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.62), in: Capsule())
+                        .background(Color.overlayMedium, in: Capsule())
                 }
             }
 
@@ -2589,7 +2662,7 @@ private struct MacStateDomainCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 250, alignment: .topLeading)
-        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 16))
+        .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -2625,10 +2698,10 @@ private func macStateDomainTitle(_ domainID: String) -> String {
 }
 
 private func macMoodColor(_ score: Double) -> Color {
-    if score >= 2 { return Color(red: 0.35, green: 0.55, blue: 0.35) }
-    if score >= 0 { return Color(red: 0.56, green: 0.48, blue: 0.30) }
-    if score >= -2 { return Color(red: 0.66, green: 0.43, blue: 0.30) }
-    return Color(red: 0.58, green: 0.30, blue: 0.36)
+    if score >= 2 { return Color.moodPositive }
+    if score >= 0 { return Color.moodNeutral }
+    if score >= -2 { return Color.moodMildNegative }
+    return Color.moodNegative
 }
 
 private func macMoodDayLabel(_ value: String) -> String {
@@ -2712,8 +2785,8 @@ private struct MacCollectionWorkspace<Content: View>: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color(red: 0.99, green: 0.98, blue: 0.95),
-                    Color(red: 0.94, green: 0.96, blue: 0.91),
+                    Color.conversationBgTop,
+                    Color.conversationBgBottom,
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -2728,20 +2801,35 @@ private struct MacFlowRitualSheet: View {
     @FocusState private var isDraftFocused: Bool
     @State private var activeIntention: String?
     @State private var isClosing = false
+    @Environment(\.dismiss) private var dismiss
 
     init(intention: String) {
         _draft = State(initialValue: intention)
     }
 
     var body: some View {
-        ZStack {
-            Color(red: 0.93, green: 0.91, blue: 0.96).ignoresSafeArea()
-            if let activeIntention, isClosing {
-                closingView(intention: activeIntention)
-            } else if let activeIntention {
-                activeView(intention: activeIntention)
-            } else {
-                preparationView
+        ZStack(alignment: .topLeading) {
+            Color.accentPurpleLight.ignoresSafeArea()
+            
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .padding(12)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 8)
+            
+            VStack(spacing: 0) {
+                if let activeIntention, isClosing {
+                    closingView(intention: activeIntention)
+                } else if let activeIntention {
+                    activeView(intention: activeIntention)
+                } else {
+                    preparationView
+                }
             }
         }
         .frame(maxWidth: 600, maxHeight: 500)
@@ -2753,11 +2841,11 @@ private struct MacFlowRitualSheet: View {
                 VStack(alignment: .leading, spacing: 9) {
                     Text("这一轮，只靠近一件事")
                         .font(.title2.bold())
-                        .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                        .foregroundStyle(Color.textPrimary)
                     Text("目标已经尽量缩小。你仍然可以改成此刻更合适的表达。")
                         .font(.callout)
                         .lineSpacing(6)
-                        .foregroundStyle(Color(red: 0.45, green: 0.42, blue: 0.50))
+                        .foregroundStyle(Color.textSecondary)
                 }
 
                 TextField("写下一件此刻愿意靠近的事", text: $draft, axis: .vertical)
@@ -2765,19 +2853,19 @@ private struct MacFlowRitualSheet: View {
                     .lineLimit(2...4)
                     .focused($isDraftFocused)
                     .padding(16)
-                    .background(Color(red: 0.97, green: 0.94, blue: 0.91), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background(Color.accentPurpleLighter, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("为什么这个难度可能合适")
-                        .font(.caption)
-                        .foregroundStyle(Color(red: 0.51, green: 0.46, blue: 0.55))
-                    Text(store.starMapInsight.flowSupport)
-                        .font(.caption)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.textSecondary)
+                    Text(store.starMapInsight.flowSupport.isEmpty ? "根据你的长期状态和近期夜谈，系统为你推荐了合适的难度。" : store.starMapInsight.flowSupport)
+                        .font(.subheadline)
                         .lineSpacing(5)
-                        .foregroundStyle(Color(red: 0.45, green: 0.42, blue: 0.50))
+                        .foregroundStyle(Color.textSecondary)
                 }
                 .padding(14)
-                .background(Color.white.opacity(0.46), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .background(Color.overlaySubtle, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
 
                 MacFlowSuggestionLayout(items: suggestions) { suggestion in
                     draft = suggestion
@@ -2789,10 +2877,10 @@ private struct MacFlowRitualSheet: View {
                 } label: {
                     Text("先只做这一件事")
                         .font(.body.bold())
-                        .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                        .foregroundStyle(Color.textPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color(red: 0.85, green: 0.80, blue: 0.91), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(Color.decorativeLavender, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(cleanDraft.isEmpty)
@@ -2800,7 +2888,7 @@ private struct MacFlowRitualSheet: View {
 
                 Text("这里不会计时，不会打卡，也不会评价你做了多少。")
                     .font(.caption)
-                    .foregroundStyle(Color(red: 0.55, green: 0.51, blue: 0.59))
+                    .foregroundStyle(Color.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(24)
@@ -2813,17 +2901,17 @@ private struct MacFlowRitualSheet: View {
             Spacer()
             Image(systemName: "moon.stars.fill")
                 .font(.system(size: 42, weight: .light))
-                .foregroundStyle(Color(red: 0.54, green: 0.47, blue: 0.65))
+                .foregroundStyle(Color.textSecondary)
             Text(intention)
                 .font(.title2.bold())
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                .foregroundStyle(Color.textPrimary)
                 .padding(.horizontal, 28)
             Text("不需要马上完成。\n注意力回来时，就再靠近一点点。")
                 .font(.callout)
                 .lineSpacing(7)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Color(red: 0.47, green: 0.42, blue: 0.50))
+                .foregroundStyle(Color.textSecondary)
             Spacer()
             Button("先停在这里") {
                 withAnimation(.easeInOut(duration: 0.24)) {
@@ -2831,7 +2919,7 @@ private struct MacFlowRitualSheet: View {
                 }
             }
             .font(.body)
-            .foregroundStyle(Color(red: 0.37, green: 0.33, blue: 0.41))
+            .foregroundStyle(Color.textPrimary)
             .buttonStyle(.plain)
             .padding(.bottom, 26)
         }
@@ -2843,15 +2931,15 @@ private struct MacFlowRitualSheet: View {
             Spacer()
             Text("先停在这里")
                 .font(.title2.bold())
-                .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                .foregroundStyle(Color.textPrimary)
             Text(intention)
                 .font(.body)
                 .lineSpacing(7)
-                .foregroundStyle(Color(red: 0.41, green: 0.35, blue: 0.46))
+                .foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("不总结成果。只留下此刻最接近的一句话。")
                 .font(.callout)
-                .foregroundStyle(Color(red: 0.51, green: 0.46, blue: 0.55))
+                .foregroundStyle(Color.textSecondary)
 
             VStack(spacing: 11) {
                 ForEach(["更清楚一点", "还在里面", "今天先到这里"], id: \.self) { ending in
@@ -2861,11 +2949,11 @@ private struct MacFlowRitualSheet: View {
                     } label: {
                         Text(ending)
                             .font(.body)
-                            .foregroundStyle(Color(red: 0.31, green: 0.28, blue: 0.37))
+                            .foregroundStyle(Color.textPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 13)
-                            .background(Color(red: 0.97, green: 0.94, blue: 0.91), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .background(Color.accentPurpleLighter, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -2874,7 +2962,7 @@ private struct MacFlowRitualSheet: View {
                 store.dismissFlowRitual()
             }
             .font(.callout)
-            .foregroundStyle(Color(red: 0.55, green: 0.51, blue: 0.59))
+            .foregroundStyle(Color.textTertiary)
             .frame(maxWidth: .infinity, alignment: .center)
             Spacer()
         }
@@ -2915,19 +3003,141 @@ private struct MacFlowSuggestionLayout: View {
     let select: (String) -> Void
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: 10)], alignment: .leading, spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], alignment: .leading, spacing: 12) {
             ForEach(items, id: \.self) { item in
-                Button(item) {
+                Button {
                     select(item)
+                } label: {
+                    Text(item)
+                        .font(.body)
+                        .foregroundStyle(Color.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                 }
-                .font(.caption)
-                .foregroundStyle(Color(red: 0.41, green: 0.35, blue: 0.46))
                 .buttonStyle(.plain)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .frame(maxWidth: .infinity)
-                .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
         }
+    }
+}
+
+private struct MacHexagonRadarChart: View {
+    let profiles: [StateProfile]
+
+    private let stateDomains = [
+        "情绪与压力",
+        "身体与能量",
+        "关系与边界",
+        "自我与价值",
+        "目标与行动",
+        "资源与支持"
+    ]
+
+    private let domainKeys = [
+        "emotion",
+        "body",
+        "relation",
+        "self",
+        "goal",
+        "resource"
+    ]
+
+    var body: some View {
+        if profiles.isEmpty {
+            Text("完成几次夜谈总结后，这里会显示六维心理地图。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 200, alignment: .center)
+        } else {
+            VStack(spacing: 0) {
+                ZStack(alignment: .center) {
+                    ForEach(1...5, id: \.self) { level in
+                        hexagonShape(radius: 60 * CGFloat(level) / 5)
+                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                    }
+
+                    ForEach(0..<6) { index in
+                        let point = pointPosition(radius: 60, index: index)
+                        Line(start: CGPoint(x: 0, y: 0), end: point)
+                            .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+                    }
+
+                    dataPolygon(radius: 60)
+                        .fill(Color.chartFillLight.opacity(0.35))
+                        .overlay(
+                            dataPolygon(radius: 60)
+                                                                .stroke(Color.chartStroke, lineWidth: 2)
+                        )
+
+                    ForEach(0..<6) { index in
+                        let point = pointPosition(radius: 75, index: index)
+                        Text(stateDomains[index])
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(width: 42)
+                            .position(point)
+                    }
+                }
+                .frame(width: 200, height: 200)
+            }
+            .frame(maxWidth: .infinity, minHeight: 200, alignment: .center)
+        }
+    }
+
+    private func hexagonShape(radius: CGFloat) -> Path {
+        Path { path in
+            for i in 0..<6 {
+                let angle = CGFloat(i) * .pi / 3 - .pi / 2
+                let x = radius * cos(angle)
+                let y = radius * sin(angle)
+                if i == 0 {
+                    path.move(to: CGPoint(x: x, y: y))
+                } else {
+                    path.addLine(to: CGPoint(x: x, y: y))
+                }
+            }
+            path.closeSubpath()
+        }
+    }
+
+    private func pointPosition(radius: CGFloat, index: Int) -> CGPoint {
+        let angle = CGFloat(index) * .pi / 3 - .pi / 2
+        return CGPoint(
+            x: radius * cos(angle),
+            y: radius * sin(angle)
+        )
+    }
+
+    private func dataPolygon(radius: CGFloat) -> Path {
+        Path { path in
+            for i in 0..<6 {
+                let domainKey = domainKeys[i]
+                let profile = profiles.first { $0.domain == domainKey }
+                let intensity = profile?.intensity ?? 5
+                let normalizedValue = CGFloat(intensity) / 10.0
+                let pointRadius = radius * normalizedValue
+                let point = pointPosition(radius: pointRadius, index: i)
+                if i == 0 {
+                    path.move(to: point)
+                } else {
+                    path.addLine(to: point)
+                }
+            }
+            path.closeSubpath()
+        }
+    }
+}
+
+private struct Line: Shape {
+    var start: CGPoint
+    var end: CGPoint
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: start)
+        path.addLine(to: end)
+        return path
     }
 }

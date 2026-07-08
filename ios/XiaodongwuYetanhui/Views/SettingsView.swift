@@ -195,7 +195,7 @@ private struct LocalAISettingsPanel: View {
                     .font(.callout.monospaced())
                     .padding(.horizontal, 12)
                     .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 8))
 
                 HStack(spacing: 10) {
                     Button(action: save) {
@@ -263,7 +263,7 @@ private struct MacConnectionPanel: View {
                     .font(.callout.monospaced())
                     .padding(.horizontal, 12)
                     .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 8))
 
                 Button(action: save) {
                     Label(showsSyncToken ? "保存局域网地址" : "保存后端地址", systemImage: "checkmark")
@@ -282,7 +282,7 @@ private struct MacConnectionPanel: View {
                     .font(.callout.monospaced())
                     .padding(.horizontal, 12)
                     .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 8))
 
                     Button(action: saveToken) {
                         Label(isTokenConfigured ? "更新同步令牌" : "保存同步令牌", systemImage: "lock.fill")
@@ -431,7 +431,7 @@ private struct SettingsDataCount: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -466,7 +466,7 @@ private struct DatabasePathPanel: View {
                     .font(.callout.monospaced())
                     .padding(.horizontal, 12)
                     .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                    .background(Color.overlayHeavy, in: RoundedRectangle(cornerRadius: 8))
 
                 HStack(spacing: 10) {
                     Button(action: selectFile) {

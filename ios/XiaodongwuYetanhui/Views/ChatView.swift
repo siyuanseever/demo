@@ -40,7 +40,6 @@ struct ChatView: View {
         .animation(.snappy, value: isSideSettingsVisible)
         .toolbar(.hidden, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .preferredColorScheme(.light)
         .sheet(isPresented: $isNotebookVisible) {
             ForestNotebookContent(
                 selectedSpace: $notebookSpace,
@@ -49,12 +48,10 @@ struct ChatView: View {
                 .environmentObject(store)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .preferredColorScheme(.light)
         }
         .fullScreenCover(isPresented: $isCompanionChatVisible) {
             CompanionChatPage()
                 .environmentObject(store)
-                .preferredColorScheme(.light)
         }
         .onChange(of: store.isChatCheckInVisible) {
             if store.isChatCheckInVisible, !isCompanionChatVisible { openNotebook(.chat) }
@@ -1182,7 +1179,6 @@ private struct CompanionChatPage: View {
                 .environmentObject(store)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .preferredColorScheme(.light)
         }
         .confirmationDialog("离开前要总结这次对话吗？", isPresented: $isExitPromptVisible, titleVisibility: .visible) {
             Button(isClosingSession ? "正在总结..." : "结束并总结") {
@@ -2475,7 +2471,6 @@ struct MessageDrawerContent: View {
         }
         .navigationTitle("夜谈信箱")
         .navigationBarTitleDisplayMode(.inline)
-        .preferredColorScheme(.light)
     }
 }
 

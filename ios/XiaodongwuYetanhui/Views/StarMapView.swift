@@ -11,7 +11,7 @@ struct StarMapView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color(hex: 0xf0ecf2)
+                Color.accentPurpleLight
                     .ignoresSafeArea()
 
                 ScrollView {
@@ -32,7 +32,7 @@ struct StarMapView: View {
                             nextStep: store.starMapInsight.primaryGoalNextStep,
                             challenge: store.starMapInsight.primaryGoalChallenge,
                             role: "主要目标",
-                            tint: Color(hex: 0xd8cbea)
+                            tint: Color.decorativeLavender
                         ) {
                             if store.starMapInsight.isMockInsight {
                                 Task {
@@ -53,7 +53,7 @@ struct StarMapView: View {
                                 nextStep: store.starMapInsight.secondaryGoalNextStep,
                                 challenge: store.starMapInsight.secondaryGoalChallenge,
                                 role: "次要目标",
-                                tint: Color(hex: 0xcddfd7)
+                                tint: Color.decorativeMint
                             ) {
                                 if store.starMapInsight.isMockInsight {
                                     Task {
@@ -91,11 +91,11 @@ struct StarMapView: View {
                                 Image(systemName: "arrow.up.right")
                                     .font(.system(size: 15, weight: .bold))
                             }
-                            .foregroundStyle(Color(hex: 0x4f455d))
+                            .foregroundStyle(Color.textPrimary)
                             .padding(18)
                             .background(
                                 LinearGradient(
-                                    colors: [Color(hex: 0xd9cdea), Color(hex: 0xe9d9cb)],
+                                    colors: [Color.flowHeaderGradientTop, Color.flowHeaderGradientBottom],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 ),
@@ -163,18 +163,18 @@ private struct FlowPageHeader: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("心流导航")
                         .font(.custom("HannotateSC-W5", size: 31))
-                        .foregroundStyle(Color(hex: 0x4f455d))
+                        .foregroundStyle(Color.textPrimary)
                     Text("把记忆变成此刻可以靠近的方向")
                         .font(.custom("HannotateSC-W5", size: 14))
-                        .foregroundStyle(Color(hex: 0x766b7e))
+                        .foregroundStyle(Color.textSecondary)
                 }
                 Spacer()
                 Button(action: refresh) {
                     Image(systemName: isRefreshing ? "hourglass" : "arrow.clockwise")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color(hex: 0x695c78))
+                        .foregroundStyle(Color.textSecondary)
                         .frame(width: 40, height: 40)
-                        .background(Color.white.opacity(0.56), in: Circle())
+                        .background(Color.overlayLight, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .disabled(isRefreshing)
@@ -183,20 +183,20 @@ private struct FlowPageHeader: View {
 
             HStack(spacing: 8) {
                 Circle()
-                    .fill(insight.isMockInsight ? Color.orange.opacity(0.72) : Color(hex: 0x6f946f))
+                    .fill(insight.isMockInsight ? Color.orange.opacity(0.72) : Color.accentGreen)
                     .frame(width: 7, height: 7)
                 Text(isRefreshing ? "正在提炼..." : notice)
                     .font(.custom("HannotateSC-W5", size: 12))
-                    .foregroundStyle(Color(hex: 0x766b7e))
+                    .foregroundStyle(Color.textSecondary)
                     .lineLimit(2)
                 Spacer(minLength: 4)
                 Text(insight.periodLabel)
                     .font(.custom("HannotateSC-W5", size: 11))
-                    .foregroundStyle(Color(hex: 0x8d8294))
+                    .foregroundStyle(Color.textTertiary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(Color.white.opacity(0.48), in: Capsule())
+            .background(Color.overlaySubtle, in: Capsule())
         }
     }
 }
@@ -215,10 +215,10 @@ private struct FlowGoalCard: View {
             HStack {
                 Text(role)
                     .font(.custom("HannotateSC-W5", size: 13))
-                    .foregroundStyle(Color(hex: 0x655872))
+                    .foregroundStyle(Color.textSecondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.6), in: Capsule())
+                    .background(Color.overlayMedium, in: Capsule())
                 Spacer()
                 FlowChallengeBadge(level: challenge)
             }
@@ -226,13 +226,13 @@ private struct FlowGoalCard: View {
             Text(title)
                 .font(.custom("HannotateSC-W5", size: 22))
                 .lineSpacing(6)
-                .foregroundStyle(Color(hex: 0x493f55))
+                .foregroundStyle(Color.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(reason)
                 .font(.custom("HannotateSC-W5", size: 15))
                 .lineSpacing(6)
-                .foregroundStyle(Color(hex: 0x685f70))
+                .foregroundStyle(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button(action: begin) {
@@ -249,9 +249,9 @@ private struct FlowGoalCard: View {
                     }
                     Spacer(minLength: 2)
                 }
-                .foregroundStyle(Color(hex: 0x4f455d))
+                .foregroundStyle(Color.textPrimary)
                 .padding(13)
-                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -259,7 +259,7 @@ private struct FlowGoalCard: View {
         .background(tint.opacity(0.82), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.48), lineWidth: 1)
+                .stroke(Color.overlaySubtle, lineWidth: 1)
         }
         .shadow(color: Color(hex: 0x5b4968).opacity(0.08), radius: 18, x: 0, y: 8)
     }
@@ -280,12 +280,12 @@ private struct FlowChallengeBadge: View {
         HStack(spacing: 5) {
             ForEach(1...3, id: \.self) { index in
                 Circle()
-                    .fill(index <= activeDots ? Color(hex: 0x756488) : Color.white.opacity(0.55))
+                    .fill(index <= activeDots ? Color(hex: 0x756488) : Color.overlayLight)
                     .frame(width: 6, height: 6)
             }
             Text(level.isEmpty ? "轻量" : level)
                 .font(.custom("HannotateSC-W5", size: 11))
-                .foregroundStyle(Color(hex: 0x655872))
+                .foregroundStyle(Color.textSecondary)
         }
     }
 }
@@ -326,7 +326,7 @@ private struct FlowMemoryCard: View {
                             .font(.custom("HannotateSC-W5", size: 12))
                             .foregroundStyle(Color(hex: 0x76654f))
                             .frame(width: 24, height: 24)
-                            .background(Color.white.opacity(0.6), in: Circle())
+                            .background(Color.overlayMedium, in: Circle())
                         Text(cue)
                             .font(.custom("HannotateSC-W5", size: 15))
                             .lineSpacing(6)
@@ -415,7 +415,7 @@ private struct FlowSectionCard<Content: View>: View {
         .background(tint.opacity(0.76), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+                .stroke(Color.overlaySubtle, lineWidth: 1)
         }
     }
 }
@@ -431,7 +431,7 @@ private struct FlowTagRow: View {
                     .foregroundStyle(Color(hex: 0x655b6c))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.55), in: Capsule())
+                    .background(Color.overlayLight, in: Capsule())
             }
         }
     }
@@ -495,7 +495,7 @@ private struct FlowRitualSheet: View {
                 VStack(alignment: .leading, spacing: 9) {
                     Text("这一轮，只靠近一件事")
                         .font(.custom("HannotateSC-W5", size: 25))
-                        .foregroundStyle(Color(hex: 0x4f455d))
+                        .foregroundStyle(Color.textPrimary)
                     Text("目标已经尽量缩小。你仍然可以改成此刻更合适的表达。")
                         .font(.custom("HannotateSC-W5", size: 15))
                         .lineSpacing(6)
@@ -522,7 +522,7 @@ private struct FlowRitualSheet: View {
                     }
                 }
                 .padding(14)
-                .background(Color.white.opacity(0.46), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+                .background(Color.overlaySubtle, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
 
                 FlowSuggestionLayout(items: suggestions) { suggestion in
                     draft = suggestion
@@ -534,7 +534,7 @@ private struct FlowRitualSheet: View {
                 } label: {
                     Text("先只做这一件事")
                         .font(.custom("HannotateSC-W5", size: 17))
-                        .foregroundStyle(Color(hex: 0x4f455d))
+                        .foregroundStyle(Color.textPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Color(hex: 0xd9cdea), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -562,7 +562,7 @@ private struct FlowRitualSheet: View {
             Text(intention)
                 .font(.custom("HannotateSC-W5", size: 27))
                 .multilineTextAlignment(.center)
-                .foregroundStyle(Color(hex: 0x4f455d))
+                .foregroundStyle(Color.textPrimary)
                 .padding(.horizontal, 28)
             Text("不需要马上完成。\n注意力回来时，就再靠近一点点。")
                 .font(.custom("HannotateSC-W5", size: 16))
@@ -588,7 +588,7 @@ private struct FlowRitualSheet: View {
             Spacer()
             Text("先停在这里")
                 .font(.custom("HannotateSC-W5", size: 28))
-                .foregroundStyle(Color(hex: 0x4f455d))
+                .foregroundStyle(Color.textPrimary)
             Text(intention)
                 .font(.custom("HannotateSC-W5", size: 19))
                 .lineSpacing(7)
@@ -605,7 +605,7 @@ private struct FlowRitualSheet: View {
                     } label: {
                         Text(ending)
                             .font(.custom("HannotateSC-W5", size: 17))
-                            .foregroundStyle(Color(hex: 0x4f455d))
+                            .foregroundStyle(Color.textPrimary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 13)
@@ -670,7 +670,7 @@ private struct FlowSuggestionLayout: View {
                 .padding(.horizontal, 11)
                 .padding(.vertical, 9)
                 .frame(maxWidth: .infinity)
-                .background(Color.white.opacity(0.58), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
         }
     }

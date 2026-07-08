@@ -473,7 +473,7 @@ enum CompanionFixtures {
             avatarName: "sensen-emoji-yoyo-listening",
             tagline: "柔软、敏感、能停在痛苦旁边，先把情绪接住。",
             voice: "低声、共情、脆弱但真诚。",
-            bubbleColor: Color(hex: 0xfde7ef),
+            bubbleColor: Color.bubbleYoyo,
             defaultExpressionID: "listening",
             expressions: [
                 CompanionExpression(id: "bashful", label: "害羞", assetName: "sensen-emoji-yoyo-bashful"),
@@ -493,7 +493,7 @@ enum CompanionFixtures {
             avatarName: "sensen-emoji-momo-hi",
             tagline: "安静但有力量，帮你把混乱慢慢变成可以走的一小步。",
             voice: "稳定、具体、保护边界。",
-            bubbleColor: Color(hex: 0xe5f5ff),
+            bubbleColor: Color.bubbleMomo,
             defaultExpressionID: "hi",
             expressions: [
                 CompanionExpression(id: "celebrate", label: "庆祝一下", assetName: "sensen-emoji-momo-celebrate"),
@@ -514,7 +514,7 @@ enum CompanionFixtures {
             avatarName: "sensen-emoji-yoran-serene",
             tagline: "清明、平衡、能把感受和现实放在同一个温柔空间里。",
             voice: "松弛、开阔、带一点安稳的看见。",
-            bubbleColor: Color(hex: 0xeee8ff),
+            bubbleColor: Color.bubbleYoran,
             defaultExpressionID: "serene",
             expressions: [
                 CompanionExpression(id: "content", label: "满足", assetName: "sensen-emoji-yoran-content"),
@@ -651,6 +651,7 @@ enum CompanionFixtures {
 }
 
 extension Color {
+    // MARK: Legacy static colors (kept for backward compatibility)
     static let nightInk = Color(hex: 0x2f2823)
     static let warmBrown = Color(hex: 0x8b5f35)
     static let softPaper = Color(hex: 0xfffbf3)
@@ -660,10 +661,109 @@ extension Color {
     init(hex: UInt, opacity: Double = 1) {
         self.init(
             .sRGB,
-            red: Double((hex >> 16) & 0xff) / 255,
-            green: Double((hex >> 8) & 0xff) / 255,
-            blue: Double(hex & 0xff) / 255,
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
             opacity: opacity
         )
     }
+
+    // MARK: Adaptive Color Factory
+
+    static func adaptive(lightHex: UInt, darkHex: UInt, opacity: Double = 1) -> Color {
+        #if os(macOS) && !targetEnvironment(macCatalyst)
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let hex = isDark ? darkHex : lightHex
+            return NSColor(
+                calibratedRed: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: opacity
+            )
+        })
+        #else
+        Color(uiColor: UIColor { traitCollection in
+            let hex = traitCollection.userInterfaceStyle == .dark ? darkHex : lightHex
+            return UIColor(
+                red: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: opacity
+            )
+        })
+        #endif
+    }
+
+    // MARK: Page Backgrounds
+    static let pageBackground = Color.adaptive(lightHex: 0xFAF5EB, darkHex: 0x1C1A17)
+    static let sidebarBackground = Color.adaptive(lightHex: 0xF5F0E6, darkHex: 0x22201C)
+    static let conversationBgTop = Color.adaptive(lightHex: 0xFDFAF2, darkHex: 0x1E1D1A)
+    static let conversationBgBottom = Color.adaptive(lightHex: 0xF2F7ED, darkHex: 0x1B1C19)
+    static let warmBg1 = Color.adaptive(lightHex: 0xFFFBF3, darkHex: 0x1E1C19)
+    static let warmBg2 = Color.adaptive(lightHex: 0xF8EFE2, darkHex: 0x201E1B)
+    static let warmBg3 = Color.adaptive(lightHex: 0xEAF0DF, darkHex: 0x1C1D1A)
+
+    // MARK: Card / Surface Colors
+    static let cardBackground = Color.adaptive(lightHex: 0xFFFFFF, darkHex: 0x2A2723)
+    static let cardGradientTop = Color.adaptive(lightHex: 0xF0F7E8, darkHex: 0x252321)
+    static let cardGradientBottom = Color.adaptive(lightHex: 0xFAEDE6, darkHex: 0x23211E)
+    static let cardGreenBackground = Color.adaptive(lightHex: 0xF0F5E6, darkHex: 0x232420)
+    static let inputBackground = Color.adaptive(lightHex: 0xFFFFFF, darkHex: 0x2D2A27)
+    static let cardBorder = Color.adaptive(lightHex: 0xFFFFFF, darkHex: 0x3A3530)
+
+    // MARK: Overlay Colors
+    static let overlaySubtle = Color.adaptive(lightHex: 0xFDF9F3, darkHex: 0x292623)
+    static let overlayLight = Color.adaptive(lightHex: 0xFEFBF6, darkHex: 0x2E2B28)
+    static let overlayMedium = Color.adaptive(lightHex: 0xFFFCF8, darkHex: 0x33302D)
+    static let overlayHeavy = Color.adaptive(lightHex: 0xFFFDF9, darkHex: 0x383532)
+    static let overlayMax = Color.adaptive(lightHex: 0xFFFDFA, darkHex: 0x3D3A37)
+
+    // MARK: Accent Colors
+    static let accentPurple = Color.adaptive(lightHex: 0x7563A8, darkHex: 0x9B8EC4)
+    static let accentPurpleLight = Color.adaptive(lightHex: 0xEDE8F5, darkHex: 0x2D2838)
+    static let accentPurpleLighter = Color.adaptive(lightHex: 0xF7F0E8, darkHex: 0x282420)
+    static let accentGreen = Color.adaptive(lightHex: 0x618557, darkHex: 0x7BA67B)
+    static let accentMutedGreen = Color.adaptive(lightHex: 0x576B4A, darkHex: 0x7D8F6A)
+
+    // MARK: Mood / Status Colors
+    static let moodPositive = Color.adaptive(lightHex: 0x598C59, darkHex: 0x6DA86D)
+    static let moodNeutral = Color.adaptive(lightHex: 0x8C804D, darkHex: 0xA8995D)
+    static let moodMildNegative = Color.adaptive(lightHex: 0x99664D, darkHex: 0xB38066)
+    static let moodNegative = Color.adaptive(lightHex: 0x8C4D59, darkHex: 0xAD6B7A)
+
+    // MARK: Text Colors
+    static let textPrimary = Color.adaptive(lightHex: 0x4F475E, darkHex: 0xD8D0E0)
+    static let textSecondary = Color.adaptive(lightHex: 0x736B80, darkHex: 0xB0A8B8)
+    static let textTertiary = Color.adaptive(lightHex: 0x8C8296, darkHex: 0x908898)
+    static let textGreenMuted = Color.adaptive(lightHex: 0x5C634F, darkHex: 0x9CA88A)
+
+    // MARK: Flow-section Gradients
+    static let flowGradientTop = Color.adaptive(lightHex: 0xE8F0D6, darkHex: 0x25281F)
+    static let flowGradientBottom = Color.adaptive(lightHex: 0xF5E6DB, darkHex: 0x27221E)
+
+    // MARK: Chart Colors
+    static let chartFillLight = Color.adaptive(lightHex: 0xA68CCC, darkHex: 0x7B6B9E)
+    static let chartStroke = Color.adaptive(lightHex: 0x8C73B3, darkHex: 0x9B89C2)
+
+    // MARK: Character Bubble Colors
+    static let bubbleYoyo = Color.adaptive(lightHex: 0xFDE7EF, darkHex: 0x3D2535)
+    static let bubbleMomo = Color.adaptive(lightHex: 0xE5F5FF, darkHex: 0x1F2A35)
+    static let bubbleYoran = Color.adaptive(lightHex: 0xEEE8FF, darkHex: 0x282538)
+
+    // MARK: Avatar / Stroke
+    static let avatarStroke = Color.adaptive(lightHex: 0xFFFFFF, darkHex: 0x4A4642)
+
+    // MARK: Decorative Tints
+    static let decorativeLavender = Color.adaptive(lightHex: 0xD6C9EB, darkHex: 0x3D3648)
+    static let decorativeMint = Color.adaptive(lightHex: 0xC7E0D6, darkHex: 0x2A3D38)
+    static let flowHeaderGradientTop = Color.adaptive(lightHex: 0xEBE0FA, darkHex: 0x2D2638)
+    static let flowHeaderGradientBottom = Color.adaptive(lightHex: 0xFAEBDB, darkHex: 0x2A2420)
+    static let moodWeekGradientTop = Color.adaptive(lightHex: 0xEDF2E0, darkHex: 0x252820)
+    static let moodWeekGradientBottom = Color.adaptive(lightHex: 0xF5EBE6, darkHex: 0x27231E)
+    static let chartLineAccent = Color.adaptive(lightHex: 0x6B599E, darkHex: 0x9B8EC4)
+
+    // MARK: Toast
+    static let toastBackground = Color.adaptive(lightHex: 0x000000, darkHex: 0xEEEEEE)
+    static let toastText = Color.adaptive(lightHex: 0xFFFFFF, darkHex: 0x000000)
 }

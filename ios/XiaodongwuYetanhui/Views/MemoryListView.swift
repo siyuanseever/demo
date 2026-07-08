@@ -134,7 +134,7 @@ private struct MemoryDetailView: View {
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 5)
-                                .background(Color.white.opacity(0.68), in: Capsule())
+                                .background(Color.overlayHeavy, in: Capsule())
                             Text(memory.content)
                                 .font(.title3.weight(.semibold))
                                 .lineSpacing(5)
@@ -149,7 +149,7 @@ private struct MemoryDetailView: View {
                                                 .foregroundStyle(Color.warmBrown)
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 5)
-                                                .background(Color.white.opacity(0.66), in: Capsule())
+                                                .background(Color.overlayHeavy, in: Capsule())
                                         }
                                     }
                                 }
@@ -201,7 +201,6 @@ private struct MemoryDetailView: View {
         }
         .navigationTitle("记忆详情")
         .navigationBarTitleDisplayMode(.inline)
-        .preferredColorScheme(.light)
     }
 }
 

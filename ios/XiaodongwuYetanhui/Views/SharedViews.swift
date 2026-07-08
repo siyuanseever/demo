@@ -5,9 +5,9 @@ struct WarmBackground: View {
     var body: some View {
         LinearGradient(
             colors: [
-                .softPaper,
-                Color(hex: 0xf8efe2),
-                Color(hex: 0xeaf0df),
+                Color.warmBg1,
+                Color.warmBg2,
+                Color.warmBg3,
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -43,7 +43,7 @@ struct SoftPanel<Content: View>: View {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.45), lineWidth: 1)
+                    .stroke(Color.overlaySubtle, lineWidth: 1)
             }
     }
 }
@@ -71,7 +71,7 @@ struct CharacterAvatar: View {
         }
         .frame(width: size, height: size)
         .overlay {
-            Circle().stroke(.white.opacity(0.75), lineWidth: 1)
+            Circle().stroke(Color.avatarStroke.opacity(0.75), lineWidth: 1)
         }
         .accessibilityLabel(character.name)
     }
