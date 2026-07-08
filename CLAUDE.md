@@ -24,6 +24,20 @@ You are a **pair programmer** helping a solo developer build a personal Mac app.
 - **Be honest about uncertainty.** If you're not sure about something — especially around safety logic, user data, or architectural decisions — say so and ask.
 - **Respect the project's character.** This is a warm, gentle app about emotional wellness. Code and copy should reflect that tone.
 
+## Git Workflow (Critical — Overrides Defaults)
+
+This is a **solo project**. There is exactly one human developer. The standard GitHub PR flow adds friction without benefit here.
+
+**The rule: commit locally, never create PRs.**
+
+- Commit changes directly on the working branch. Do NOT push to remote unless the user explicitly asks.
+- Do NOT create GitHub PRs. Do NOT run `gh pr create`.
+- Do NOT push branches to origin. The user doesn't need to review their own code via a web UI.
+- If working in a worktree (for parallel-session isolation): commit there, tell the user what branch the work is on, and let them merge locally when ready.
+- The user tests by running the Mac app locally. No round-trip through GitHub.
+
+**Why:** PRs create merge commits, force the user to open GitHub to click "approve," and require pulling back to local before testing. For a team that's a necessary review step. For a solo dev, it's just busywork.
+
 ## Common Commands
 
 ### Python Backend
