@@ -69,6 +69,29 @@ final class CompanionStore: ObservableObject {
         category: "conversation"
     )
 
+    /// Maximum number of messages kept in memory for display.
+    /// Older messages remain in SQLite and are re-fetched on session resume.
+    private let maxDisplayMessages = 200
+
+    /// Shared database connection reused across operations to avoid
+    /// repeated sqlite3_open / sqlite3_close cycles.
+    private var sharedDatabase: SQLiteDatabase?
+
+    private func database() throws -> SQLiteDatabase {
+        if let db = sharedDatabase { return db }
+        let db = try SQLiteDatabase()
+        sharedDatabase = db
+        return db
+    }
+
+    /// Append a message and trim the array if it exceeds the display cap.
+    private func appendMessage(_ message: ChatMessage) {
+        messages.append(message)
+        if messages.count > maxDisplayMessages {
+            messages.removeFirst(messages.count - maxDisplayMessages)
+        }
+    }
+
     var selectedCharacter: CompanionCharacter {
         character(id: selectedCharacterID) ?? CompanionFixtures.characters[0]
     }
@@ -122,7 +145,7 @@ final class CompanionStore: ObservableObject {
 
     func load() {
         do {
-            let database = try SQLiteDatabase()
+            let database = try database()
             currentDatabasePath = database.path
             sessions = database.sessions()
             memories = database.memories()
@@ -219,19 +242,23 @@ final class CompanionStore: ObservableObject {
         chatService.useSession(sessionID)
         localDeepSeekService.useSession(sessionID)
         do {
-            let database = try SQLiteDatabase()
-            let loadedMessages = database.messages(sessionID: sessionID)
-            messages = loadedMessages.isEmpty ? [Self.greetingMessage(characterID: selectedCharacterID)] : loadedMessages
-            sessionNotice = "已打开历史会话。继续发送时会进入当前夜谈。"
-            chatNotice = nil
+            let db = try database()
+            let loadedMessages = db.messages(sessionID: sessionID)
             if loadedMessages.isEmpty {
+                messages = [Self.greetingMessage(characterID: selectedCharacterID)]
+                sessionNotice = "正在从 Mac 后端拉取历史会话…"
+                chatNotice = nil
                 Task {
                     await syncSessionFromBackend(sessionID)
-                    let syncedMessages = (try? SQLiteDatabase().messages(sessionID: sessionID)) ?? []
+                    let syncedMessages = (try? database().messages(sessionID: sessionID)) ?? []
                     if !syncedMessages.isEmpty {
-                        messages = syncedMessages
+                        messages = Array(syncedMessages.suffix(maxDisplayMessages))
                     }
                 }
+            } else {
+                messages = Array(loadedMessages.suffix(maxDisplayMessages))
+                sessionNotice = "已打开历史会话。继续发送时会进入当前夜谈。"
+                chatNotice = nil
             }
         } catch {
             sessionNotice = "暂时无法打开这个会话：\(Self.describe(error))"
@@ -240,12 +267,19 @@ final class CompanionStore: ObservableObject {
 
     func deleteSession(_ sessionID: String) {
         do {
-            let database = try SQLiteDatabase()
-            database.deleteSession(sessionID)
+            let db = try database()
+            db.deleteSession(sessionID)
             if localDeepSeekService.currentSessionID == sessionID {
                 localDeepSeekService.clearSession()
             }
-            load()
+            // Reload only sessions + snapshot — skip full load()
+            sessions = db.sessions()
+            snapshot = DashboardSnapshot(
+                sessionCount: db.count(table: "sessions"),
+                messageCount: db.count(table: "messages"),
+                memoryCount: db.count(table: "memories"),
+                journalCount: db.count(table: "journals")
+            )
             if messages.contains(where: { $0.id == sessionID }) {
                 messages = [Self.greetingMessage(characterID: selectedCharacterID)]
             }
@@ -361,7 +395,7 @@ final class CompanionStore: ObservableObject {
             if isLocalAIConfigured, let apiKey = secureSettings.deepSeekAPIKey() {
                 summary = try await localDeepSeekService.closeCurrentSession(
                     apiKey: apiKey,
-                    database: SQLiteDatabase()
+                    database: try database()
                 )
             } else {
                 summary = try await chatService.closeCurrentSession()
@@ -374,7 +408,7 @@ final class CompanionStore: ObservableObject {
             }
             load()
             latestCloseSummary = summary
-            messages.append(
+            appendMessage(
                 ChatMessage(
                     id: UUID().uuidString,
                     role: .system,
@@ -953,7 +987,7 @@ final class CompanionStore: ObservableObject {
             isGroupMode: isGroupMode
         )
         SendInstrumentation.shared.recordPhase(.sendTaskStarted, correlationID: correlationID)
-        messages.append(
+        appendMessage(
             ChatMessage(
                 id: UUID().uuidString,
                 role: .user,
@@ -1063,7 +1097,7 @@ final class CompanionStore: ObservableObject {
             if let responseCharacter = self.character(id: response.characterID) {
                 selectedCharacterID = responseCharacter.id
             }
-            messages.append(
+            appendMessage(
                 ChatMessage(
                     id: UUID().uuidString,
                     role: .assistant,
@@ -1079,7 +1113,7 @@ final class CompanionStore: ObservableObject {
         }
 
         for (index, groupMessage) in response.groupMessages.enumerated() {
-            messages.append(
+            appendMessage(
                 ChatMessage(
                     id: UUID().uuidString,
                     role: .assistant,
@@ -1111,7 +1145,7 @@ final class CompanionStore: ObservableObject {
         SendInstrumentation.shared.recordPhase(.requestEncodeStarted, correlationID: correlationID)
         chatOperationStatus = "正在直接连接 DeepSeek…"
         do {
-            let database = try SQLiteDatabase()
+            let database = try database()
             fputs("[sendLocalChatText] 数据库打开成功, path: \(database.path)\n", stderr)
             let result = try await localDeepSeekService.send(
                 text: text,
@@ -1120,7 +1154,7 @@ final class CompanionStore: ObservableObject {
                 database: database
             ) { quickReply in
                 Task { @MainActor in
-                    self.messages.append(quickReply)
+                    self.appendMessage(quickReply)
                     SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: correlationID)
                     self.chatOperationStatus = "已收到快速回应，正在继续识别意图并深入理解…"
                     fputs("[sendLocalChatText] 快速回复已添加到UI\n", stderr)
@@ -1128,7 +1162,7 @@ final class CompanionStore: ObservableObject {
             }
             fputs("[sendLocalChatText] send 成功, 快速回复: \(result.quickReply != nil), 深度回复: \(result.deepReply.content.count)字符\n", stderr)
             SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
-            messages.append(result.deepReply)
+            appendMessage(result.deepReply)
             chatNotice = "本地模式：直接连接 DeepSeek。"
             backendStatus = BackendConnectionStatus(
                 state: .online,
@@ -1136,7 +1170,17 @@ final class CompanionStore: ObservableObject {
                 detail: "这轮消息通过本地 DeepSeek API 直接生成。",
                 lastCheckedAt: Date()
             )
-            load()
+            // Update snapshot only — avoid full reload
+            if let db = sharedDatabase {
+                snapshot = DashboardSnapshot(
+                    sessionCount: db.count(table: "sessions"),
+                    messageCount: db.count(table: "messages"),
+                    memoryCount: db.count(table: "memories"),
+                    journalCount: db.count(table: "journals")
+                )
+            }
+            buildFlowContext()
+            refreshInteractionOffers()
             logger.info("[\(correlationID, privacy: .public)] local chat completed")
             fputs("[sendLocalChatText] 完成\n", stderr)
         } catch {
@@ -1150,7 +1194,7 @@ final class CompanionStore: ObservableObject {
                 createdAt: "",
                 expressionID: character.defaultExpressionID
             )
-            messages.append(fallbackMessage)
+            appendMessage(fallbackMessage)
             chatNotice = error.localizedDescription
             backendStatus = BackendConnectionStatus(
                 state: .fallback,

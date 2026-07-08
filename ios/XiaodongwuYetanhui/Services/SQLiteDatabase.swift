@@ -12,6 +12,23 @@ final class SQLiteDatabase {
             throw DatabaseError.openFailed(String(cString: sqlite3_errmsg(handle)))
         }
         migrateLocalSchema()
+        applyPerformancePragmas()
+        ensureIndexes()
+    }
+
+    private func applyPerformancePragmas() {
+        _ = execute(sql: "PRAGMA journal_mode=WAL")
+        _ = execute(sql: "PRAGMA synchronous=NORMAL")
+        _ = execute(sql: "PRAGMA cache_size=-8000")  // 8MB cache
+    }
+
+    private func ensureIndexes() {
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories(updated_at)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_journals_session ON journals(session_id)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_journals_created ON journals(created_at)")
     }
 
     deinit {
