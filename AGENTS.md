@@ -1,310 +1,267 @@
-# Repository Guidelines — Harness Engineering Document
+# AGENTS.md — 工程指南
 
-## 1. 项目定位与边界
+## 1. 项目定位
 
-This repository contains the Python stdlib backend/Web demo and the SwiftUI Apple-platform app for **小动物夜谈会**, a psychological companion chat app.
+**小动物夜谈会** — 一个 macOS 个人疗愈与成长陪伴应用。
 
-- 核心目标：帮用户整理情绪、身体感受、内在冲突和关系模式，形成稳定、温和、可追溯的长期记忆。
-- 非目标：不做诊断，不替代心理咨询、精神科治疗或危机干预。
-- 当前运行版本：iOS App 的 Mac Catalyst 迁移版，不是原生 macOS App。
-- 当前开发主线：Catalyst 稳定化，核心是“发送卡死 + 自动同步 + 数据/UI 完整性 + 心流/夜谈轻互动”。
-- 当前最高优先级事故：`MAC-MEM-GROWTH-001`，内存曾持续增长至约 65GB。
-- 长期方向：按 Roadmap N0-N5 分阶段迁移到原生 macOS App。
-- Web/Python 当前作为数据、模型和兼容性基线维护，不主动扩展无关功能。
+- 核心功能：日常对话、情绪整理、生活记录、定时提醒
+- 定位：个人使用的 Mac 应用，非商业产品
+- 非目标：不做诊断，不替代心理咨询或危机干预
+- 当前阶段：Mac Catalyst 稳定化，逐步向原生 macOS 迁移（见 ROADMAP.md N0-N5）
+- 主要开发方式：Claude Code 作为 AI 编程助手，配合 Codex 使用
+
+### 两个运行时
+
+| 运行时 | 用途 | 状态 |
+|--------|------|------|
+| **SwiftUI Mac App** (`ios/`) | 主要产品界面，日常使用 | 主力开发 |
+| **Python 后端** (`app/`) | Web UI、数据服务、LLM 编排 | 基线维护 |
+
+Python 后端 `data/app.db` 是权威数据源；Mac App 沙盒数据库是缓存，通过网络 API 同步。
 
 ---
 
 ## 2. 项目结构
 
-- `app/web.py` contains the local Web UI, HTTP routes, embedded CSS, and browser JavaScript.
-- `app/agents/` contains orchestration and safety logic.
-- `app/llm/` contains model adapters, including DeepSeek and the fake model.
-- `app/memory/` contains SQLite schema and persistence code.
-- `app/knowledge/` contains knowledge/content cards and retrieval helpers.
-- `app/prompts/` contains prompts sent to the LLM.
-- `app/evaluation/` contains the evaluation framework, test cases, and prompt quality assessment.
-- `app/static/` stores avatars, cozy status images, and UI background assets.
-- `ios/XiaodongwuYetanhui/` contains the SwiftUI app currently used for the Mac product direction.
-- `docs/`, `TODO.md`, and `ROADMAP.md` document product direction and implementation notes.
-- Runtime files live in `data/app.db` and `logs/app.log`; avoid committing private data.
-- Python 后端 `data/app.db` 是当前权威数据源；Mac App 沙盒数据库是缓存。不得让两个进程持续共享读写同一个活动数据库文件。
+```
+app/                          # Python 后端
+├── web.py                    # Web UI (Quart/SSE) + 内嵌 HTML/CSS/JS
+├── main.py                   # CLI 入口
+├── agents/orchestrator.py    # 会话编排、对话逻辑
+├── agents/safety.py          # 内容安全
+├── llm/                      # LLM 适配器 (DeepSeek, Fake)
+├── memory/store.py           # SQLite 记忆持久化
+├── memory/schema.py          # 数据库 schema
+├── knowledge/                # 心理学知识卡片
+├── prompts/                  # LLM prompt 模板
+├── characters.py             # 6 个陪伴角色定义
+├── config.py                 # 环境配置
+├── intent/                   # 意图识别
+├── evaluation/               # 测试框架
+└── static/                   # 头像、UI 素材
+
+ios/XiaodongwuYetanhui/       # SwiftUI Mac App
+├── App/                      # 应用入口
+├── Views/                    # 界面 (MacPrototypeView 是主开发界面)
+├── Services/                 # 服务层 (API、数据库、本地 LLM)
+└── DerivedData-Mac/          # 构建产物 (gitignored)
+
+docs/                          # 文档
+├── automation/               # 事故处理 playbook
+│   ├── mac-freeze-incident-playbook.md
+│   └── mac-memory-incident-playbook.md
+├── ROADMAP.md
+├── TODO.md
+├── plan.md
+└── status.md
+```
 
 ---
 
-## 3. Harness 工具链
+## 3. 常用命令
 
-所有可用的工程工具及其用途：
+### Python 后端
 
-| 工具 | 命令 | 用途 |
-|------|------|------|
-| 语法校验 | `python3 -m compileall app` | Python 语法检查（Gate 0） |
-| Web/SSE 校验 | `python3 -m app.evaluation.check_sse_stream` | 渲染并校验最新 JS，同时验证 SSE 契约 |
-| 分层检查 | `python3 -m app.evaluation.check_harness` | Contract、UI、低成本质量检查 |
-| 综合评估 | `python3 -m app.evaluation.runner` | 八个测试维度一键评估（Gate 1） |
-| 自动诊断 | `python3 -m app.evaluation.diagnose` | 失败项自动分类（产品缺陷/测试缺陷） |
-| Prompt 追踪 | Web UI `/prompt-inspector` | 实时查看 LLM 调用详情、token 用量、质量评分 |
-| 体验评估 | `python3 -m app.evaluation.manual_eval` | 基于 cases 的手工/半自动评估 |
-| Mac 构建 | Xcode 或目标 scheme 的 `xcodebuild` | Swift 编译、链接和目标平台验证 |
-| Mac 性能 | Instruments / Time Profiler / 可复现场景计时 | 主线程停顿、数据库和视图刷新证据 |
-| Mac 内存 | Allocations / Leaks / memgraph / resident-footprint 采样 | 泄漏、无界队列、对象净增长和回落证据 |
+```bash
+# 启动 Web UI (http://127.0.0.1:8765)
+python3 -m app.web
 
-### 快速验证组合
+# CLI 模式
+python3 -m app.main
 
-每次变更后，根据变更类型选择对应的验证命令：
+# 无 LLM 测试模式
+LLM_PROVIDER=fake python3 -m app.web
+
+# DeepSeek 连通性测试
+python3 -m app.ping_deepseek
+
+# 查看日志
+tail -f logs/app.log
+```
+
+### 验证命令
+
+```bash
+# 语法检查 (Gate 0)
+python3 -m compileall app
+
+# SSE/JS 契约检查
+python3 -m app.evaluation.check_sse_stream
+
+# 完整评估 (Gate 1) — 8 维度，需要 ≥95% 通过
+python3 -m app.evaluation.runner
+
+# 失败诊断
+python3 -m app.evaluation.diagnose
+
+# 手工体验评估 (Gate 4)
+python3 -m app.evaluation.manual_eval
+```
+
+### 按变更类型选择验证
 
 ```bash
 # Python 代码变更
 python3 -m compileall app && python3 -m app.evaluation.runner
 
-# web.py 变更（含 JS）
+# web.py 变更 (含前端 JS)
 python3 -m compileall app && python3 -m app.evaluation.check_sse_stream && python3 -m app.evaluation.runner
 
-# Prompt 文件变更
+# Prompt 变更
 python3 -m compileall app && python3 -m app.evaluation.runner && python3 -m app.evaluation.manual_eval
+```
 
-# 新增/删除模块
-python3 -m compileall app && python3 -m app.evaluation.runner
+### Mac App 构建
+
+```bash
+# 脚本构建
+./scripts/run_mac.sh
+
+# 手动 xcodebuild
+xcodebuild -project ios/XiaodongwuYetanhui.xcodeproj \
+  -scheme XiaodongwuYetanhui \
+  -configuration Debug \
+  -destination 'platform=macOS,variant=Mac Catalyst,arch=arm64' \
+  -derivedDataPath ios/DerivedData-Mac \
+  CODE_SIGNING_ALLOWED=NO \
+  build
 ```
 
 ---
 
-## 4. 验证门控
+## 4. 质量门控
 
-门控是机器可验证的质量阈值，写入文档即成为工程契约。
+门控是机器可验证的质量阈值。每次代码修改后，根据变更类型运行对应的门控检查。
 
-### Gate 0：语法门控
+### Gate 0：语法
 
-- `python3 -m compileall app` 全部通过，无任何 SyntaxError。
+- `python3 -m compileall app` 零错误
 
-### Gate 1：功能门控
+### Gate 1：功能
 
-- `python3 -m app.evaluation.runner` 必须以退出码 0 结束。
-- 综合通过率必须 >= 95%。
-- `accuracy`、`robustness`、`completeness`、`functional`、`api_resilience`、`framework` 六个关键维度必须 100%。
-- 任一测试套件执行异常都视为失败，不允许以 0 项跳过。
-- main 最近记录基线为 262/262；automation 分支后续报告出现 270/271。合并或宣称稳定前必须在同一 commit 上重跑并记录唯一基线。
+- `python3 -m app.evaluation.runner` 退出码为 0
+- 综合通过率 ≥ 95%
+- `accuracy`、`robustness`、`completeness`、`functional`、`api_resilience`、`framework` 六个关键维度 100%
+- 任一测试套件执行异常视为失败
 
-### Gate M0：Mac 构建门控
+### Gate M0：Mac 构建
 
-- 当前运行基线是 Mac Catalyst 迁移版。所有当前 Swift/Mac 改动必须记录 scheme、Catalyst destination、构建命令和退出码；原生 target 仅按 Roadmap N0-N5 推进。
-- 无 Xcode 或目标 Mac 能力时状态为 `blocked`，不得以 Python Gate 代替。
-- `xcodebuild` 只证明构建；声称启动成功还需进程存活或日志证据。
+- `xcodebuild` 成功，记录 scheme、destination、构建命令和退出码
+- 无 Xcode 环境时状态记为 `blocked`，不得以 Python Gate 代替
 
-### Gate M1：Mac 体验与性能门控
+### Gate M1：Mac 体验与性能
 
-- 功能变更必须验证加载、空状态、错误、点击、导航和返回。
-- 性能变更必须提供可复现场景、数据规模和修改前后证据。
-- 没有完成目标 Mac 人工或自动验证时记为 `pending_manual_validation`。
-- 发送卡死相关变更必须执行 `docs/automation/mac-freeze-incident-playbook.md`，不能以单次未卡死作为通过证据。
-- 内存相关变更必须执行 `docs/automation/mac-memory-incident-playbook.md`；自动场景达到 2GB 立即停止并保存证据。
-
-### Gate 2：结构门控
-
-- `evaluation.completeness` 100% 通过。
-- 关键文件、模块导入、AST 定义、依赖完整性全部检查通过。
-
-### Gate 3：Prompt 审查
-
-- 相关结构化调用的 Prompt JSON 有效率应 >= 95%。
-- 在 `/prompt-inspector` 查看调用记录，并在汇报中记录样本范围和结果。
-- 当前没有独立 CLI 门控；不得把“打开过页面”写成自动验证通过。
+- 功能变更：验证加载、空状态、错误、点击、导航
+- 性能变更：提供可复现场景和数据规模的前后对比
+- 发送卡死相关：执行 `docs/automation/mac-freeze-incident-playbook.md`
+- 内存相关：执行 `docs/automation/mac-memory-incident-playbook.md`
 
 ### Gate 4：体验审查
 
-- `python3 -m app.evaluation.manual_eval` 只生成待评分表，不代表体验审查通过。
-- 人工完成 case-based 评分后，必须确认所有用例已评分且无高风险失败项。
-- 未完成人工评分时，Gate 4 状态必须记为 `pending`，不能记为通过。
+- `python3 -m app.evaluation.manual_eval` 生成待评分表
+- 需人工完成 case-based 评分，确认无高风险失败项
+- 未完成人工评分时状态记为 `pending`
 
----
+### 变更类型 → 门控映射
 
-## 5. 编排规则
+| 变更类型 | 需要通过的检查 |
+|---------|--------------|
+| Python 代码 | Gate 0 + Gate 1 |
+| `app/web.py` | Gate 0 + SSE 检查 + Gate 1 |
+| Prompt 文件 | Gate 1 + Gate 4 人工审查 |
+| 新增/删除模块 | Gate 0 + Gate 1 |
+| Swift/Mac 功能 | Gate M0 + 交互验证 |
+| Swift/Mac 性能 | Gate M0 + Gate M1 |
 
-### 5.1 变更类型与触发门控映射
-
-| 变更类型 | 触发门控 |
-|---------|---------|
-| Python 代码变更 | Gate 0 + Gate 1 |
-| `app/web.py` 变更 | Gate 0 + Web/SSE 校验 + Gate 1 |
-| Prompt 文件变更 | Gate 3 + Gate 4（手工 case 验证） |
-| 新增/删除模块 | Gate 0 + Gate 1 + Gate 2 |
-| Evaluation 框架变更 | Gate 0 + Gate 1 + Gate 2 |
-| Swift/Mac 功能变更 | Gate M0 + 对应交互场景 + 必要的后端 Gate |
-| Swift/Mac 性能变更 | Gate M0 + Gate M1 + 必要的后端 Gate |
-
-### 5.2 失败响应流程
+### 门控失败处理
 
 ```
 门控失败
-  → 自动运行 python3 -m app.evaluation.diagnose
-    → 产品代码缺陷 → 修复源代码 → 重跑门控
+  → 运行 python3 -m app.evaluation.diagnose 自动分类
+    → 产品代码缺陷 → 修复源码 → 重跑门控
     → 测试代码缺陷 → 修复测试 → 重跑门控
-    → 待人工确认 → 人工判断 → 修复对应方 → 重跑门控
-```
-
-### 5.3 Checker / Fixer 角色隔离
-
-自动化角色必须严格分工：
-
-| 角色 | 可以修改 | 禁止修改 |
-|------|---------|---------|
-| Test / Checker Agent | `app/evaluation/**`、测试 fixture、测试报告 | 产品实现、Prompt、iOS 产品代码 |
-| Product / Fixer Agent | 仅修复 Checker 已复现的产品缺陷 | `app/evaluation/**`、Roadmap 功能、测试 |
-| Product / Executor Agent | 仅执行 PM 下发的一个产品任务 | `app/evaluation/**`、规划、自动化协议、测试 |
-| Product Manager Agent | 只读仓库；写 handoff 报告和文档更新建议 | 所有仓库文件、Git 写操作 |
-
-- Checker 可以只读访问 `data/app.db` 生成私有评估或脱敏/合成测试，但不得持久化真实对话原文。
-- Apple UI-test target/project wiring 若不存在，可由 Executor 在明确的 `test_infrastructure` 任务中建立空 target；测试场景、fixture 和断言仍只归 Checker。
-- Fixer 可以运行 Checker 提供的测试，但不得新增、删除、修改或放宽测试。
-- Fixer 判断测试有问题时，只能生成结构化异议报告，由 Checker 复核。
-- Checker 报告、Fixer 回执和复验结果使用 `docs/automation/` 中定义的通信协议。
-- Checker 负责关闭 issue；Fixer 只能标记为 `fixed_pending_verification`。
-- Checker 每 6 小时追加一份独立报告；Fixer 每天按 index + cursor 批量消费所有未处理报告，禁止只读取 `LATEST_CHECKER.json`。
-- PM 在 main 只读运行、只写 handoff；Executor、Checker、Fixer 使用固定 `automation/quality-loop` worktree。调度器负责 Git 互斥，不增加第五个常驻智能 Agent。
-- 四个 Agent 均不得创建、删除、prune 或修复 worktree/branch；固定 worktree 缺失时只报告 `worktree_missing`。
-- 运行时协议必须是 `xiaodongwu-automation/v3`，Prompt revision 必须是 `2026-07-02-governance-1`。
-- 仓库 Prompt 改动不会自动更新已保存的定时任务；激活步骤见 `docs/automation/activation-checklist.md`。
-
-完整 Prompt：
-
-- `docs/automation/automation-orchestration.md`
-- `docs/automation/activation-checklist.md`
-- `docs/automation/mac-freeze-incident-playbook.md`
-- `docs/automation/mac-memory-incident-playbook.md`
-- `docs/automation/checker-agent-prompt.md`
-- `docs/automation/product-fixer-agent-prompt.md`
-- `docs/automation/product-manager-agent-prompt.md`
-- `docs/automation/executor-agent-prompt.md`
-
-### 5.4 修改—检查工作流（所有 Agent 必须遵循）
-
-本节定义所有 AI Agent 在各自权限内修改代码时的强制流程。
-
-#### 第 1 步：修改前 — 读取上下文
-
-- 读取 `AGENTS.md` 了解项目规范和门控标准
-- 读取 `plan.md` 了解当前阶段目标
-- 读取 `status.md` 了解当前进度和已知问题
-- 读取待修改文件，理解现有代码逻辑
-
-#### 第 2 步：修改代码
-
-- 按需求修改代码，保持现有代码风格（4空格、snake_case）
-- 每次修改尽量小，一个 commit 只做一件事
-- 涉及安全相关修改（如 `safety.py`）需格外谨慎
-
-#### 第 3 步：修改后 — 自动运行测试（必须）
-
-```bash
-# 每次代码变更后，必须运行以下命令验证：
-python3 -m compileall app && python3 -m app.evaluation.runner
-```
-
-- Gate 0（compileall）必须零错误
-- Gate 1（runner）必须退出码为 0，并满足关键维度 100%
-- 若有 Web/JS 变更，还需运行 `python3 -m app.evaluation.check_sse_stream`
-
-#### 第 4 步：分析测试结果
-
-- 若 Gate 命令退出码为 0 且报告 `overall.gate_passed=true` → 进入第 6 步
-- 若命令非零或报告有失败项 → 运行 `python3 -m app.evaluation.diagnose`
-
-#### 第 5 步：诊断与修复
-
-diagnose 工具将失败项自动分类为三类：
-
-| 分类 | 含义 | 处理方式 |
-|------|------|---------|
-| **产品代码缺陷** | 源代码有问题 | 仅 Product / Fixer Agent 可修复 |
-| **测试代码缺陷** | 测试用例本身有问题 | 仅 Test / Checker Agent 可修复 |
-| **待人工确认** | 无法自动判断 | 必须询问用户，不可自行修改 |
-
-**确定可修改的情况**（对应角色可直接修复）：
-- Product / Fixer：Checker 测试能稳定复现、产品契约明确且不涉及安全策略选择。
-- Test / Checker：能够证明断言、fixture 或 Harness 与已确认契约不一致。
-- 修改范围属于当前角色的允许路径。
-
-**不确定的情况**（必须先询问用户）：
-- 修改可能影响产品行为或用户体验
-- 修复方案有多种选择
-- 涉及安全模块的策略调整
-- 调用方是否需要同步修改不确定
-
-修复后必须回到第 3 步重新运行测试。不能用总体通过率掩盖关键维度失败。
-
-#### 第 6 步：汇报结果
-
-向用户说明：
-- 修改了什么文件、改了什么内容
-- 测试结果（通过率、失败项）
-- 修复了什么问题、如何修复的
-- 若有不确定的部分，说明风险和建议
-
-#### 完整流程图
-
-```
-读取上下文 → 修改代码 → 运行测试 → 分析结果
-                                        ├─ 全通过 → 汇报结果
-                                        └─ 有失败 → 运行 diagnose
-                                                    ├─ 产品缺陷 → Fixer 确定可修？→ 修产品 → 重跑测试
-                                                    │                          └─ 不确定 → 询问用户
-                                                    ├─ 测试缺陷 → Checker 修测试 → 重跑测试
-                                                    └─ 待确认   → 询问用户
+    → 无法自动判断 → 人工确认后修复 → 重跑门控
 ```
 
 ---
 
-## 6. 代码风格与命名约定
+## 5. 开发工作流
 
-Use Python 3.12-compatible code and keep changes small. Prefer clear functions, explicit names, and simple control flow. Follow existing style: 4-space indentation, snake_case for Python names, and descriptive JSON keys. Keep UI changes in `app/web.py` unless a broader frontend split is intentional.
+每次修改代码时遵循以下流程：
 
-For character assets, use stable lowercase hyphenated filenames, for example `mianmian-sheep-cozy.webp`.
+### 第 1 步：了解上下文
+
+- 读取相关源码，理解现有逻辑
+- 涉及架构决策时，先读 `plan.md` 和 `ROADMAP.md`
+
+### 第 2 步：修改代码
+
+- 保持现有代码风格（4 空格缩进、snake_case）
+- 每次改动尽量小，一个 commit 做一件事
+- 涉及 `safety.py` 或安全逻辑时格外谨慎
+
+### 第 3 步：验证
+
+- 根据变更类型运行对应的门控命令（见 §4 映射表）
+- Gate 0 + Gate 1 是 Python 代码变更的最低要求
+
+### 第 4 步：处理结果
+
+- **全部通过** → 变更完成，汇报结果
+- **有失败** → 运行 `diagnose` 分类，修复后回到第 3 步
+- **不确定如何修** → 说明情况和风险，不要猜测，询问用户
+
+```
+了解上下文 → 修改代码 → 运行验证 → 全部通过 → 完成
+                                    → 有失败 → diagnose → 修复 → 重跑验证
+```
+
+---
+
+## 6. 代码风格
+
+- Python 3.12+，4 空格缩进，snake_case
+- 函数命名清晰，控制流简单直接
+- JSON key 使用描述性命名
+- 角色素材文件名：小写连字符，如 `mianmian-sheep-cozy.webp`
+- UI 改动集中在 `app/web.py`，除非有意拆分前端
 
 ---
 
 ## 7. 测试体系
 
-本项目采用分层测试策略：
+### 快速验证层
 
-### 7.1 快速验证层
+- `python3 -m compileall app` — 语法校验
+- `python3 -m app.evaluation.check_sse_stream` — JS 渲染 + SSE 契约
 
-- `python3 -m compileall app` —— Python 语法校验
-- `python3 -m app.evaluation.check_sse_stream` —— 最新渲染 JS 与 SSE 契约校验
+### 综合评估层
 
-### 7.2 单元/集成测试层
-
-- `python3 -m app.evaluation.runner` —— 八维度综合评估（准确率、鲁棒性、完整性、回复速度、回复质量、功能、API 鲁棒性、框架自测）
+- `python3 -m app.evaluation.runner` — 八维度评估（准确率、鲁棒性、完整性、回复速度、回复质量、功能、API 鲁棒性、框架自测）
 - 涵盖模块：`memory.store`、`characters`、`safety`、`knowledge`、`llm.base`、`orchestrator`
 
-### 7.3 框架自测层
+### 手工体验层
 
-- `app/evaluation/tests/test_completeness.py` —— 完整性检查器自测
-- `app/evaluation/tests/test_prompt_eval.py` —— Prompt 评估器自测
-- `app/evaluation/tests/test_runner_integration.py` —— Runner 端到端集成测试
-
-### 7.4 手工体验评估层
-
-- `python3 -m app.evaluation.manual_eval` —— 基于 cases.yaml 的半自动评估
-- 输出待人工评分表到 `eval_reports/manual_eval_{timestamp}.json`
-- 所有 case 的 `status` 为 `pending_manual_review` 时，不构成 Gate 4 通过证据
-
-### 7.5 Prompt 质量评估层
-
-- Web UI `/prompt-inspector` —— 实时追踪每次 LLM 调用、质量评分、JSON 有效性
+- `python3 -m app.evaluation.manual_eval` — 基于 cases.yaml 的半自动评估
+- Web UI `/prompt-inspector` — LLM 调用追踪、token 用量、质量评分
 
 ### 手动检查清单
 
-Manual checks should cover: starting a session, sending a message, ending/summarizing a session, viewing dashboard data, switching roles, and group-auto role selection.
+覆盖：启动会话、发送消息、结束/总结会话、查看仪表盘、切换角色、group-auto 角色选择。
 
 ---
 
-## 8. Commit & Pull Request Guidelines
+## 8. Commit 规范
 
-Recent history uses mixed conventional and Chinese commit messages, such as `feat(web): ...`, `style(control-panel): ...`, and `docs(prompts): ...`. Prefer `type(scope): summary` when possible.
-
-Pull requests should include: purpose, key files changed, validation commands run, screenshots for UI changes, and notes about any prompt, memory, or safety behavior changes.
+- 格式：`type(scope): 描述`
+- 常用 type：`feat`、`fix`、`refactor`、`perf`、`style`、`docs`、`chore`
+- 中文或英文描述均可
+- PR 应包含：改动目的、关键文件、验证命令及结果、UI 改动截图
 
 ---
 
-## 9. 安全与配置
+## 9. 安全
 
-Keep API keys in `.env`; never hard-code or commit secrets. Use `.env.example` for new configuration names. Be careful with `data/app.db` and `logs/app.log`, because they may contain private conversation data.
+- API Key 放在 `.env`（模板：`.env.example`），绝不提交
+- `data/` 和 `logs/` 在 `.gitignore` 中（可能含私密对话数据）
+- 不在代码或测试中硬编码真实对话内容
