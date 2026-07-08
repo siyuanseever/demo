@@ -1,22 +1,35 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
-## Project Overview
+## Project Identity
 
-**小动物夜谈会** — a psychological companion chat app with two runtimes:
+**小动物夜谈会** — a personal macOS app for emotional wellness, daily reflection, and gentle companionship.
 
-- **Python backend** (`app/`) — Web UI (Quart/SSE), CLI, LLM orchestration, memory/knowledge store, evaluation framework
-- **SwiftUI app** (`ios/XiaodongwuYetanhui/`) — Mac Catalyst app (migrating toward native macOS per Roadmap N0-N5), currently the primary product surface
+- A personal-use Mac app (not a commercial product)
+- Core features: daily conversation, emotion check-in, life recording, timed reminders
+- Two runtimes: **SwiftUI Mac App** (primary) + **Python backend** (data/LLM baseline)
+- Currently: Mac Catalyst, migrating toward native macOS (see ROADMAP.md N0-N5)
+- Primary dev tools: Claude Code + Codex
 
 The Python backend (`data/app.db`) is the authoritative data source. The Mac app's sandboxed SQLite is a cache synced via local-network API.
+
+## How Claude Code Should Work Here
+
+You are a **pair programmer** helping a solo developer build a personal Mac app. Your job is to be helpful, practical, and careful:
+
+- **Understand before changing.** Read relevant code and docs before making edits.
+- **Keep changes small.** One logical change per commit. Don't refactor and add features in the same diff.
+- **Verify your work.** Run the appropriate gate commands after code changes (see below). Don't skip this.
+- **Be honest about uncertainty.** If you're not sure about something — especially around safety logic, user data, or architectural decisions — say so and ask.
+- **Respect the project's character.** This is a warm, gentle app about emotional wellness. Code and copy should reflect that tone.
 
 ## Common Commands
 
 ### Python Backend
 
 ```bash
-# Start Web UI (default: http://127.0.0.1:8765)
+# Start Web UI (http://127.0.0.1:8765)
 python3 -m app.web
 
 # CLI mode
@@ -24,9 +37,6 @@ python3 -m app.main
 
 # Test mode (no real LLM calls)
 LLM_PROVIDER=fake python3 -m app.web
-
-# DeepSeek connectivity test
-python3 -m app.ping_deepseek
 
 # View logs
 tail -f logs/app.log
@@ -41,7 +51,7 @@ python3 -m compileall app
 # SSE/JS contract check
 python3 -m app.evaluation.check_sse_stream
 
-# Full evaluation suite (Gate 1) — 8 dimensions, requires ≥95% pass
+# Full evaluation suite (Gate 1) — 8 dimensions, ≥95% pass required
 python3 -m app.evaluation.runner
 
 # Diagnose test failures
@@ -51,7 +61,7 @@ python3 -m app.evaluation.diagnose
 python3 -m app.evaluation.manual_eval
 ```
 
-### Standard post-change validation
+### Post-Change Validation
 
 ```bash
 # Python changes
@@ -64,7 +74,7 @@ python3 -m compileall app && python3 -m app.evaluation.check_sse_stream && pytho
 python3 -m compileall app && python3 -m app.evaluation.runner && python3 -m app.evaluation.manual_eval
 ```
 
-### Mac (Catalyst) Build
+### Mac Build
 
 ```bash
 # Build and launch via script
@@ -86,7 +96,7 @@ xcodebuild -project ios/XiaodongwuYetanhui.xcodeproj \
 
 | Module | Purpose |
 |--------|---------|
-| `app/web.py` | Web UI: Quart HTTP routes, embedded HTML/CSS/JS, SSE streaming (~155KB monolithic) |
+| `app/web.py` | Web UI: Quart HTTP routes, embedded HTML/CSS/JS, SSE streaming |
 | `app/main.py` | CLI entry point |
 | `app/agents/orchestrator.py` | Session orchestration, conversation logic, turn planning |
 | `app/agents/safety.py` | Content safety checks |
@@ -108,8 +118,6 @@ Key design: 4-role response structure — empathy → need → main → anchor. 
 
 | Path | Purpose |
 |------|---------|
-| `App/XiaodongwuYetanhuiApp.swift` | App entry point |
-| `App/AppRootView.swift` | Root view with tab navigation |
 | `Views/MacPrototypeView.swift` | Primary Mac chat UI (main development surface) |
 | `Views/ChatView.swift` | Chat interface |
 | `Views/SettingsView.swift` | Settings (API key, sync config) |
@@ -137,26 +145,25 @@ User Input → orchestrator.py → safety.py → LLM (DeepSeek) → response
           knowledge/retriever.py             characters.py
 ```
 
-iOS app either calls DeepSeek directly (`LocalDeepSeekService`) or syncs with the Python backend over local network (HTTP API with sync token auth).
+The Mac app either calls DeepSeek directly (`LocalDeepSeekService`) or syncs with the Python backend over local network.
 
 ## Key Conventions
 
 - Python: 3.12+, 4-space indent, snake_case
-- Git commits: `type(scope): summary` (conventional commits, often Chinese descriptions)
+- Git commits: `type(scope): summary` (conventional commits)
 - API keys in `.env` (template: `.env.example`), never committed
 - `data/` and `logs/` are gitignored (may contain private conversation data)
 - Character assets: lowercase-hyphenated filenames (`mianmian-sheep-cozy.webp`)
 
-## Critical Active Incidents
+## Active Incidents
 
 - **MAC-MEM-GROWTH-001**: Memory growth to ~65GB — see `docs/automation/mac-memory-incident-playbook.md`
 - **Mac freeze on send**: See `docs/automation/mac-freeze-incident-playbook.md`
 
 ## Reference Files
 
-- `AGENTS.md` — Full governance: gate criteria, agent roles (Checker/Fixer/Executor/PM), worktree protocol, incident playbooks
-- `plan.md` — Current phase plan (Catalyst stabilization)
+- `AGENTS.md` — Engineering guide: quality gates, dev workflow, conventions
+- `plan.md` — Current phase plan
 - `ROADMAP.md` — Long-term N0-N5 native macOS migration
 - `TODO.md` — Detailed task breakdown
 - `status.md` — Current status and known issues
-- `docs/automation/` — Automation protocol, agent prompts, incident playbooks
