@@ -438,6 +438,27 @@ final class LocalDeepSeekService {
         )
     }
 
+    /// 发送一次 requestPlan API 请求，返回 content 文本
+    private func requestPlanAPI(
+        apiKey: String,
+        prompt: String,
+        maxTokens: Int,
+        thinking: Bool
+    ) async throws -> String {
+        let request = try buildJSONRequest(
+            apiKey: apiKey,
+            messages: [DeepSeekMessage(role: "system", content: prompt)],
+            maxTokens: maxTokens,
+            thinking: thinking
+        )
+        let (data, _) = try await session.data(for: request)
+        let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        guard let content = payload.choices.first?.message.content else {
+            throw LocalDeepSeekError.invalidResponse
+        }
+        return content
+    }
+
     private func requestPlan(
         apiKey: String,
         history: [ChatMessage],
@@ -477,21 +498,29 @@ final class LocalDeepSeekService {
         response_guidance, reason。
         默认形态可参考 \(fallbackCharacter.id)，但应根据本轮真实需要重新选择。
         """
-        let request = try buildJSONRequest(
+        // 首次尝试：启用 thinking，给足够的 token 预算（thinking 和 content 共享 max_tokens）
+        var content = try await requestPlanAPI(
             apiKey: apiKey,
-            messages: [DeepSeekMessage(role: "system", content: prompt)],
-            maxTokens: 2200,
+            prompt: prompt,
+            maxTokens: 4000,
             thinking: true
         )
-        let (data, _) = try await session.data(for: request)
-        let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
-        guard let content = payload.choices.first?.message.content else {
-            throw LocalDeepSeekError.invalidResponse
-        }
         fputs("[LocalDeepSeek] requestPlan: content 长度: \(content.count)\n", stderr)
 
+        // 如果 thinking 消耗了全部 token 导致 content 为空，用 thinking=false 重试
+        if content.isEmpty {
+            fputs("[LocalDeepSeek] requestPlan: content 为空（thinking 可能耗尽 token），用 thinking=false 重试\n", stderr)
+            content = try await requestPlanAPI(
+                apiKey: apiKey,
+                prompt: prompt,
+                maxTokens: 2200,
+                thinking: false
+            )
+            fputs("[LocalDeepSeek] requestPlan 重试: content 长度: \(content.count)\n", stderr)
+        }
+
         // 和 Python 后端 parse_json_object 一致的容错解析
-        guard let dict = parseJSONObject(content) else {
+        guard !content.isEmpty, let dict = parseJSONObject(content) else {
             fputs("[LocalDeepSeek] requestPlan: JSON 解析失败\n", stderr)
             throw LocalDeepSeekError.invalidResponse
         }
