@@ -226,30 +226,34 @@ private struct MacConversationWorkspace: View {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: 16) {
-                                ForEach(store.messages) { message in
-                                    MacMessageRow(message: message)
-                                        .id(message.id)
-                                }
-
-                                if let summary = store.latestCloseSummary {
-                                    MacSessionCloseResultCard(summary: summary)
-                                        .id(summary.id)
-                                }
-
-                                if store.isSending {
-                                    MacThinkingRow(
-                                        character: store.selectedCharacter,
-                                        status: store.chatOperationStatus
-                                    )
-                                }
+                        List {
+                            ForEach(store.messages) { message in
+                                MacMessageRow(message: message)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 32))
                             }
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 28)
-                            .frame(maxWidth: 900)
-                            .frame(maxWidth: .infinity)
+
+                            if let summary = store.latestCloseSummary {
+                                MacSessionCloseResultCard(summary: summary)
+                                    .id(summary.id)
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 32))
+                            }
+
+                            if store.isSending {
+                                MacThinkingRow(
+                                    character: store.selectedCharacter,
+                                    status: store.chatOperationStatus
+                                )
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 32))
+                            }
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                         .background(
                             LinearGradient(
                                 colors: [
@@ -425,7 +429,6 @@ private struct MacMessageRow: View {
                         Text(message.content)
                             .font(.system(size: 17))
                             .foregroundStyle(message.role == .user ? Color.primary.opacity(0.72) : Color.primary)
-                            .textSelection(.enabled)
 
                         if !message.knowledgeCards.isEmpty {
                             VStack(alignment: .leading, spacing: 7) {

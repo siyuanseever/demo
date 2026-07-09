@@ -115,7 +115,7 @@ final class SendInstrumentation {
 
     private func startHeartbeat() {
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
-        timer.schedule(deadline: .now(), repeating: .milliseconds(200), leeway: .milliseconds(50))
+        timer.schedule(deadline: .now(), repeating: .milliseconds(500), leeway: .milliseconds(100))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let shouldScheduleTick = self.queue.sync {
@@ -139,7 +139,7 @@ final class SendInstrumentation {
 
     private func startHangDetection() {
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
-        timer.schedule(deadline: .now() + 1.0, repeating: .milliseconds(500), leeway: .milliseconds(100))
+        timer.schedule(deadline: .now() + 2.0, repeating: .milliseconds(1000), leeway: .milliseconds(200))
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let now = Date()

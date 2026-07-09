@@ -71,7 +71,7 @@ final class CompanionStore: ObservableObject {
 
     /// Maximum number of messages kept in memory for display.
     /// Older messages remain in SQLite and are re-fetched on session resume.
-    private let maxDisplayMessages = 200
+    private let maxDisplayMessages = 100
 
     /// Shared database connection reused across operations to avoid
     /// repeated sqlite3_open / sqlite3_close cycles.
