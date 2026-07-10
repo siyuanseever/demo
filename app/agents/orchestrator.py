@@ -972,7 +972,7 @@ class ConversationOrchestrator:
                 call_type="reply",
                 session_id=session_id,
                 temperature=0.75,
-                max_tokens=1100,
+                max_tokens=2000,
                 response_format={"type": "json_object"} if route_plan else None,
                 thinking="disabled",
             )

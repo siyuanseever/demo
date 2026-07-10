@@ -1153,17 +1153,26 @@ final class CompanionStore: ObservableObject {
                 apiKey: apiKey,
                 database: database
             ) { quickReply in
-                Task { @MainActor in
-                    self.appendMessage(quickReply)
-                    SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: correlationID)
-                    self.chatOperationStatus = "已收到快速回应，正在继续识别意图并深入理解…"
-                    fputs("[sendLocalChatText] 快速回复已添加到UI\n", stderr)
-                }
+                self.appendMessage(quickReply)
+                SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: correlationID)
+                self.chatOperationStatus = "已收到快速回应，后台正在规划下一步…"
+                fputs("[sendLocalChatText] 快速回复已添加到UI\n", stderr)
             }
-            fputs("[sendLocalChatText] send 成功, 快速回复: \(result.quickReply != nil), 深度回复: \(result.deepReply.content.count)字符\n", stderr)
+            fputs("[sendLocalChatText] send 成功, quick: \(result.quickReply != nil), next_action: \(result.nextAction), follow_up: \(result.followUpReply != nil)\n", stderr)
             SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
-            appendMessage(result.deepReply)
-            chatNotice = "本地模式：直接连接 DeepSeek。"
+            if let followUpReply = result.followUpReply {
+                appendMessage(followUpReply)
+            }
+            switch result.nextAction {
+            case "quick_only":
+                chatNotice = "这一轮即时回应已经足够，后台没有追加深度回复。"
+            case "quick_only_plan_failed":
+                chatNotice = "即时回应已经显示，但后台规划暂时没有完成。"
+            case "quick_only_deep_failed":
+                chatNotice = "即时回应已经显示，但后续深度回复暂时没有完成。"
+            default:
+                chatNotice = "本地模式：直接连接 DeepSeek。"
+            }
             backendStatus = BackendConnectionStatus(
                 state: .online,
                 baseURL: "DeepSeek API",

@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-06（Mac 双阶段回复卡死止血）
+> 最后更新时间：2026-07-10（Mac quick/plan 并行回复链路）
 
 ---
 
@@ -45,6 +45,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 启动持续存活/核心页面 | 本机启动持续 8 分钟以上；夜谈、心流页面可达 |
 | 卡死复现与性能 trace | 未完成 |
 | 快速回复后等待深度回复卡死 | `fixed_pending_verification`：Mac 使用精简 SSE、跳过重复 final 解码，并取消回复后立即全量同步 |
+| Mac 本地直连回复顺序 | `implemented_pending_runtime_verification`：quick 与 plan 并行启动；quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
 | 单条消息发送后卡死、后端无请求 | P0，仍需按独立复现场景验证 |
 | 内存持续增长至约 65GB | `fixed_pending_verification`：已修 MEM-001/MEM-002 和 SSE 1MB 上限，等待发送/同步/20 分钟 soak 独立复验 |
 | 自动刷新 | 当前 `syncIfNeeded()` 不执行同步，仍依赖手动刷新 |
@@ -58,7 +59,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 
 ## 当前 P0
 
-1. 对 Mac 双阶段发送执行连续 10 轮真实发送，确认快速回复、深度回复、界面响应和 correlation ID 完整。
+1. 对 Mac 双阶段发送执行连续 10 轮真实发送，确认 quick 先显示、plan 后决策、按需追加 follow-up，且界面响应和 correlation ID 完整。
 2. Checker 对 `30c0d36` 前后执行内存 A/B，并复验 `MAC-MEM-GROWTH-001` 修复。
 3. 完成真实发送、离线后端、页面切换、同步和 20 分钟 soak；2GB 自动止损。
 4. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。

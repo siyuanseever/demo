@@ -63,7 +63,8 @@ struct LocalChatResult {
     let sessionID: String
     let userMessage: ChatMessage
     let quickReply: ChatMessage?
-    let deepReply: ChatMessage
+    let followUpReply: ChatMessage?
+    let nextAction: String
 }
 
 struct LocalJournalDraft {
@@ -99,6 +100,7 @@ struct LocalStateProfileDraft {
 }
 
 private struct LocalRoutePlan {
+    let nextAction: String
     let userState: String
     let coreNeed: String
     let riskLevel: String
@@ -110,9 +112,11 @@ private struct LocalRoutePlan {
     let knowledgeQueries: [String]
     let responseGuidance: String
     let reason: String
+    let actionReply: String
 
     var metadata: [String: Any] {
         [
+            "next_action": nextAction,
             "user_state": userState,
             "core_need": coreNeed,
             "risk_level": riskLevel,
@@ -124,6 +128,7 @@ private struct LocalRoutePlan {
             "knowledge_queries": knowledgeQueries,
             "response_guidance": responseGuidance,
             "reason": reason,
+            "action_reply": actionReply,
         ]
     }
 
@@ -131,7 +136,7 @@ private struct LocalRoutePlan {
         let character = CompanionFixtures.character(id: characterID)
         let name = character?.name ?? "森森兔"
         let expression = character?.expression(id: expressionID)?.label ?? expressionID
-        return "本轮规划 · \(responseMode)：\(name) · \(expression)；\(reason)"
+        return "本轮规划 · \(nextAction) · \(responseMode)：\(name) · \(expression)；\(reason)"
     }
 }
 
@@ -285,12 +290,13 @@ final class LocalDeepSeekService {
         )
     }
 
+    @MainActor
     func send(
         text: String,
         character: CompanionCharacter,
         apiKey: String,
         database: SQLiteDatabase,
-        onQuickReply: ((ChatMessage) -> Void)? = nil
+        onQuickReply: (@MainActor (ChatMessage) -> Void)? = nil
     ) async throws -> LocalChatResult {
         fputs("[LocalDeepSeek] send 开始，text: \(text)\n", stderr)
         let activeSessionID: String
@@ -313,60 +319,44 @@ final class LocalDeepSeekService {
         let profiles = database.stateProfiles(limit: 8)
         fputs("[LocalDeepSeek] 历史消息数: \(history.count), 状态画像数: \(profiles.count)\n", stderr)
         
-        fputs("[LocalDeepSeek] 开始 requestPlan...\n", stderr)
-        let plan: LocalRoutePlan
-        do {
-            plan = try await requestPlan(
-                apiKey: apiKey,
-                history: history,
-                profiles: profiles,
-                fallbackCharacter: character
-            )
-            fputs("[LocalDeepSeek] requestPlan 成功, character_id: \(plan.characterID)\n", stderr)
-        } catch {
-            fputs("[LocalDeepSeek] requestPlan 失败: \(error)\n", stderr)
-            throw error
-        }
-        
-        let selectedCharacter = CompanionFixtures.character(id: plan.characterID) ?? character
-        let memories = database.contextMemories(
-            queryTerms: plan.memoryQueries,
-            limit: 8
+        fputs("[LocalDeepSeek] 并行启动 requestQuickReply + requestPlan\n", stderr)
+        let parallelStartedAt = Date()
+        async let planOperation = requestPlan(
+            apiKey: apiKey,
+            history: history,
+            profiles: profiles,
+            fallbackCharacter: character
         )
-        let knowledgeCards = Self.retrieveKnowledgeCards(
-            queryTerms: plan.knowledgeNeeds + plan.knowledgeQueries,
-            limit: 3
+        async let quickOperation = requestQuickReply(
+            apiKey: apiKey,
+            character: character,
+            history: history
         )
-        
-        fputs("[LocalDeepSeek] 开始 requestQuickReply...\n", stderr)
+
         let quickReply: LocalReplyDraft?
         do {
-            quickReply = try await requestQuickReply(
-                apiKey: apiKey,
-                character: selectedCharacter,
-                history: history,
-                plan: plan
-            )
+            quickReply = try await quickOperation
             if let qr = quickReply {
-                fputs("[LocalDeepSeek] requestQuickReply 成功, 回复长度: \(qr.reply.count)\n", stderr)
+                let elapsed = Date().timeIntervalSince(parallelStartedAt)
+                fputs("[LocalDeepSeek] requestQuickReply 成功, elapsed: \(String(format: "%.2f", elapsed))s, 回复长度: \(qr.reply.count)\n", stderr)
             }
         } catch {
             fputs("[LocalDeepSeek] requestQuickReply 失败: \(error)\n", stderr)
             quickReply = nil
         }
-        
-        let quickExpressionID = selectedCharacter.expression(id: quickReply?.expressionID ?? plan.expressionID)?.id
-            ?? selectedCharacter.defaultExpressionID
+
+        let quickExpressionID = character.expression(id: quickReply?.expressionID ?? character.defaultExpressionID)?.id
+            ?? character.defaultExpressionID
         var quickMessage: ChatMessage? = nil
         if let qr = quickReply {
             let qm = database.addLocalMessage(
                 sessionID: activeSessionID,
                 role: .assistant,
                 content: qr.reply,
-                characterID: selectedCharacter.id,
+                characterID: character.id,
                 expressionID: quickExpressionID,
                 model: "deepseek-chat",
-                routePlan: plan.metadata,
+                routePlan: ["next_action": "pending_plan"],
                 knowledgeCards: []
             )
             quickMessage = ChatMessage(
@@ -387,7 +377,80 @@ final class LocalDeepSeekService {
                 fputs("[LocalDeepSeek] 快速回复回调已触发\n", stderr)
             }
         }
-        
+
+        let plan: LocalRoutePlan
+        do {
+            plan = try await planOperation
+            let elapsed = Date().timeIntervalSince(parallelStartedAt)
+            fputs("[LocalDeepSeek] requestPlan 成功, elapsed: \(String(format: "%.2f", elapsed))s, next_action: \(plan.nextAction), character_id: \(plan.characterID)\n", stderr)
+        } catch {
+            fputs("[LocalDeepSeek] requestPlan 失败: \(error)\n", stderr)
+            if quickMessage != nil {
+                return LocalChatResult(
+                    sessionID: activeSessionID,
+                    userMessage: userMessage,
+                    quickReply: quickMessage,
+                    followUpReply: nil,
+                    nextAction: "quick_only_plan_failed"
+                )
+            }
+            throw error
+        }
+
+        let selectedCharacter = CompanionFixtures.character(id: plan.characterID) ?? character
+        let normalizedAction = normalizeNextAction(plan.nextAction)
+        if normalizedAction == "quick_only", quickMessage != nil {
+            fputs("[LocalDeepSeek] plan 决定 quick_only，本轮不再生成第二次回复\n", stderr)
+            return LocalChatResult(
+                sessionID: activeSessionID,
+                userMessage: userMessage,
+                quickReply: quickMessage,
+                followUpReply: nil,
+                nextAction: normalizedAction
+            )
+        }
+
+        if ["clarify", "interaction"].contains(normalizedAction), quickMessage != nil {
+            let actionText = plannedActionReply(plan: plan, character: selectedCharacter)
+            let actionMessage = database.addLocalMessage(
+                sessionID: activeSessionID,
+                role: .assistant,
+                content: actionText,
+                characterID: selectedCharacter.id,
+                expressionID: plan.expressionID,
+                model: "route-plan",
+                routePlan: plan.metadata,
+                knowledgeCards: []
+            )
+            return LocalChatResult(
+                sessionID: activeSessionID,
+                userMessage: userMessage,
+                quickReply: quickMessage,
+                followUpReply: ChatMessage(
+                    id: actionMessage.id,
+                    role: actionMessage.role,
+                    content: actionMessage.content,
+                    characterID: actionMessage.characterID,
+                    createdAt: actionMessage.createdAt,
+                    groupRole: actionMessage.groupRole,
+                    action: normalizedAction,
+                    expressionID: actionMessage.expressionID,
+                    routeSummary: plan.summary,
+                    knowledgeCards: []
+                ),
+                nextAction: normalizedAction
+            )
+        }
+
+        let memories = database.contextMemories(
+            queryTerms: plan.memoryQueries,
+            limit: 8
+        )
+        let knowledgeCards = Self.retrieveKnowledgeCards(
+            queryTerms: plan.knowledgeNeeds + plan.knowledgeQueries,
+            limit: 3
+        )
+
         fputs("[LocalDeepSeek] 开始 requestDeepReply...\n", stderr)
         let deepReply: LocalReplyDraft
         do {
@@ -398,11 +461,21 @@ final class LocalDeepSeekService {
                 memories: memories,
                 profiles: profiles,
                 knowledgeCards: knowledgeCards,
-                plan: plan
+                plan: plan,
+                quickReplyText: quickReply?.reply
             )
             fputs("[LocalDeepSeek] requestDeepReply 成功, 回复长度: \(deepReply.reply.count)\n", stderr)
         } catch {
             fputs("[LocalDeepSeek] requestDeepReply 失败: \(error)\n", stderr)
+            if quickMessage != nil {
+                return LocalChatResult(
+                    sessionID: activeSessionID,
+                    userMessage: userMessage,
+                    quickReply: quickMessage,
+                    followUpReply: nil,
+                    nextAction: "quick_only_deep_failed"
+                )
+            }
             throw error
         }
         
@@ -423,7 +496,7 @@ final class LocalDeepSeekService {
             sessionID: activeSessionID,
             userMessage: userMessage,
             quickReply: quickMessage,
-            deepReply: ChatMessage(
+            followUpReply: ChatMessage(
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: assistantMessage.content,
@@ -434,8 +507,27 @@ final class LocalDeepSeekService {
                 expressionID: assistantMessage.expressionID,
                 routeSummary: plan.summary,
                 knowledgeCards: knowledgeCards
-            )
+            ),
+            nextAction: "deep"
         )
+    }
+
+    private func normalizeNextAction(_ value: String) -> String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ["deep", "quick_only", "clarify", "interaction"].contains(normalized)
+            ? normalized
+            : "deep"
+    }
+
+    private func plannedActionReply(plan: LocalRoutePlan, character: CompanionCharacter) -> String {
+        let provided = plan.actionReply.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !provided.isEmpty {
+            return provided
+        }
+        if normalizeNextAction(plan.nextAction) == "interaction" {
+            return "\(character.name)想先陪你慢一点。我们一起做一次轻轻的呼吸：吸气、停一下，再慢慢呼出去。做完以后，你愿意告诉我身体有没有松开一点吗？"
+        }
+        return "\(character.name)想再确认一下：你此刻更需要的是有人理解这份感受，还是一起理清接下来可以怎么做？"
     }
 
     /// 发送一次 requestPlan API 请求，返回 content 文本
@@ -478,7 +570,7 @@ final class LocalDeepSeekService {
         }.joined(separator: "\n")
         let prompt = """
         你是“森森物语”的本轮策略规划器，不直接回复用户。
-        请结合当前对话和全部长期状态，规划用户状态、核心需要、风险、回复方式、兔子形态、表情和检索词。
+        请结合当前对话和全部长期状态，规划用户状态、核心需要、风险、回复方式、兔子形态、表情、检索词，以及快速回应之后是否还需要第二步动作。
         只输出 JSON，不要诊断，不要输出解释性正文。
 
         可用兔子形态：
@@ -491,11 +583,17 @@ final class LocalDeepSeekService {
         \(profileText.isEmpty ? "暂无" : profileText)
 
         JSON 字段：
+        next_action(deep|quick_only|clarify|interaction),
         user_state, core_need, risk_level(low|medium|high),
         response_mode(stabilize|validate|insight|boundary|action|mixed),
         character_id(yoyo|momo|yoran), expression_id,
         knowledge_needs(0-5项), memory_queries(0-6项), knowledge_queries(0-6项),
-        response_guidance, reason。
+        response_guidance, reason, action_reply。
+        规则：
+        - deep：需要记忆/知识检索和更完整的第二次回复。
+        - quick_only：简单问候、确认或 quick 已足够，不再追加回复。
+        - clarify：信息不足，action_reply 直接给出一句温和澄清问题。
+        - interaction：更适合一个简短练习，action_reply 直接给出低压力引导。
         默认形态可参考 \(fallbackCharacter.id)，但应根据本轮真实需要重新选择。
         """
         // 首次尝试：启用 thinking，给足够的 token 预算（thinking 和 content 共享 max_tokens）
@@ -526,6 +624,7 @@ final class LocalDeepSeekService {
         }
         fputs("[LocalDeepSeek] requestPlan: JSON 解析成功\n", stderr)
         return LocalRoutePlan(
+            nextAction: stringFromDict(dict, "next_action").isEmpty ? "deep" : stringFromDict(dict, "next_action"),
             userState: stringFromDict(dict, "user_state"),
             coreNeed: stringFromDict(dict, "core_need"),
             riskLevel: stringFromDict(dict, "risk_level").isEmpty ? "low" : stringFromDict(dict, "risk_level"),
@@ -536,7 +635,8 @@ final class LocalDeepSeekService {
             memoryQueries: stringArrayFromDict(dict, "memory_queries"),
             knowledgeQueries: stringArrayFromDict(dict, "knowledge_queries"),
             responseGuidance: stringFromDict(dict, "response_guidance"),
-            reason: stringFromDict(dict, "reason")
+            reason: stringFromDict(dict, "reason"),
+            actionReply: stringFromDict(dict, "action_reply")
         )
     }
 
@@ -569,19 +669,14 @@ final class LocalDeepSeekService {
     private func requestQuickReply(
         apiKey: String,
         character: CompanionCharacter,
-        history: [ChatMessage],
-        plan: LocalRoutePlan
+        history: [ChatMessage]
     ) async throws -> LocalReplyDraft {
         let prompt = """
-        你是 \(character.name)，一位温柔的陪伴者。请根据以下信息，给出一个简短、温暖、即时的回应，让用户感到被听见和理解。
-
-        核心需要：\(plan.coreNeed)
-        回复方式：\(plan.responseMode)
-        表情：\(plan.expressionID)
+        你是 \(character.name)，一位温柔、克制的心理陪伴者。你正在生成即时回应；后台会同时进行更完整的意图分析，所以不要等待分析结果。
 
         用户最后一句话：\(history.last?.content ?? "")
 
-        请用 1-2 句话回应，不要深入分析，只需表达理解和陪伴。
+        请用 1-2 句话先接住用户，让用户明确感到消息已经被听见。不要深入分析，不要给复杂建议，也不要声称已经了解用户没有说出的内容。
         输出格式：JSON，包含 reply 和 expression_id 字段。
         """
         let request = try buildJSONRequest(
@@ -599,12 +694,12 @@ final class LocalDeepSeekService {
         if let dict = parseJSONObject(content) {
             return LocalReplyDraft(
                 reply: stringFromDict(dict, "reply"),
-                expressionID: stringFromDict(dict, "expression_id").isEmpty ? plan.expressionID : stringFromDict(dict, "expression_id")
+                expressionID: stringFromDict(dict, "expression_id").isEmpty ? character.defaultExpressionID : stringFromDict(dict, "expression_id")
             )
         }
         return LocalReplyDraft(
             reply: content.trimmingCharacters(in: .whitespacesAndNewlines),
-            expressionID: plan.expressionID
+            expressionID: character.defaultExpressionID
         )
     }
 
@@ -615,21 +710,24 @@ final class LocalDeepSeekService {
         memories: [MemoryEntry],
         profiles: [StateProfile],
         knowledgeCards: [KnowledgeCard],
-        plan: LocalRoutePlan
+        plan: LocalRoutePlan,
+        quickReplyText: String? = nil
     ) async throws -> LocalReplyDraft {
         let prompt = systemPrompt(
             character: character,
             memories: memories,
             profiles: profiles,
             knowledgeCards: knowledgeCards,
-            plan: plan
+            plan: plan,
+            quickReplyText: quickReplyText
         )
         fputs("[LocalDeepSeek] requestDeepReply: 历史消息数: \(history.count)\n", stderr)
-        let recentHistory = history.suffix(6).map { msg in
-            let content = msg.content.count > 400 ? String(msg.content.prefix(400)) + "..." : msg.content
-            return "\(msg.role == .user ? "用户" : character.name)：\(content)"
+        let recentHistory = history.suffix(20).map { msg in
+            let roleLabel = msg.role == .user ? "用户" : character.name
+            let content = msg.content.count > 1200 ? String(msg.content.prefix(1200)) + "…" : msg.content
+            return "\(roleLabel)：\(content)"
         }.joined(separator: "\n")
-        let promptWithHistory = prompt + "\n\n当前对话历史（最近几条）：\n\(recentHistory)\n"
+        let promptWithHistory = prompt + "\n\n当前对话历史：\n\(recentHistory)\n"
         let lastUserText = history.last?.content ?? ""
         let request = try buildJSONRequest(
             apiKey: apiKey,
@@ -637,7 +735,7 @@ final class LocalDeepSeekService {
                 DeepSeekMessage(role: "system", content: promptWithHistory),
                 DeepSeekMessage(role: "user", content: lastUserText)
             ],
-            maxTokens: 1400,
+            maxTokens: 2400,
             thinking: false
         )
         let (data, _) = try await session.data(for: request)
@@ -812,44 +910,50 @@ final class LocalDeepSeekService {
         memories: [MemoryEntry],
         profiles: [StateProfile],
         knowledgeCards: [KnowledgeCard],
-        plan: LocalRoutePlan
+        plan: LocalRoutePlan,
+        quickReplyText: String? = nil
     ) -> String {
-        let memoryText = memories.map { "- \($0.content)" }.joined(separator: "\n")
-        let profileText = profiles.map { "- \($0.domain)：\($0.summary)" }.joined(separator: "\n")
+        let memoryText = memories.map { "- [\($0.category)/\($0.subcategory)] \($0.content)（关键词：\($0.keywords.joined(separator: "、"))）" }.joined(separator: "\n")
+        let profileText = profiles.map { "- [\($0.domain)] 阶段：\($0.stage)；摘要：\($0.summary)；趋势：\($0.trend)；强度：\($0.intensity)/10" }.joined(separator: "\n")
         let knowledgeText = knowledgeCards.map { "- \($0.title)：\($0.concept)" }.joined(separator: "\n")
+        let quickContext = quickReplyText.map { "\n你刚才已经快速回应了用户一句话：「\($0)」。现在请你在这个基础上展开更完整、更深入的回复。不要重复刚才已经说过的那句话，而是从那里继续往前推进一层。" } ?? ""
         return """
-        JSON 格式输出要求：你必须严格按照 JSON 格式输出，只输出 JSON，不要输出任何解释性文字。JSON 格式为 {"reply":"回复正文","expression_id":"表情 id"}。
-        
-        你是森森物语里的\(character.name)，是一位温和、清醒、有边界的自我理解型心理陪伴者，不是治疗师，也不做诊断。
+        你是森森物语里的\(character.name)，是一位温和、清醒、有边界的自我理解型心理陪伴者。
+
+        你的职责不是给建议、不是安慰、不是讲道理。你的职责是：帮用户看清自己此刻正在经历什么。
+
+        \(quickContext)
 
         回应要求：
-        - 优先复述和澄清用户的感受，不急着解释。
-        - 每次最多引入一个心理学视角。
-        - 给出一个很小、现实、低压力的下一步。
-        - 不制造依赖，不强行积极。
-        - 如出现明确自伤、他伤或现实危险，优先建议联系当地紧急服务和可信任的现实支持。
-        - 使用中文，通常 3-7 段。
-        - 只输出 JSON：{"reply":"回复正文","expression_id":"当前形态可用表情 id"}。
+        - 用你自己的话复述用户的感受和处境，让用户感到「你确实听懂了」。
+        - 把你读到的长期记忆或状态画像里相关的内容，自然地编织进回应里。比如「我记得你之前提到过……」或「从最近的状态来看，你似乎在……」。这让用户感到被记住、被理解。
+        - 如果记忆中有和当前话题直接相关的内容，一定要引用它。这是你最有价值的地方——你不是一个只会说套话的机器人，你真的记得用户说过什么。
+        - 最多引入一个心理知识视角，但不要生硬地贴标签。用日常语言解释，让它感觉像是你在理解用户的过程中自然联想到的，而不是在给用户上课。
+        - 结尾给一个很小、很具体、不费力的下一步。不是「你可以试试多休息」，而是更具体的——比如「如果今晚你发现自己又在反复想这件事，可以先停下来，喝一口水，告诉自己：这件事我明天再想。」
+        - 不制造依赖，不强行积极，不给空洞的安慰。你的温度来自理解，不来自甜言蜜语。
+        - 如果用户表现出自伤、他伤或现实危险，优先建议联系当地紧急服务和可信任的现实支持。
+        - 使用中文，4-8 段。
+        - 只输出 JSON：{"reply":"回复正文","expression_id":"表情 id"}。
 
-        当前角色气质：\(character.tagline)。\(character.voice)
+        关于你——\(character.name)：
+        \(character.tagline)
+        \(character.voice)
 
-        本轮规划：
+        本轮分析：
         - 用户状态：\(plan.userState)
         - 核心需要：\(plan.coreNeed)
         - 风险等级：\(plan.riskLevel)
         - 回复模式：\(plan.responseMode)
-        - 写作提醒：\(plan.responseGuidance)
+        - 写作方向：\(plan.responseGuidance)
 
-        手机本地保存的长期记忆：
+        用户过往的长期记忆（请注意：这些是你应该引用的素材）：
         \(memoryText.isEmpty ? "暂无" : memoryText)
 
-        手机本地保存的长期状态：
+        用户的长期状态画像：
         \(profileText.isEmpty ? "暂无" : profileText)
 
-        本轮检索到的心理知识卡：
-        \(knowledgeText.isEmpty ? "暂无；不要为了展示知识而强行解释。" : knowledgeText)
-
-        再次强调：你必须输出有效的 JSON 格式，包含 reply 和 expression_id 两个字段。
+        可参考的心理知识视角：
+        \(knowledgeText.isEmpty ? "暂无" : knowledgeText)
         """
     }
 
