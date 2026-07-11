@@ -3,6 +3,7 @@ import MobileCoreServices
 
 struct SettingsView: View {
     @EnvironmentObject private var store: CompanionStore
+    @EnvironmentObject private var speech: SpeechService
     @State private var apiKey = ""
     @State private var macBackendURL = ""
     @State private var macSyncToken = ""
@@ -27,6 +28,8 @@ struct SettingsView: View {
                         },
                         clear: store.clearDeepSeekAPIKey
                     )
+                    SpeechSettingsPanel()
+                        .environmentObject(speech)
                     #if targetEnvironment(macCatalyst)
                     DatabasePathPanel(
                         customPath: $customDatabasePath,
@@ -134,6 +137,60 @@ struct SettingsView: View {
         #else
         return "与 Mac 同步"
         #endif
+    }
+}
+
+private struct SpeechSettingsPanel: View {
+    @EnvironmentObject private var speech: SpeechService
+
+    var body: some View {
+        SoftPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("忧忧兔的声音", systemImage: "speaker.wave.2.fill")
+                        .font(.headline)
+                    Spacer()
+                    Text("免费 · 本机")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.green)
+                }
+
+                Text("优先使用 Mac 已安装的婷婷或其他普通话女性声线。声音完全在本机合成，不调用付费 API。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("当前声线")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(speech.voiceName)
+                            .font(.callout.weight(.medium))
+                    }
+                    Spacer()
+                    Button {
+                        speech.previewVoice()
+                    } label: {
+                        Label(
+                            speech.activeMessageID == "speech-preview" && speech.isSpeaking ? "停止试听" : "试听",
+                            systemImage: speech.activeMessageID == "speech-preview" && speech.isSpeaking
+                                ? "stop.fill"
+                                : "play.fill"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Toggle("自动朗读新回复", isOn: $speech.automaticallyReadsReplies)
+                    .font(.callout)
+
+                Text("默认关闭。开启后，忧忧兔的新回复生成时会自动朗读；第二段深入回复到达时会接替上一段声音。")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 

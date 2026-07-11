@@ -119,6 +119,7 @@
 		B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000202 /* LocalDeepSeekService.swift */; };
 		C00000000000000000000101 /* MacPrototypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000201 /* MacPrototypeView.swift */; };
 		D00000000000000000000101 /* SendInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000201 /* SendInstrumentation.swift */; };
+		E00000000000000000000101 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000201 /* SpeechService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -236,6 +237,7 @@
 		B00000000000000000000202 /* LocalDeepSeekService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDeepSeekService.swift; sourceTree = "<group>"; };
 		C00000000000000000000201 /* MacPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPrototypeView.swift; sourceTree = "<group>"; };
 		D00000000000000000000201 /* SendInstrumentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendInstrumentation.swift; sourceTree = "<group>"; };
+		E00000000000000000000201 /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -301,6 +303,7 @@
 				B00000000000000000000201 /* SecureSettingsStore.swift */,
 				B00000000000000000000202 /* LocalDeepSeekService.swift */,
 				D00000000000000000000201 /* SendInstrumentation.swift */,
+				E00000000000000000000201 /* SpeechService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -604,6 +607,7 @@
 				B00000000000000000000101 /* SecureSettingsStore.swift in Sources */,
 				B00000000000000000000102 /* LocalDeepSeekService.swift in Sources */,
 				D00000000000000000000101 /* SendInstrumentation.swift in Sources */,
+				E00000000000000000000101 /* SpeechService.swift in Sources */,
 				000000000000000000000106 /* SharedViews.swift in Sources */,
 				C00000000000000000000101 /* MacPrototypeView.swift in Sources */,
 				000000000000000000000107 /* ChatView.swift in Sources */,

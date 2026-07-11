@@ -216,6 +216,7 @@ private struct MacWorkspaceDetail: View {
 
 private struct MacConversationWorkspace: View {
     @EnvironmentObject private var store: CompanionStore
+    @EnvironmentObject private var speech: SpeechService
     @State private var draft = ""
     @State private var hoveredTurnID: String?
     @State private var selectedTurnID: String?
@@ -324,6 +325,12 @@ private struct MacConversationWorkspace: View {
         }
         .task {
             isComposerFocused = true
+        }
+        .onChange(of: store.messages.count) {
+            guard speech.automaticallyReadsReplies,
+                  let message = store.messages.last,
+                  message.role == .assistant else { return }
+            speech.speak(messageID: message.id, text: message.content)
         }
     }
 
@@ -571,6 +578,7 @@ private struct MacConversationTopBar: View {
 
 private struct MacMessageRow: View {
     @EnvironmentObject private var store: CompanionStore
+    @EnvironmentObject private var speech: SpeechService
     @State private var selectedKnowledgeCard: KnowledgeCard?
     @State private var showCopyToast = false
     let message: ChatMessage
@@ -655,6 +663,23 @@ private struct MacMessageRow: View {
                             : (store.character(id: message.characterID)?.bubbleColor ?? store.selectedCharacter.bubbleColor),
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                     )
+
+                    if message.role == .assistant {
+                        Button {
+                            speech.toggle(messageID: message.id, text: message.content)
+                        } label: {
+                            Label(
+                                speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听忧忧兔说",
+                                systemImage: speech.activeMessageID == message.id && speech.isSpeaking
+                                    ? "stop.circle.fill"
+                                    : "speaker.wave.2.fill"
+                            )
+                            .font(.caption.weight(.medium))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentPurple)
+                        .accessibilityHint("使用免费的系统中文女性声线朗读这条回复")
+                    }
                 }
                 .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)
 
