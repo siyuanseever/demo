@@ -32,6 +32,84 @@ private func parseJSONObject(_ content: String) -> [String: Any]? {
     return nil
 }
 
+private func findJSONLikeKey(
+    _ key: String,
+    in text: String,
+    range: Range<String.Index>? = nil
+) -> Range<String.Index>? {
+    let searchRange = range ?? text.startIndex..<text.endIndex
+    for marker in ["\"\(key)\"", "“\(key)”", "”\(key)”", "“\(key)\""] {
+        if let match = text.range(of: marker, range: searchRange) {
+            return match
+        }
+    }
+    return nil
+}
+
+private func trimJSONLikeString(_ value: String) -> String {
+    var result = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let quoteCharacters: Set<Character> = ["\"", "“", "”"]
+
+    if let first = result.first, quoteCharacters.contains(first) {
+        result.removeFirst()
+    }
+    result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let last = result.last, quoteCharacters.contains(last) {
+        result.removeLast()
+    }
+
+    return result
+        .replacingOccurrences(of: "\\n", with: "\n")
+        .replacingOccurrences(of: "\\r", with: "\r")
+        .replacingOccurrences(of: "\\t", with: "\t")
+        .replacingOccurrences(of: "\\\"", with: "\"")
+        .replacingOccurrences(of: "\\\\", with: "\\")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// 只针对 reply / expression_id 两个已知字段做保守恢复。
+/// 模型偶尔会把 JSON 字符串的结束引号写成中文弯引号；此时不能把整个 JSON 外壳展示给用户。
+private func parseReplyPayload(_ content: String) -> (reply: String, expressionID: String?)? {
+    if let dict = parseJSONObject(content) {
+        let reply = stringFromDict(dict, "reply").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !reply.isEmpty else { return nil }
+        let expressionID = stringFromDict(dict, "expression_id").trimmingCharacters(in: .whitespacesAndNewlines)
+        return (reply, expressionID.isEmpty ? nil : expressionID)
+    }
+
+    let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let replyKey = findJSONLikeKey("reply", in: text),
+          let replyColon = text[replyKey.upperBound...].firstIndex(of: ":"),
+          let expressionKey = findJSONLikeKey(
+              "expression_id",
+              in: text,
+              range: text.index(after: replyColon)..<text.endIndex
+          ),
+          let separator = text[..<expressionKey.lowerBound].lastIndex(of: ",") else {
+        return nil
+    }
+
+    let replyStart = text.index(after: replyColon)
+    guard replyStart <= separator else { return nil }
+    let reply = trimJSONLikeString(String(text[replyStart..<separator]))
+    guard !reply.isEmpty else { return nil }
+
+    var expressionID: String?
+    if let expressionColon = text[expressionKey.upperBound...].firstIndex(of: ":") {
+        let rawExpression = String(text[text.index(after: expressionColon)...])
+        let trimmed = rawExpression.trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines
+                .union(CharacterSet(charactersIn: "\"“”{},"))
+        )
+        let safeExpression = String(trimmed.prefix { character in
+            character.isLetter || character.isNumber || character == "_" || character == "-"
+        })
+        expressionID = safeExpression.isEmpty ? nil : safeExpression
+    }
+
+    return (reply, expressionID)
+}
+
 /// 从 parseJSONObject 的结果中安全提取值
 private func stringFromDict(_ dict: [String: Any], _ key: String) -> String {
     (dict[key] as? String) ?? ""
@@ -691,16 +769,14 @@ final class LocalDeepSeekService {
             throw LocalDeepSeekError.invalidResponse
         }
         fputs("[LocalDeepSeek] requestQuickReply: content 长度: \(content.count)\n", stderr)
-        if let dict = parseJSONObject(content) {
+        if let parsed = parseReplyPayload(content) {
             return LocalReplyDraft(
-                reply: stringFromDict(dict, "reply"),
-                expressionID: stringFromDict(dict, "expression_id").isEmpty ? character.defaultExpressionID : stringFromDict(dict, "expression_id")
+                reply: parsed.reply,
+                expressionID: parsed.expressionID ?? character.defaultExpressionID
             )
         }
-        return LocalReplyDraft(
-            reply: content.trimmingCharacters(in: .whitespacesAndNewlines),
-            expressionID: character.defaultExpressionID
-        )
+        fputs("[LocalDeepSeek] requestQuickReply: 结构化回复解析失败\n", stderr)
+        throw LocalDeepSeekError.invalidResponse
     }
 
     private func requestDeepReply(
@@ -744,18 +820,15 @@ final class LocalDeepSeekService {
             throw LocalDeepSeekError.invalidResponse
         }
         fputs("[LocalDeepSeek] requestDeepReply: content 长度: \(content.count)\n", stderr)
-        if let dict = parseJSONObject(content) {
-            fputs("[LocalDeepSeek] requestDeepReply: JSON 解析成功\n", stderr)
+        if let parsed = parseReplyPayload(content) {
+            fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析成功\n", stderr)
             return LocalReplyDraft(
-                reply: stringFromDict(dict, "reply"),
-                expressionID: stringFromDict(dict, "expression_id").isEmpty ? plan.expressionID : stringFromDict(dict, "expression_id")
+                reply: parsed.reply,
+                expressionID: parsed.expressionID ?? plan.expressionID
             )
         }
-        fputs("[LocalDeepSeek] requestDeepReply: JSON 解析失败，使用原始文本\n", stderr)
-        return LocalReplyDraft(
-            reply: content.trimmingCharacters(in: .whitespacesAndNewlines),
-            expressionID: plan.expressionID
-        )
+        fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析失败\n", stderr)
+        throw LocalDeepSeekError.invalidResponse
     }
 
     private func requestSessionExtraction(
