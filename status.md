@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-10（Mac quick/plan 并行回复链路）
+> 最后更新时间：2026-07-11（RESPONSE-VALUE-001 立项）
 
 ---
 
@@ -46,6 +46,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 卡死复现与性能 trace | 未完成 |
 | 快速回复后等待深度回复卡死 | `fixed_pending_verification`：Mac 使用精简 SSE、跳过重复 final 解码，并取消回复后立即全量同步 |
 | Mac 本地直连回复顺序 | `implemented_pending_runtime_verification`：quick 与 plan 并行启动；quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
+| Mac 对话轨迹 | `implemented_verified`：夜谈右侧显示轻量轨迹；悬停或点击展开问答预览，点击条目可定位原始用户消息 |
 | 单条消息发送后卡死、后端无请求 | P0，仍需按独立复现场景验证 |
 | 内存持续增长至约 65GB | `fixed_pending_verification`：已修 MEM-001/MEM-002 和 SSE 1MB 上限，等待发送/同步/20 分钟 soak 独立复验 |
 | 自动刷新 | 当前 `syncIfNeeded()` 不执行同步，仍依赖手动刷新 |
@@ -59,18 +60,20 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 
 ## 当前 P0
 
-1. 对 Mac 双阶段发送执行连续 10 轮真实发送，确认 quick 先显示、plan 后决策、按需追加 follow-up，且界面响应和 correlation ID 完整。
-2. Checker 对 `30c0d36` 前后执行内存 A/B，并复验 `MAC-MEM-GROWTH-001` 修复。
-3. 完成真实发送、离线后端、页面切换、同步和 20 分钟 soak；2GB 自动止损。
-4. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。
-5. 停止 PM/Executor 小时级轮询，按 P0 调度表错峰运行。
-6. 验证 PM 没有任何 Git 写操作，以及三个代码 Agent 的固定 worktree 保护。
-7. Checker 在同一 automation HEAD 上复核 Catalyst 构建、Python Gate 和 Executor 证据。
-8. 建立卡死复现场景和六条关键路径性能基线。
-9. 为发送路径建立脱敏阶段事件、correlation ID、UI heartbeat 和 hang 采样方案。
-10. 完成自动刷新触发矩阵与数据字段矩阵。
-11. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
-12. 核对最近更新记忆/日记和三篇关联日记的可见性。
+1. `RESPONSE-VALUE-001`：建立 20–30 条本地私密真实案例集，完成当前回复价值基线评分。
+2. 将 Plan 升级为 Response Strategy Agent，明确本轮价值目标、候选洞察、记忆证据和 avoid 项。
+3. 对 Mac 双阶段发送执行连续 10 轮真实发送，确认 quick 先显示、plan 后决策、按需追加 follow-up，且界面响应和 correlation ID 完整。
+4. Checker 对 `30c0d36` 前后执行内存 A/B，并复验 `MAC-MEM-GROWTH-001` 修复。
+5. 完成真实发送、离线后端、页面切换、同步和 20 分钟 soak；2GB 自动止损。
+6. 让实际定时任务加载 v3 Prompt，并用一次 dry run 证明协议、分支、cwd 和单任务约束。
+7. 停止 PM/Executor 小时级轮询，按 P0 调度表错峰运行。
+8. 验证 PM 没有任何 Git 写操作，以及三个代码 Agent 的固定 worktree 保护。
+9. Checker 在同一 automation HEAD 上复核 Catalyst 构建、Python Gate 和 Executor 证据。
+10. 建立卡死复现场景和六条关键路径性能基线。
+11. 为发送路径建立脱敏阶段事件、correlation ID、UI heartbeat 和 hang 采样方案。
+12. 完成自动刷新触发矩阵与数据字段矩阵。
+13. 按一级类别 → 二级类别 → 叶节点详情核对长期记忆导航。
+14. 核对最近更新记忆/日记和三篇关联日记的可见性。
 
 ### 2026-07-04 PM 日报要点
 

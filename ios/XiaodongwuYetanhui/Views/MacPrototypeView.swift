@@ -214,6 +214,9 @@ private struct MacWorkspaceDetail: View {
 private struct MacConversationWorkspace: View {
     @EnvironmentObject private var store: CompanionStore
     @State private var draft = ""
+    @State private var isTimelineExpanded = false
+    @State private var hoveredTurnID: String?
+    @State private var selectedTurnID: String?
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
@@ -226,54 +229,74 @@ private struct MacConversationWorkspace: View {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     ScrollViewReader { proxy in
-                        List {
-                            ForEach(store.messages) { message in
-                                MacMessageRow(message: message)
+                        ZStack(alignment: .trailing) {
+                            List {
+                                ForEach(store.messages) { message in
+                                    MacMessageRow(message: message)
+                                        .id(message.id)
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 46))
+                                }
+
+                                if let summary = store.latestCloseSummary {
+                                    MacSessionCloseResultCard(summary: summary)
+                                        .id(summary.id)
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 46))
+                                }
+
+                                if store.isSending {
+                                    MacThinkingRow(
+                                        character: store.selectedCharacter,
+                                        status: store.chatOperationStatus
+                                    )
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 32))
+                                    .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 46))
+                                }
                             }
-
-                            if let summary = store.latestCloseSummary {
-                                MacSessionCloseResultCard(summary: summary)
-                                    .id(summary.id)
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 32))
-                            }
-
-                            if store.isSending {
-                                MacThinkingRow(
-                                    character: store.selectedCharacter,
-                                    status: store.chatOperationStatus
+                            .listStyle(.plain)
+                            .scrollContentBackground(.hidden)
+                            .background(
+                                LinearGradient(
+                                    colors: [
+                                        Color.conversationBgTop,
+                                        Color.conversationBgBottom,
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
                                 )
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 8, leading: 32, bottom: 8, trailing: 32))
-                            }
-                        }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color.conversationBgTop,
-                                    Color.conversationBgBottom,
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
                             )
-                        )
-                        .onChange(of: store.messages.count) {
-                            guard let lastID = store.messages.last?.id else { return }
-                            withAnimation(.easeOut(duration: 0.22)) {
-                                proxy.scrollTo(lastID, anchor: .bottom)
+                            .onChange(of: store.messages.count) {
+                                guard let lastID = store.messages.last?.id else { return }
+                                withAnimation(.easeOut(duration: 0.22)) {
+                                    proxy.scrollTo(lastID, anchor: .bottom)
+                                }
                             }
-                        }
-                        .onChange(of: store.latestCloseSummary?.id) {
-                            guard let summaryID = store.latestCloseSummary?.id else { return }
-                            withAnimation(.easeOut(duration: 0.28)) {
-                                proxy.scrollTo(summaryID, anchor: .bottom)
+                            .onChange(of: store.latestCloseSummary?.id) {
+                                guard let summaryID = store.latestCloseSummary?.id else { return }
+                                withAnimation(.easeOut(duration: 0.28)) {
+                                    proxy.scrollTo(summaryID, anchor: .bottom)
+                                }
+                            }
+
+                            if !conversationTurns.isEmpty {
+                                MacConversationTimeline(
+                                    turns: conversationTurns,
+                                    isExpanded: $isTimelineExpanded,
+                                    hoveredTurnID: $hoveredTurnID,
+                                    selectedTurnID: selectedTurnID
+                                ) { turn in
+                                    selectedTurnID = turn.id
+                                    withAnimation(.easeInOut(duration: 0.28)) {
+                                        proxy.scrollTo(turn.questionMessageID, anchor: .center)
+                                    }
+                                }
+                                .padding(.trailing, 10)
+                                .padding(.vertical, 18)
+                                .transition(.opacity)
                             }
                         }
                     }
@@ -295,6 +318,218 @@ private struct MacConversationWorkspace: View {
         .task {
             isComposerFocused = true
         }
+    }
+
+    private var conversationTurns: [MacConversationTurn] {
+        var turns: [MacConversationTurn] = []
+        var activeQuestion: ChatMessage?
+        var answers: [String] = []
+
+        func appendActiveTurn() {
+            guard let question = activeQuestion else { return }
+            turns.append(
+                MacConversationTurn(
+                    id: question.id,
+                    questionMessageID: question.id,
+                    question: Self.preview(question.content, limit: 120),
+                    answer: answers.isEmpty
+                        ? "正在等待小兔子的回应。"
+                        : answers.prefix(2).joined(separator: "\n")
+                )
+            )
+        }
+
+        for message in store.messages {
+            if message.role == .user {
+                appendActiveTurn()
+                activeQuestion = message
+                answers = []
+            } else if activeQuestion != nil, message.role == .assistant, answers.count < 2 {
+                answers.append(Self.preview(message.content, limit: 180))
+            }
+        }
+        appendActiveTurn()
+        return turns
+    }
+
+    private static func preview(_ text: String, limit: Int) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > limit else { return normalized }
+        return String(normalized.prefix(limit)) + "…"
+    }
+}
+
+private struct MacConversationTurn: Identifiable {
+    let id: String
+    let questionMessageID: String
+    let question: String
+    let answer: String
+}
+
+private struct MacConversationTimeline: View {
+    let turns: [MacConversationTurn]
+    @Binding var isExpanded: Bool
+    @Binding var hoveredTurnID: String?
+    let selectedTurnID: String?
+    let selectTurn: (MacConversationTurn) -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            if isExpanded {
+                MacConversationTimelinePanel(
+                    turns: turns,
+                    hoveredTurnID: $hoveredTurnID,
+                    selectedTurnID: selectedTurnID,
+                    selectTurn: selectTurn
+                )
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+
+            timelineRail
+        }
+        .padding(8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: Color.black.opacity(isExpanded ? 0.12 : 0.05), radius: isExpanded ? 18 : 8, y: 6)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isExpanded = hovering
+                if !hovering {
+                    hoveredTurnID = nil
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("对话轨迹")
+    }
+
+    private var timelineRail: some View {
+        VStack(spacing: 7) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.accentPurple.opacity(0.7))
+                    .frame(width: 26, height: 18)
+            }
+            .buttonStyle(.plain)
+            .help(isExpanded ? "收起对话轨迹" : "展开对话轨迹")
+            .accessibilityLabel(isExpanded ? "收起对话轨迹" : "展开对话轨迹")
+
+            ForEach(turns.suffix(18)) { turn in
+                Button {
+                    selectTurn(turn)
+                } label: {
+                    Capsule(style: .continuous)
+                        .fill(markerColor(for: turn))
+                        .frame(
+                            width: hoveredTurnID == turn.id ? 24 : (selectedTurnID == turn.id ? 17 : 9),
+                            height: 4
+                        )
+                        .frame(width: 26, height: 10, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.14)) {
+                        hoveredTurnID = hovering ? turn.id : nil
+                    }
+                }
+                .help(turn.question)
+            }
+        }
+        .padding(.vertical, 4)
+        .frame(width: 28)
+    }
+
+    private func markerColor(for turn: MacConversationTurn) -> Color {
+        if selectedTurnID == turn.id {
+            return Color.accentPurple
+        }
+        if hoveredTurnID == turn.id {
+            return Color.accentPurple.opacity(0.82)
+        }
+        return Color.warmBrown.opacity(0.3)
+    }
+}
+
+private struct MacConversationTimelinePanel: View {
+    let turns: [MacConversationTurn]
+    @Binding var hoveredTurnID: String?
+    let selectedTurnID: String?
+    let selectTurn: (MacConversationTurn) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("对话轨迹")
+                    .font(.headline)
+                Text("点击一段，回到当时的问题")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(turns.reversed()) { turn in
+                        Button {
+                            selectTurn(turn)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Image(systemName: "person.fill")
+                                        .font(.caption2)
+                                    Text(turn.question)
+                                        .font(.subheadline.weight(.semibold))
+                                        .lineLimit(2)
+                                }
+                                .foregroundStyle(Color.primary.opacity(0.82))
+
+                                Text(turn.answer)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(
+                                rowBackground(for: turn),
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            hoveredTurnID = hovering ? turn.id : nil
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 430)
+        }
+        .padding(10)
+        .frame(width: 286, alignment: .leading)
+    }
+
+    private func rowBackground(for turn: MacConversationTurn) -> Color {
+        if selectedTurnID == turn.id {
+            return Color.accentPurple.opacity(0.16)
+        }
+        if hoveredTurnID == turn.id {
+            return Color.white.opacity(0.72)
+        }
+        return Color.white.opacity(0.42)
     }
 }
 
