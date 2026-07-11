@@ -4,6 +4,7 @@
 
 ## 已完成
 
+- 回复价值候选生成器：从本地数据库聚合完整 turn，按八类主题生成私密评分页面；真实正文仅写入 Git 忽略的 `data/`。
 - Web UI：本地浏览器访问、手机局域网访问、移动端适配。
 - 基础对话：支持 DeepSeek / fake model 切换。
 - 长期存储：SQLite 保存 sessions、messages、journals、memories。
