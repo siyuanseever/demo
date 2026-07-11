@@ -24,6 +24,21 @@ python3 -m app.evaluation.diagnose
 python3 -m app.evaluation.manual_eval
 ```
 
+### 私密回复价值评分集
+
+从本地数据库按主题选择真实对话轮次，并生成完全离线的评分页面：
+
+```bash
+python3 -m app.evaluation.response_value_dataset \
+  --db data/app.db \
+  --output-dir data/response_value \
+  --count 24
+
+open data/response_value/scorecard.html
+```
+
+生成内容位于已被 Git 忽略的 `data/` 目录。工具会把同一用户输入后的 quick、deep 或其他回复聚合为一个 turn；终端只输出候选数量和主题分布，不输出私人正文。评分保存在浏览器本地，可通过页面按钮导出 JSON。
+
 ## Gate 1 判定
 
 Runner 只有同时满足以下条件才返回退出码 0：
