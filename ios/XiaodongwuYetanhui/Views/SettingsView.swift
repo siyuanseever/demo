@@ -150,12 +150,12 @@ private struct SpeechSettingsPanel: View {
                     Label("忧忧兔的声音", systemImage: "speaker.wave.2.fill")
                         .font(.headline)
                     Spacer()
-                    Text("免费 · 本机")
+                    Text("免费 · 本地模型")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.green)
                 }
 
-                Text("优先使用 Mac 已安装的婷婷或其他普通话女性声线。声音完全在本机合成，不调用付费 API。")
+                Text("使用 Qwen3-TTS 0.6B 8-bit 和 Serena 温柔年轻女性声线。声音完全在这台 Mac 上生成，不调用付费 API。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -173,10 +173,14 @@ private struct SpeechSettingsPanel: View {
                         speech.previewVoice()
                     } label: {
                         Label(
-                            speech.activeMessageID == "speech-preview" && speech.isSpeaking ? "停止试听" : "试听",
-                            systemImage: speech.activeMessageID == "speech-preview" && speech.isSpeaking
-                                ? "stop.fill"
-                                : "play.fill"
+                            speech.activeMessageID == "speech-preview" && speech.isPreparing
+                                ? "正在生成…"
+                                : (speech.activeMessageID == "speech-preview" && speech.isSpeaking ? "停止试听" : "试听"),
+                            systemImage: speech.activeMessageID == "speech-preview" && speech.isPreparing
+                                ? "waveform.badge.magnifyingglass"
+                                : (speech.activeMessageID == "speech-preview" && speech.isSpeaking
+                                    ? "stop.fill"
+                                    : "play.fill")
                         )
                     }
                     .buttonStyle(.bordered)
@@ -189,6 +193,13 @@ private struct SpeechSettingsPanel: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let error = speech.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }

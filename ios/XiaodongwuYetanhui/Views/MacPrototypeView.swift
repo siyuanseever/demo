@@ -669,16 +669,20 @@ private struct MacMessageRow: View {
                             speech.toggle(messageID: message.id, text: message.content)
                         } label: {
                             Label(
-                                speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听忧忧兔说",
-                                systemImage: speech.activeMessageID == message.id && speech.isSpeaking
-                                    ? "stop.circle.fill"
-                                    : "speaker.wave.2.fill"
+                                speech.activeMessageID == message.id && speech.isPreparing
+                                    ? "正在生成语音…"
+                                    : (speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听忧忧兔说"),
+                                systemImage: speech.activeMessageID == message.id && speech.isPreparing
+                                    ? "waveform.badge.magnifyingglass"
+                                    : (speech.activeMessageID == message.id && speech.isSpeaking
+                                        ? "stop.circle.fill"
+                                        : "speaker.wave.2.fill")
                             )
                             .font(.caption.weight(.medium))
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.accentPurple)
-                        .accessibilityHint("使用免费的系统中文女性声线朗读这条回复")
+                        .accessibilityHint("使用本机 Qwen3-TTS Serena 女性声线朗读这条回复")
                     }
                 }
                 .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)

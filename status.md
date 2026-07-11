@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-11（Mac TTS V0 完成构建）
+> 最后更新时间：2026-07-11（Mac 本地 Qwen3-TTS V1 完成）
 
 ---
 
@@ -47,7 +47,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 快速回复后等待深度回复卡死 | `fixed_pending_verification`：Mac 使用精简 SSE、跳过重复 final 解码，并取消回复后立即全量同步 |
 | Mac 本地直连回复顺序 | `implemented_pending_runtime_verification`：quick 与 plan 并行启动；quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
 | Mac 对话轨迹 | `implemented_verified`：夜谈右侧显示轻量轨迹；悬停或点击展开问答预览，点击条目可定位原始用户消息 |
-| Mac 语音输出 | `implemented_pending_listening_validation`：使用免费本机系统 TTS，优先婷婷普通话女性声线；支持单条播放/停止、设置页试听和可选自动朗读 |
+| Mac 语音输出 | `implemented_pending_listening_validation`：免费本地 Qwen3-TTS 0.6B 8-bit + Serena；支持常驻服务、单条播放/停止、生成状态、试听、自动朗读、失败提示和缓存；25 字实测约 4 秒 |
 | 回复价值评估集 | `awaiting_user_scores`：已选 24 条候选，八类主题各 3 条，来自 14 个 session；本地评分页面已生成 |
 | 单条消息发送后卡死、后端无请求 | P0，仍需按独立复现场景验证 |
 | 内存持续增长至约 65GB | `fixed_pending_verification`：已修 MEM-001/MEM-002 和 SSE 1MB 上限，等待发送/同步/20 分钟 soak 独立复验 |

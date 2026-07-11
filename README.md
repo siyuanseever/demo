@@ -58,6 +58,18 @@ SENSEN_SYNC_TOKEN=请设置一个足够长的随机令牌
 
 点击「与 Mac 同步」后，手机先上传本地记录，Mac 按记录 ID 和更新时间合并，再由手机拉取合并后的数据。DeepSeek API Key 不参与同步。
 
+### Mac App 与本地自然语音
+
+Mac App 使用免费的 Qwen3-TTS 0.6B 8-bit 本地模型，默认选择 Serena 温柔年轻女性声线。首次配置需要联网安装依赖并下载约 2GB 模型；生成过程和音频缓存都留在本机，不调用付费语音 API。
+
+```bash
+uv venv .venv-tts --python 3.12
+uv pip install --python .venv-tts/bin/python mlx-audio socksio
+./scripts/run_mac.sh
+```
+
+`run_mac.sh` 会同时启动本地语音服务并构建、打开 Mac App。模型首次朗读时需要加载，之后会常驻；相同文本会直接使用 `data/tts_cache/` 中的音频缓存。语音日志位于 `logs/tts.log`。
+
 ### 1. 配置 API Key
 
 复制环境变量模板：
@@ -166,6 +178,7 @@ demo/
 │   ├── memory/          # 记忆存储和检索
 │   ├── prompts/         # 所有 Prompt 模板
 │   ├── main.py          # CLI 入口
+│   ├── tts_server.py    # 本地 Qwen3-TTS 服务
 │   └── web.py           # Web UI 入口
 ├── data/
 │   └── app.db           # SQLite 数据库
