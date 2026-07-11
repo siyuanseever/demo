@@ -145,11 +145,30 @@ private struct MacWorkspaceSidebar: View {
                     .tag(MacWorkspaceSection.settings)
             }
 
-            Section("资料概览") {
-                MacSidebarMetric(title: "会话", value: store.snapshot.sessionCount)
-                MacSidebarMetric(title: "消息", value: store.snapshot.messageCount)
-                MacSidebarMetric(title: "记忆", value: store.snapshot.memoryCount)
-                MacSidebarMetric(title: "日记", value: store.snapshot.journalCount)
+            if !store.sessions.isEmpty {
+                Section("最近夜谈") {
+                    ForEach(store.sessions.prefix(6)) { session in
+                        Button {
+                            selection = .sessions
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(session.preview.isEmpty ? "一次安静的夜谈" : session.preview)
+                                    .font(.caption.weight(.medium))
+                                    .lineLimit(2)
+                                HStack(spacing: 6) {
+                                    Text(session.createdAt.isEmpty ? "未标记时间" : macShortDate(session.createdAt))
+                                    Text("·")
+                                    Text("\(session.messageCount) 条消息")
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
         .listStyle(.sidebar)
@@ -166,22 +185,6 @@ private struct MacWorkspaceSidebar: View {
             .padding(14)
             .background(.thinMaterial)
         }
-    }
-}
-
-private struct MacSidebarMetric: View {
-    let title: String
-    let value: Int
-
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value.formatted())
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-        }
-        .font(.caption)
     }
 }
 
@@ -452,12 +455,12 @@ private struct MacConversationTimeline: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(turn.question)
                 .font(.subheadline.weight(.semibold))
-                .lineLimit(5)
+                .lineLimit(2)
 
             Text(turn.answer)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .lineLimit(8)
+                .lineLimit(4)
 
             if turn.knowledgeCount > 0 {
                 HStack(spacing: 6) {
@@ -469,7 +472,8 @@ private struct MacConversationTimeline: View {
             }
         }
         .padding(16)
-        .frame(width: 300, alignment: .leading)
+        .frame(width: 330, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -1077,7 +1081,6 @@ private struct MacComposer: View {
 
 private struct MacConversationSidebar: View {
     @EnvironmentObject private var store: CompanionStore
-    @State private var selectedProfile: StateProfile?
 
     var body: some View {
         ScrollView {
@@ -1097,46 +1100,6 @@ private struct MacConversationSidebar: View {
 
                 MacSidebarSection(title: "心理地图") {
                     MacHexagonRadarChart(profiles: store.stateProfiles)
-                }
-
-                MacSidebarSection(title: "长期状态") {
-                    let profiles = store.stateProfiles
-                    if profiles.isEmpty {
-                        Text("还没有状态评估，完成几次夜谈总结后会生成。")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(profiles.prefix(6)) { profile in
-                                Button {
-                                    selectedProfile = profile
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack {
-                                            Text(macStateDomainTitle(profile.domain))
-                                                .font(.caption.bold())
-                                            Spacer()
-                                            Text(profile.trend.isEmpty ? "—" : profile.trend)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Text(profile.stage.isEmpty ? "正在观察中" : profile.stage)
-                                            .font(.callout)
-                                            .lineLimit(1)
-                                        if !profile.supportStrategy.isEmpty {
-                                            Text(profile.supportStrategy)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(2)
-                                        }
-                                    }
-                                    .padding(10)
-                                    .background(Color.overlayMedium, in: RoundedRectangle(cornerRadius: 10))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
                 }
 
                 MacSidebarSection(title: "这次夜谈") {
@@ -1167,10 +1130,6 @@ private struct MacConversationSidebar: View {
             .padding(22)
         }
         .background(Color.sidebarBackground)
-        .sheet(item: $selectedProfile) { profile in
-            MacStateProfileDetailSheet(profile: profile)
-                .environmentObject(store)
-        }
     }
 }
 
@@ -3214,6 +3173,7 @@ private struct MacFlowSuggestionLayout: View {
 
 private struct MacHexagonRadarChart: View {
     let profiles: [StateProfile]
+    private let chartCenter = CGPoint(x: 100, y: 100)
 
     private let stateDomains = [
         "情绪与压力",
@@ -3249,7 +3209,7 @@ private struct MacHexagonRadarChart: View {
 
                     ForEach(0..<6) { index in
                         let point = pointPosition(radius: 60, index: index)
-                        Line(start: CGPoint(x: 0, y: 0), end: point)
+                        Line(start: chartCenter, end: point)
                             .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
                     }
 
@@ -3280,8 +3240,8 @@ private struct MacHexagonRadarChart: View {
         Path { path in
             for i in 0..<6 {
                 let angle = CGFloat(i) * .pi / 3 - .pi / 2
-                let x = radius * cos(angle)
-                let y = radius * sin(angle)
+                let x = chartCenter.x + radius * cos(angle)
+                let y = chartCenter.y + radius * sin(angle)
                 if i == 0 {
                     path.move(to: CGPoint(x: x, y: y))
                 } else {
@@ -3295,8 +3255,8 @@ private struct MacHexagonRadarChart: View {
     private func pointPosition(radius: CGFloat, index: Int) -> CGPoint {
         let angle = CGFloat(index) * .pi / 3 - .pi / 2
         return CGPoint(
-            x: radius * cos(angle),
-            y: radius * sin(angle)
+            x: chartCenter.x + radius * cos(angle),
+            y: chartCenter.y + radius * sin(angle)
         )
     }
 
