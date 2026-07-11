@@ -330,7 +330,7 @@ private struct MacConversationWorkspace: View {
             guard speech.automaticallyReadsReplies,
                   let message = store.messages.last,
                   message.role == .assistant else { return }
-            speech.speak(messageID: message.id, text: message.content)
+            speech.enqueue(messageID: message.id, text: message.content)
         }
     }
 

@@ -32,3 +32,4 @@ test_*.swift
 
 
 .claude/
+logs/tts.log
