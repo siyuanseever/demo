@@ -10,19 +10,24 @@ private func parseJSONObject(_ content: String) -> [String: Any]? {
     let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return nil }
 
-    // 先尝试直接解析
     if let data = text.data(using: .utf8),
        let obj = try? JSONSerialization.jsonObject(with: data, options: []),
        let dict = obj as? [String: Any] {
         return dict
     }
 
-    // 失败则提取第一个 { 到最后一个 } 再解析（和 Python 后端 parse_json_object 一致）
     guard let start = text.firstIndex(of: "{"),
           let end = text.lastIndex(of: "}"),
           start < end else { return nil }
 
-    let substring = String(text[start...end])
+    var substring = String(text[start...end])
+    if let data = substring.data(using: .utf8),
+       let obj = try? JSONSerialization.jsonObject(with: data, options: [.mutableContainers, .fragmentsAllowed]),
+       let dict = obj as? [String: Any] {
+        return dict
+    }
+
+    substring = fixUnescapedQuotes(substring)
     if let data = substring.data(using: .utf8),
        let obj = try? JSONSerialization.jsonObject(with: data, options: [.mutableContainers, .fragmentsAllowed]),
        let dict = obj as? [String: Any] {
@@ -30,6 +35,47 @@ private func parseJSONObject(_ content: String) -> [String: Any]? {
     }
 
     return nil
+}
+
+private func fixUnescapedQuotes(_ jsonString: String) -> String {
+    var result = jsonString
+    var inString = false
+    var escaped = false
+    var i = result.startIndex
+
+    while i < result.endIndex {
+        let char = result[i]
+        if escaped {
+            escaped = false
+            i = result.index(after: i)
+            continue
+        }
+
+        if char == "\\" {
+            escaped = true
+            i = result.index(after: i)
+            continue
+        }
+
+        if char == "\"" {
+            if inString {
+                inString = false
+            } else {
+                inString = true
+            }
+            i = result.index(after: i)
+            continue
+        }
+
+        if inString && char == "\"" {
+            result.insert("\\", at: i)
+            i = result.index(after: i)
+        }
+
+        i = result.index(after: i)
+    }
+
+    return result
 }
 
 private func findJSONLikeKey(
@@ -674,7 +720,6 @@ final class LocalDeepSeekService {
         - interaction：更适合一个简短练习，action_reply 直接给出低压力引导。
         默认形态可参考 \(fallbackCharacter.id)，但应根据本轮真实需要重新选择。
         """
-        // 首次尝试：启用 thinking，给足够的 token 预算（thinking 和 content 共享 max_tokens）
         var content = try await requestPlanAPI(
             apiKey: apiKey,
             prompt: prompt,
@@ -683,7 +728,6 @@ final class LocalDeepSeekService {
         )
         fputs("[LocalDeepSeek] requestPlan: content 长度: \(content.count)\n", stderr)
 
-        // 如果 thinking 消耗了全部 token 导致 content 为空，用 thinking=false 重试
         if content.isEmpty {
             fputs("[LocalDeepSeek] requestPlan: content 为空（thinking 可能耗尽 token），用 thinking=false 重试\n", stderr)
             content = try await requestPlanAPI(
@@ -695,9 +739,27 @@ final class LocalDeepSeekService {
             fputs("[LocalDeepSeek] requestPlan 重试: content 长度: \(content.count)\n", stderr)
         }
 
-        // 和 Python 后端 parse_json_object 一致的容错解析
-        guard !content.isEmpty, let dict = parseJSONObject(content) else {
-            fputs("[LocalDeepSeek] requestPlan: JSON 解析失败\n", stderr)
+        var parsedDict: [String: Any]?
+        for attempt in 1...3 {
+            parsedDict = parseJSONObject(content)
+            if parsedDict != nil {
+                break
+            }
+            fputs("[LocalDeepSeek] requestPlan: JSON 解析失败 (attempt \(attempt)), content: \(content)\n", stderr)
+            if attempt < 3 {
+                fputs("[LocalDeepSeek] requestPlan: 第 \(attempt) 次解析失败，重试 API 请求...\n", stderr)
+                content = try await requestPlanAPI(
+                    apiKey: apiKey,
+                    prompt: prompt,
+                    maxTokens: 2200,
+                    thinking: false
+                )
+                fputs("[LocalDeepSeek] requestPlan 重试: content 长度: \(content.count)\n", stderr)
+            }
+        }
+
+        guard let dict = parsedDict else {
+            fputs("[LocalDeepSeek] requestPlan: 所有 \(3) 次尝试均失败\n", stderr)
             throw LocalDeepSeekError.invalidResponse
         }
         fputs("[LocalDeepSeek] requestPlan: JSON 解析成功\n", stderr)

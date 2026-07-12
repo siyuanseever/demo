@@ -27,7 +27,7 @@ CACHE_DIR = Path(os.getenv("TTS_CACHE_DIR", "data/tts_cache"))
 GENERATION_TIMEOUT = int(os.getenv("TTS_TIMEOUT", "45"))
 MAX_TOKENS_PER_CHAR = int(os.getenv("TTS_MAX_TOKENS_PER_CHAR", "8"))
 MIN_MAX_TOKENS = int(os.getenv("TTS_MIN_MAX_TOKENS", "500"))
-HARD_MAX_TOKENS = int(os.getenv("TTS_HARD_MAX_TOKENS", "4096"))
+HARD_MAX_TOKENS = int(os.getenv("TTS_HARD_MAX_TOKENS", "2048"))
 TEMPERATURE = float(os.getenv("TTS_TEMPERATURE", "0.9"))
 REPETITION_PENALTY = float(os.getenv("TTS_REPETITION_PENALTY", "1.05"))
 TOP_P = float(os.getenv("TTS_TOP_P", "1.0"))
@@ -35,7 +35,7 @@ MAX_SEGMENT_CHARS = int(os.getenv("TTS_MAX_SEGMENT_CHARS", "150"))
 MAX_RETRIES = int(os.getenv("TTS_MAX_RETRIES", "2"))
 MIN_RMS = float(os.getenv("TTS_MIN_RMS", "0.01"))
 EXPECTED_SECONDS_PER_CHAR = float(os.getenv("TTS_SECONDS_PER_CHAR", "0.2"))
-MAX_DURATION_RATIO = float(os.getenv("TTS_MAX_DURATION_RATIO", "2.5"))
+MAX_DURATION_RATIO = float(os.getenv("TTS_MAX_DURATION_RATIO", "3.5"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,6 +77,32 @@ class LocalTTS:
                 logger.info("loading model=%s", MODEL_ID)
                 self._model = load_model(MODEL_ID)
                 logger.info("model ready=%s", MODEL_ID)
+        return self._model
+
+    def _reload_model(self):
+        """Reload the model to reset MLX Metal compute graph state.
+
+        Called when generation quality degrades (blank/noise audio, timeout).
+        This is the only reliable way to recover from Metal state corruption.
+        """
+        with self._load_lock:
+            logger.warning("reloading model to reset Metal state")
+            # Drop reference and force GC
+            old_model = self._model
+            self._model = None
+            del old_model
+            try:
+                import gc
+                gc.collect()
+            except Exception:
+                pass
+            self._clear_metal_cache()
+            # Reload
+            from mlx_audio.tts.utils import load_model
+
+            logger.info("reloading model=%s", MODEL_ID)
+            self._model = load_model(MODEL_ID)
+            logger.info("model reloaded and ready=%s", MODEL_ID)
         return self._model
 
     # ------------------------------------------------------------------
@@ -127,11 +153,22 @@ class LocalTTS:
 
             all_audio = []
             result_sample_rate = None
+            model_corrupted = False
+            current_model = model
 
             for i, seg in enumerate(segments):
-                seg_audio, seg_sr = self._generate_segment(
-                    model, seg, voice, instruct, i + 1, len(segments),
+                if model_corrupted:
+                    logger.warning(
+                        "model state corrupted, skipping segment %d/%d",
+                        i + 1, len(segments),
+                    )
+                    continue
+
+                seg_audio, seg_sr, model_corrupted = self._generate_segment(
+                    current_model, seg, voice, instruct, i + 1, len(segments),
                 )
+                current_model = self._model
+
                 if seg_audio is not None:
                     if result_sample_rate is None:
                         result_sample_rate = seg_sr
@@ -232,6 +269,8 @@ class LocalTTS:
             sample_rate = None
             header_sent = False
             client_gone = False
+            model_corrupted = False
+            current_model = model
 
             for i, seg in enumerate(segments):
                 if client_gone:
@@ -242,10 +281,19 @@ class LocalTTS:
                         i + 1, len(segments),
                     )
                     return
+                if model_corrupted:
+                    logger.warning(
+                        "model state corrupted, skipping segment %d/%d",
+                        i + 1, len(segments),
+                    )
+                    continue
 
-                seg_audio, seg_sr = self._generate_segment(
-                    model, seg, voice, instruct, i + 1, len(segments), my_count,
+                seg_audio, seg_sr, model_corrupted = self._generate_segment(
+                    current_model, seg, voice, instruct, i + 1, len(segments), my_count,
                 )
+
+                # _generate_segment may have reloaded the model; update reference
+                current_model = self._model
 
                 if seg_audio is None:
                     self._clear_metal_cache()
@@ -401,10 +449,12 @@ class LocalTTS:
         total: int,
         my_count: int = -1,
     ):
-        """Generate audio for one segment. Returns (np.array, sample_rate) or (None, None).
+        """Generate audio for one segment.
 
-        Uses non-streaming generation for stability. Includes quality check and retry.
-        Aborts early if a newer request arrives (cancel_count > my_count).
+        Returns (np.array, sample_rate, model_corrupted) or (None, None, True).
+
+        model_corrupted=True means the MLX Metal state is degraded and reloading
+        didn't help — the caller should skip remaining segments.
         """
         import numpy as np
 
@@ -413,17 +463,19 @@ class LocalTTS:
         expected_duration = len(text) * EXPECTED_SECONDS_PER_CHAR
         max_allowed_duration = expected_duration * MAX_DURATION_RATIO
 
-        for attempt in range(MAX_RETRIES + 1):
+        for attempt in [1, 2]:
             if my_count >= 0 and self._is_cancelled(my_count):
                 logger.info(
                     "segment %d/%d cancelled by newer request",
                     idx, total,
                 )
-                return None, None
+                return None, None, True
 
+            is_retry = attempt == 2
             logger.info(
-                "segment %d/%d attempt %d/%d chars=%d max_tokens=%d",
-                idx, total, attempt + 1, MAX_RETRIES + 1, len(text), effective_max,
+                "segment %d/%d attempt %d chars=%d max_tokens=%d%s",
+                idx, total, attempt, len(text), effective_max,
+                " (model reloaded)" if is_retry else "",
             )
 
             result_audio = None
@@ -455,22 +507,25 @@ class LocalTTS:
                     result_sample_rate = result.sample_rate
                 if timed_out:
                     logger.warning(
-                        "segment %d/%d timed out after %.1fs (attempt %d)",
-                        idx, total, time.time() - start_time, attempt + 1,
+                        "segment %d/%d timed out after %.1fs",
+                        idx, total, time.time() - start_time,
                     )
 
             except Exception:
-                logger.exception("segment %d/%d generation error (attempt %d)", idx, total, attempt + 1)
-                self._clear_metal_cache()
-                continue
+                logger.exception("segment %d/%d generation error", idx, total)
+                if attempt == 1:
+                    logger.warning("reloading model after generation error")
+                    model = self._reload_model()
+                    continue
+                return None, None, True
 
             if result_audio is None or len(result_audio) == 0:
-                logger.warning(
-                    "segment %d/%d empty audio (attempt %d)",
-                    idx, total, attempt + 1,
-                )
-                self._clear_metal_cache()
-                continue
+                logger.warning("segment %d/%d empty audio", idx, total)
+                if attempt == 1:
+                    logger.warning("reloading model after empty audio")
+                    model = self._reload_model()
+                    continue
+                return None, None, True
 
             duration = len(result_audio) / result_sample_rate
             rms = float(np.sqrt(np.mean(result_audio ** 2)))
@@ -484,23 +539,23 @@ class LocalTTS:
                     "segment %d/%d ok chars=%d samples=%d duration=%.1fs rms=%.4f %.1fs",
                     idx, total, len(text), len(result_audio), duration, rms, elapsed,
                 )
-                return result_audio, result_sample_rate
+                return result_audio, result_sample_rate, False
 
             logger.warning(
-                "segment %d/%d quality issue: %s%s duration=%.1fs (expected ~%.1fs, max %.1fs) rms=%.4f (attempt %d)",
+                "segment %d/%d quality issue: %s%s duration=%.1fs (expected ~%.1fs, max %.1fs) rms=%.4f",
                 idx, total,
                 "too_long " if is_too_long else "",
                 "too_quiet " if is_too_quiet else "",
                 duration, expected_duration, max_allowed_duration, rms,
-                attempt + 1,
             )
-            self._clear_metal_cache()
 
-        logger.error(
-            "segment %d/%d failed after %d attempts chars=%d",
-            idx, total, MAX_RETRIES + 1, len(text),
-        )
-        return None, None
+            if attempt == 1:
+                logger.warning("reloading model after quality issue")
+                model = self._reload_model()
+                continue
+
+        logger.error("segment %d/%d failed after 2 attempts chars=%d", idx, total, len(text))
+        return None, None, True
 
     def _trim_tail_silence(
         self,
