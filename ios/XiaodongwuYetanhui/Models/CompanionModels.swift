@@ -42,6 +42,15 @@ struct ChatMessage: Identifiable, Hashable {
     var knowledgeCards: [KnowledgeCard] = []
 }
 
+struct UserConversationAssessment: Hashable {
+    let userState: String
+    let coreNeed: String
+    let riskLevel: String
+    let responseMode: String
+    let reason: String
+    let nextAction: String
+}
+
 enum MessageRole: String {
     case user
     case assistant

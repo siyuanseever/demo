@@ -8,6 +8,7 @@ struct ChatServiceResponse {
     let groupMessages: [ChatServiceGroupMessage]
     let knowledgeCards: [KnowledgeCard]
     let routeSummary: String?
+    let assessment: UserConversationAssessment?
     let usedFallback: Bool
     let notice: String?
     let backendURL: String
@@ -471,6 +472,7 @@ final class ChatService {
                 groupMessages: [],
                 knowledgeCards: [],
                 routeSummary: nil,
+                assessment: nil,
                 usedFallback: true,
                 notice: "本地 Web 服务暂时没有回应，先用 iOS 原型陪你接住这一轮。",
                 backendURL: backendURLDescription,
@@ -557,6 +559,7 @@ final class ChatService {
                         groupMessages: [],
                         knowledgeCards: [],
                         routeSummary: nil,
+                        assessment: nil,
                         usedFallback: false,
                         notice: nil,
                         backendURL: backendURLDescription,
@@ -605,6 +608,7 @@ final class ChatService {
                         groupMessages: latestResponse.groupMessages,
                         knowledgeCards: latestResponse.knowledgeCards,
                         routeSummary: latestResponse.routeSummary,
+                        assessment: latestResponse.assessment,
                         usedFallback: false,
                         notice: "快速回应已显示，但后续分析没有完成。",
                         backendURL: backendURLDescription,
@@ -622,6 +626,7 @@ final class ChatService {
                     groupMessages: [],
                     knowledgeCards: [],
                     routeSummary: nil,
+                    assessment: nil,
                     usedFallback: true,
                     notice: "本地后端暂时没有完成这轮回复，已使用原型兜底。",
                     backendURL: backendURLDescription,
@@ -842,6 +847,7 @@ final class ChatService {
             },
             knowledgeCards: knowledgeCards,
             routeSummary: Self.routeSummary(body.routePlan),
+            assessment: body.routePlan?.assessment,
             usedFallback: false,
             notice: nil,
             backendURL: backendURLDescription,
@@ -1460,6 +1466,10 @@ private struct KnowledgeCardResponseBody: Decodable {
 }
 
 private struct RoutePlanResponseBody: Decodable {
+    let userState: String?
+    let coreNeed: String?
+    let riskLevel: String?
+    let nextAction: String?
     let characterID: String?
     let expressionID: String?
     let reason: String?
@@ -1472,6 +1482,10 @@ private struct RoutePlanResponseBody: Decodable {
     let anchor: RouteRoleResponseBody?
 
     enum CodingKeys: String, CodingKey {
+        case userState = "user_state"
+        case coreNeed = "core_need"
+        case riskLevel = "risk_level"
+        case nextAction = "next_action"
         case characterID = "character_id"
         case expressionID = "expression_id"
         case reason
@@ -1482,6 +1496,17 @@ private struct RoutePlanResponseBody: Decodable {
         case pinpoint
         case main
         case anchor
+    }
+
+    var assessment: UserConversationAssessment {
+        UserConversationAssessment(
+            userState: userState ?? "",
+            coreNeed: coreNeed ?? "",
+            riskLevel: riskLevel ?? "low",
+            responseMode: responseMode ?? "",
+            reason: reason ?? "",
+            nextAction: nextAction ?? ""
+        )
     }
 }
 

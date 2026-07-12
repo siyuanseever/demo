@@ -11,11 +11,15 @@ struct XiaodongwuYetanhuiApp: App {
             AppRootView()
                 .environmentObject(store)
                 .environmentObject(speech)
+                .task {
+                    await store.loadStarMapInsightIfNeeded()
+                }
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task {
                 await store.syncIfNeeded()
+                await store.loadStarMapInsightIfNeeded()
             }
         }
     }

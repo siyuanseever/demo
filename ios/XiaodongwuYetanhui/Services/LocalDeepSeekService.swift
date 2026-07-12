@@ -189,6 +189,7 @@ struct LocalChatResult {
     let quickReply: ChatMessage?
     let followUpReply: ChatMessage?
     let nextAction: String
+    let assessment: UserConversationAssessment?
 }
 
 struct LocalJournalDraft {
@@ -261,6 +262,17 @@ private struct LocalRoutePlan {
         let name = character?.name ?? "森森兔"
         let expression = character?.expression(id: expressionID)?.label ?? expressionID
         return "本轮规划 · \(nextAction) · \(responseMode)：\(name) · \(expression)；\(reason)"
+    }
+
+    var assessment: UserConversationAssessment {
+        UserConversationAssessment(
+            userState: userState,
+            coreNeed: coreNeed,
+            riskLevel: riskLevel,
+            responseMode: responseMode,
+            reason: reason,
+            nextAction: nextAction
+        )
     }
 }
 
@@ -336,6 +348,83 @@ final class LocalDeepSeekService {
             fputs("[DeepSeek Test] 错误详情: \(error)\n", stderr)
             throw error
         }
+    }
+
+    func generateWeeklyFlowInsight(
+        apiKey: String,
+        database: SQLiteDatabase
+    ) async throws -> StarMapInsight {
+        let memories = database.memories(limit: 30)
+        let journals = database.journals(limit: 12)
+        let profiles = database.stateProfiles(limit: 12)
+        let source = """
+        最近总结：
+        \(journals.map { "- [\($0.dominantEmotion)] \($0.summary)；下一步：\($0.suggestedNextStep)" }.joined(separator: "\n"))
+
+        长期记忆：
+        \(memories.map { "- [\($0.category)/\($0.subcategory)] \($0.content)" }.joined(separator: "\n"))
+
+        长期状态：
+        \(profiles.map { "- [\($0.domain)] \($0.summary)；趋势：\($0.trend)；支持：\($0.supportStrategy)" }.joined(separator: "\n"))
+        """
+        let prompt = """
+        你正在为心理陪伴应用生成一份“本周心流导航”。它不是诊断，也不是任务清单；目标是从近期总结、长期记忆和状态变化中，找出本周最值得照看的一个主要方向，以及至多一个次要方向。
+
+        要求：
+        - 目标必须具体、温柔、可执行，不使用空泛积极话术。
+        - primary_goal_next_step 应当能在 10-30 分钟内开始。
+        - 不编造来源中没有的事实；证据不足时保持克制。
+        - 只输出 JSON，不要 Markdown。
+
+        JSON 字段：primary_goal_title, primary_goal_reason, primary_goal_next_step, primary_goal_challenge, secondary_goal_title, secondary_goal_reason, secondary_goal_next_step, secondary_goal_challenge, recent_emotion_summary, recent_emotion_tags, flow_support, memory_cues, core_insight, core_insight_detail, recent_pattern_title, recent_pattern_items, recent_pattern_detail, flow_condition_title, flow_condition_items, flow_condition_detail, gentle_reminder_title, gentle_reminder, gentle_reminder_detail, source_summary。
+
+        \(source)
+        """
+        let request = try buildJSONRequest(
+            apiKey: apiKey,
+            messages: [DeepSeekMessage(role: "system", content: prompt)],
+            maxTokens: 2200,
+            thinking: false
+        )
+        let (data, _) = try await session.data(for: request)
+        let response = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
+        guard let content = response.choices.first?.message.content,
+              let payload = parseJSONObject(content) else {
+            throw LocalDeepSeekError.invalidResponse
+        }
+
+        let now = Date()
+        let periodStart = Calendar.current.date(byAdding: .day, value: -60, to: now) ?? now
+        return StarMapInsight(
+            id: UUID().uuidString,
+            generatedAt: now,
+            periodStart: periodStart,
+            periodEnd: now,
+            primaryGoalTitle: stringFromDict(payload, "primary_goal_title"),
+            primaryGoalReason: stringFromDict(payload, "primary_goal_reason"),
+            primaryGoalNextStep: stringFromDict(payload, "primary_goal_next_step"),
+            primaryGoalChallenge: stringFromDict(payload, "primary_goal_challenge"),
+            secondaryGoalTitle: stringFromDict(payload, "secondary_goal_title"),
+            secondaryGoalReason: stringFromDict(payload, "secondary_goal_reason"),
+            secondaryGoalNextStep: stringFromDict(payload, "secondary_goal_next_step"),
+            secondaryGoalChallenge: stringFromDict(payload, "secondary_goal_challenge"),
+            recentEmotionSummary: stringFromDict(payload, "recent_emotion_summary"),
+            recentEmotionTags: stringArrayFromDict(payload, "recent_emotion_tags"),
+            flowSupport: stringFromDict(payload, "flow_support"),
+            memoryCues: stringArrayFromDict(payload, "memory_cues"),
+            coreInsight: stringFromDict(payload, "core_insight"),
+            coreInsightDetail: stringFromDict(payload, "core_insight_detail"),
+            recentPatternTitle: stringFromDict(payload, "recent_pattern_title"),
+            recentPatternItems: stringArrayFromDict(payload, "recent_pattern_items"),
+            recentPatternDetail: stringFromDict(payload, "recent_pattern_detail"),
+            flowConditionTitle: stringFromDict(payload, "flow_condition_title"),
+            flowConditionItems: stringArrayFromDict(payload, "flow_condition_items"),
+            flowConditionDetail: stringFromDict(payload, "flow_condition_detail"),
+            gentleReminderTitle: stringFromDict(payload, "gentle_reminder_title"),
+            gentleReminder: stringFromDict(payload, "gentle_reminder"),
+            gentleReminderDetail: stringFromDict(payload, "gentle_reminder_detail"),
+            sourceSummary: stringFromDict(payload, "source_summary")
+        )
     }
 
     func useSession(_ sessionID: String) {
@@ -515,7 +604,8 @@ final class LocalDeepSeekService {
                     userMessage: userMessage,
                     quickReply: quickMessage,
                     followUpReply: nil,
-                    nextAction: "quick_only_plan_failed"
+                    nextAction: "quick_only_plan_failed",
+                    assessment: nil
                 )
             }
             throw error
@@ -530,7 +620,8 @@ final class LocalDeepSeekService {
                 userMessage: userMessage,
                 quickReply: quickMessage,
                 followUpReply: nil,
-                nextAction: normalizedAction
+                nextAction: normalizedAction,
+                assessment: plan.assessment
             )
         }
 
@@ -562,7 +653,8 @@ final class LocalDeepSeekService {
                     routeSummary: plan.summary,
                     knowledgeCards: []
                 ),
-                nextAction: normalizedAction
+                nextAction: normalizedAction,
+                assessment: plan.assessment
             )
         }
 
@@ -597,7 +689,8 @@ final class LocalDeepSeekService {
                     userMessage: userMessage,
                     quickReply: quickMessage,
                     followUpReply: nil,
-                    nextAction: "quick_only_deep_failed"
+                    nextAction: "quick_only_deep_failed",
+                    assessment: plan.assessment
                 )
             }
             throw error
@@ -632,7 +725,8 @@ final class LocalDeepSeekService {
                 routeSummary: plan.summary,
                 knowledgeCards: knowledgeCards
             ),
-            nextAction: "deep"
+            nextAction: "deep",
+            assessment: plan.assessment
         )
     }
 

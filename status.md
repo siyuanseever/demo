@@ -48,6 +48,8 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | Mac 本地直连回复顺序 | `implemented_pending_runtime_verification`：quick 与 plan 并行启动；quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
 | Mac 对话轨迹 | `implemented_verified`：夜谈右侧显示轻量轨迹；悬停或点击展开问答预览，点击条目可定位原始用户消息 |
 | Mac 语音输出 | `implemented_pending_listening_validation`：免费本地 Qwen3-TTS 0.6B 8-bit + Serena；支持常驻服务、单条播放/停止、生成状态、试听、自动朗读、失败提示和缓存；25 字实测约 4 秒 |
+| 每周心流导航 | `implemented_pending_runtime_verification`：App 启动/回前台按自然周检查；本地 Key 模式直接调用 DeepSeek 生成并写入 SQLite，不再依赖手动按钮 |
+| 夜谈用户状态卡 | `implemented_pending_runtime_verification`：右栏心理地图已替换为本轮结构化状态、核心需要、风险、回应模式和规划理由 |
 | 回复价值评估集 | `awaiting_user_scores`：已选 24 条候选，八类主题各 3 条，来自 14 个 session；本地评分页面已生成 |
 | 单条消息发送后卡死、后端无请求 | P0，仍需按独立复现场景验证 |
 | 内存持续增长至约 65GB | `fixed_pending_verification`：已修 MEM-001/MEM-002 和 SSE 1MB 上限，等待发送/同步/20 分钟 soak 独立复验 |

@@ -1127,8 +1127,11 @@ private struct MacConversationSidebar: View {
 
                 Divider()
 
-                MacSidebarSection(title: "心理地图") {
-                    MacHexagonRadarChart(profiles: store.stateProfiles)
+                MacSidebarSection(title: "此刻的你") {
+                    MacUserAssessmentPanel(
+                        assessment: store.latestUserAssessment,
+                        isAnalyzing: store.isSending
+                    )
                 }
 
                 MacSidebarSection(title: "这次夜谈") {
@@ -1159,6 +1162,112 @@ private struct MacConversationSidebar: View {
             .padding(22)
         }
         .background(Color.sidebarBackground)
+    }
+}
+
+private struct MacUserAssessmentPanel: View {
+    let assessment: UserConversationAssessment?
+    let isAnalyzing: Bool
+
+    var body: some View {
+        if let assessment {
+            VStack(alignment: .leading, spacing: 12) {
+                assessmentRow(
+                    icon: "heart.text.square.fill",
+                    title: "状态与情绪",
+                    value: assessment.userState,
+                    fallback: "正在继续理解"
+                )
+                assessmentRow(
+                    icon: "hand.raised.fingers.spread.fill",
+                    title: "此刻需要",
+                    value: assessment.coreNeed,
+                    fallback: "陪伴与理解"
+                )
+
+                HStack(spacing: 8) {
+                    assessmentPill(
+                        title: "风险",
+                        value: riskLabel(assessment.riskLevel),
+                        color: riskColor(assessment.riskLevel)
+                    )
+                    assessmentPill(
+                        title: "回应",
+                        value: responseModeLabel(assessment.responseMode),
+                        color: Color.accentPurple
+                    )
+                }
+
+                if !assessment.reason.isEmpty {
+                    Text(assessment.reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: isAnalyzing ? "waveform.badge.magnifyingglass" : "moon.stars")
+                    .foregroundStyle(Color.accentPurple)
+                Text(isAnalyzing ? "正在理解你此刻的情绪、需要和风险…" : "当你开始说话，这里会显示本轮对你的理解。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func assessmentRow(icon: String, title: String, value: String, fallback: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: icon)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Text(value.isEmpty ? fallback : value)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func assessmentPill(title: String, value: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .fontWeight(.semibold)
+                .foregroundStyle(color)
+        }
+        .font(.caption)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.10), in: Capsule())
+    }
+
+    private func riskLabel(_ value: String) -> String {
+        switch value.lowercased() {
+        case "medium", "moderate": "需留意"
+        case "high": "较高"
+        case "crisis", "critical": "紧急"
+        default: "较低"
+        }
+    }
+
+    private func riskColor(_ value: String) -> Color {
+        switch value.lowercased() {
+        case "high", "crisis", "critical": .red
+        case "medium", "moderate": .orange
+        default: .green
+        }
+    }
+
+    private func responseModeLabel(_ value: String) -> String {
+        switch value.lowercased() {
+        case "validate": "接住情绪"
+        case "insight": "梳理洞察"
+        case "action": "寻找行动"
+        case "clarify": "继续澄清"
+        case "stabilize": "稳定下来"
+        default: value.isEmpty ? "温柔陪伴" : value
+        }
     }
 }
 
@@ -1341,21 +1450,11 @@ private struct MacFlowWorkspace: View {
 
                 MacFlowReminderCard(insight: insight)
 
-                HStack {
-                    Button {
-                        Task {
-                            await store.refreshStarMapInsight(forceRefresh: true)
-                        }
-                    } label: {
-                        Label(
-                            store.isFlowInsightRefreshing ? "正在重新生成" : "重新生成心流导航",
-                            systemImage: "arrow.clockwise"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.accentPurple)
-                    .disabled(store.isFlowInsightRefreshing)
-
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundStyle(Color.accentPurple)
+                    Text("每周自动生成")
+                        .font(.caption.bold())
                     Text(store.flowInsightNotice)
                         .font(.caption)
                         .foregroundStyle(.secondary)

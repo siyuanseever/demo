@@ -45,6 +45,7 @@ final class CompanionStore: ObservableObject {
     @Published var moodAnalytics: RemoteMoodAnalytics?
     @Published var isMoodRefreshing = false
     @Published var chatOperationStatus: String?
+    @Published var latestUserAssessment: UserConversationAssessment?
     @Published var flowContext = FlowContext.empty
     @Published var flowRitualIntention: String? = nil
     @Published var todayPlanItems: [PlanItem] = []
@@ -199,15 +200,23 @@ final class CompanionStore: ObservableObject {
             if
                 !forceRefresh,
                 let cached = database.latestStarMapInsight(),
-                Calendar.current.isDate(cached.generatedAt, equalTo: Date(), toGranularity: .month),
+                Self.isDateInCurrentWeek(cached.generatedAt),
                 !cached.isMockInsight
             {
                 return cached
             }
 
-            let remoteInsight = try await chatService.fetchStarMapInsight()
-            database.saveStarMapInsight(remoteInsight)
-            return remoteInsight
+            let generatedInsight: StarMapInsight
+            if isLocalAIConfigured, let apiKey = secureSettings.deepSeekAPIKey(), !apiKey.isEmpty {
+                generatedInsight = try await localDeepSeekService.generateWeeklyFlowInsight(
+                    apiKey: apiKey,
+                    database: database
+                )
+            } else {
+                generatedInsight = try await chatService.fetchStarMapInsight()
+            }
+            database.saveStarMapInsight(generatedInsight)
+            return generatedInsight
         } catch {
             if let database = try? SQLiteDatabase(), let cached = database.latestStarMapInsight() {
                 return cached
@@ -222,20 +231,26 @@ final class CompanionStore: ObservableObject {
             hasAttemptedFlowInsightLoad = true
         }
         isFlowInsightRefreshing = true
-        flowInsightNotice = forceRefresh ? "正在重新提炼心流导航..." : "正在检查本月心流导航..."
+        flowInsightNotice = forceRefresh ? "正在重新提炼心流导航..." : "正在检查本周心流导航..."
         let insight = await fetchOrGenerateStarMapInsight(forceRefresh: forceRefresh)
         starMapInsight = insight
         buildFlowContext()
         flowInsightNotice = insight.isMockInsight
             ? "暂时没有取得真实分析，当前仅显示结构占位。"
-            : "已根据记忆、单次总结、近期情绪和长期状态生成。"
+            : "本周导航已根据记忆、单次总结、近期情绪和长期状态生成。"
         isFlowInsightRefreshing = false
     }
 
     func loadStarMapInsightIfNeeded() async {
-        guard !hasAttemptedFlowInsightLoad else { return }
         hasAttemptedFlowInsightLoad = true
         await refreshStarMapInsight()
+    }
+
+    private static func isDateInCurrentWeek(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        let components: Set<Calendar.Component> = [.weekOfYear, .yearForWeekOfYear]
+        return calendar.dateComponents(components, from: date)
+            == calendar.dateComponents(components, from: Date())
     }
 
     func openSession(_ sessionID: String) {
@@ -303,6 +318,7 @@ final class CompanionStore: ObservableObject {
         latestCloseSummary = nil
         sessionNotice = "已经准备好一个新的夜谈。"
         chatNotice = nil
+        latestUserAssessment = nil
         refreshInteractionOffers()
     }
 
@@ -996,6 +1012,7 @@ final class CompanionStore: ObservableObject {
                 createdAt: ""
             )
         )
+        latestUserAssessment = nil
         isSending = true
         chatNotice = nil
         chatOperationStatus = "正在连接本机后端…"
@@ -1043,6 +1060,7 @@ final class CompanionStore: ObservableObject {
             self?.applyStreamUpdate(update)
         }
         let response = streamResult.response
+        latestUserAssessment = response.assessment ?? latestUserAssessment
         SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
         if streamResult.deliveredStageCount == 0 {
             appendAssistantResponse(response, fallbackCharacter: character)
@@ -1073,6 +1091,9 @@ final class CompanionStore: ObservableObject {
     }
 
     private func applyStreamUpdate(_ update: ChatServiceStreamUpdate) {
+        if let assessment = update.response.assessment {
+            latestUserAssessment = assessment
+        }
         if let cid = update.correlationID {
             if update.stage == .quick {
                 SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: cid)
@@ -1159,6 +1180,7 @@ final class CompanionStore: ObservableObject {
                 fputs("[sendLocalChatText] 快速回复已添加到UI\n", stderr)
             }
             fputs("[sendLocalChatText] send 成功, quick: \(result.quickReply != nil), next_action: \(result.nextAction), follow_up: \(result.followUpReply != nil)\n", stderr)
+            latestUserAssessment = result.assessment
             SendInstrumentation.shared.recordPhase(.storeApplyStarted, correlationID: correlationID)
             if let followUpReply = result.followUpReply {
                 appendMessage(followUpReply)
