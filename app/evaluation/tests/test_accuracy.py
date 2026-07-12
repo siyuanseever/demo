@@ -393,7 +393,11 @@ class OrchestratorHelpersAccuracyTest(AccuracyTest):
         super().__init__("orchestrator_helpers", "agents.orchestrator")
 
     def run(self):
-        from app.agents.orchestrator import parse_json_object, render_memories
+        from app.agents.orchestrator import (
+            parse_json_object,
+            render_memories,
+            render_quick_reply_handoff,
+        )
 
         # 测试 parse_json_object
         self.assert_equal("parse_plain_json", parse_json_object('{"a":1}'), {"a": 1})
@@ -410,6 +414,12 @@ class OrchestratorHelpersAccuracyTest(AccuracyTest):
         # 测试空列表
         empty_rendered = render_memories([])
         self.assert_true("render_memories_empty", "暂无" in empty_rendered)
+
+        handoff = render_quick_reply_handoff("我听见你现在很累。")
+        self.assert_contains("quick_handoff_keeps_reply", handoff, "我听见你现在很累。")
+        self.assert_contains("quick_handoff_avoids_repetition", handoff, "不要再次复述")
+        self.assert_contains("quick_handoff_requires_new_value", handoff, "尚未覆盖")
+        self.assert_equal("quick_handoff_empty", render_quick_reply_handoff("  "), "")
 
         return self.results
 

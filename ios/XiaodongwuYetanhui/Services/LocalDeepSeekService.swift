@@ -1145,7 +1145,15 @@ final class LocalDeepSeekService {
         let memoryText = memories.map { "- [\($0.category)/\($0.subcategory)] \($0.content)（关键词：\($0.keywords.joined(separator: "、"))）" }.joined(separator: "\n")
         let profileText = profiles.map { "- [\($0.domain)] 阶段：\($0.stage)；摘要：\($0.summary)；趋势：\($0.trend)；强度：\($0.intensity)/10" }.joined(separator: "\n")
         let knowledgeText = knowledgeCards.map { "- \($0.title)：\($0.concept)" }.joined(separator: "\n")
-        let quickContext = quickReplyText.map { "\n你刚才已经快速回应了用户一句话：「\($0)」。现在请你在这个基础上展开更完整、更深入的回复。不要重复刚才已经说过的那句话，而是从那里继续往前推进一层。" } ?? ""
+        let quickContext = quickReplyText.map {
+            """
+
+            下面这段即时回应已经作为上一条消息显示给用户：
+            「\($0)」
+
+            现在生成的是紧接其后的第二条回复。不要重新问候，不要再次复述同一种感受，不要用同义词改写即时回应，也不要向用户解释这是“深度回复”。第一句就从即时回应尚未覆盖的结构、矛盾、历史联系、具体澄清或下一步继续推进。如果没有足够的新信息，应缩短回复，而不是为了显得深入而重复。
+            """
+        } ?? ""
         return """
         你是森森物语里的\(character.name)，是一位温和、清醒、有边界的自我理解型心理陪伴者。
 
@@ -1154,7 +1162,7 @@ final class LocalDeepSeekService {
         \(quickContext)
 
         回应要求：
-        - 用你自己的话复述用户的感受和处境，让用户感到「你确实听懂了」。
+        - 如果前面没有即时回应，用你自己的话准确接住用户；如果已经有即时回应，则跳过重复共情，直接增加新的理解。
         - 把你读到的长期记忆或状态画像里相关的内容，自然地编织进回应里。比如「我记得你之前提到过……」或「从最近的状态来看，你似乎在……」。这让用户感到被记住、被理解。
         - 如果记忆中有和当前话题直接相关的内容，一定要引用它。这是你最有价值的地方——你不是一个只会说套话的机器人，你真的记得用户说过什么。
         - 最多引入一个心理知识视角，但不要生硬地贴标签。用日常语言解释，让它感觉像是你在理解用户的过程中自然联想到的，而不是在给用户上课。

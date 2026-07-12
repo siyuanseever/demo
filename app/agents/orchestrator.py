@@ -60,6 +60,20 @@ def parse_json_object(content: str) -> dict:
     return payload
 
 
+def render_quick_reply_handoff(quick_reply_text: str | None) -> str:
+    quick_reply = str(quick_reply_text or "").strip()[:1200]
+    if not quick_reply:
+        return ""
+    return (
+        "\n\n【已经发送给用户的即时回应】\n"
+        f"{quick_reply}\n\n"
+        "这段即时回应已经作为上一条消息显示给用户。现在生成的是紧接其后的第二条回复："
+        "不要重新问候，不要再次复述同一种感受，不要换同义词重复即时回应，也不要提到‘快速回复’或‘第二次回复’。"
+        "第一句就应当从即时回应尚未覆盖的结构、矛盾、历史联系、具体澄清或下一步继续推进。"
+        "如果没有足够的新信息可增加，应缩短回复，而不是为了显得深入而重复。"
+    )
+
+
 def render_memories(memories: list) -> str:
     if not memories:
         return "暂无长期记忆。"
@@ -873,6 +887,7 @@ class ConversationOrchestrator:
         debug_trace: dict,
         started_at: float,
         extra_metadata: dict | None = None,
+        quick_reply_text: str | None = None,
     ) -> dict:
         """深度回复路径（含兔子形态结构化回复和手动角色回复）。"""
         if route_plan:
@@ -962,6 +977,15 @@ class ConversationOrchestrator:
         )
         if route_plan:
             system_prompt += render_rabbit_response_instruction(route_plan)
+        if quick_reply_text:
+            quick_reply_text = quick_reply_text.strip()[:1200]
+            system_prompt += render_quick_reply_handoff(quick_reply_text)
+            debug_trace["steps"].append({
+                "name": "quick_reply_handoff",
+                "status": "done",
+                "summary": "深度回复已读取先前显示的即时回应，并被要求只补充新增价值。",
+                "output": {"quick_reply_chars": len(quick_reply_text)},
+            })
         llm_messages = [{"role": "system", "content": system_prompt}]
         llm_messages.append({"role": "user", "content": user_text})
 
@@ -1407,6 +1431,7 @@ class ConversationOrchestrator:
                     session_id, user_text, route_plan,
                     messages, state_profiles, debug_trace, started_at,
                     extra_metadata={"reply_stage": "deep", "reply_group_id": reply_group_id},
+                    quick_reply_text=quick_text if quick_reply_payload is not None else None,
                 )
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
@@ -1431,6 +1456,7 @@ class ConversationOrchestrator:
                     session_id, user_text, route_plan,
                     messages, state_profiles, debug_trace, started_at,
                     extra_metadata={"reply_stage": "deep", "reply_group_id": reply_group_id},
+                    quick_reply_text=quick_text if quick_reply_payload is not None else None,
                 )
                 final_result["deep_reply"] = {
                     "text": final_result["reply"],
