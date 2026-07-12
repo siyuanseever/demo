@@ -16,32 +16,36 @@ HOST = os.getenv("TTS_HOST", "127.0.0.1")
 PORT = int(os.getenv("TTS_PORT", "8768"))
 MODEL_ID = os.getenv(
     "TTS_MODEL",
-    "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
+    "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-4bit",
 )
 DEFAULT_VOICE = "Serena"
 DEFAULT_INSTRUCT = (
-    "温柔、自然、安静地说，像一位年轻女孩在夜晚陪伴亲近的朋友。"
-    "语速稍慢，不要播音腔，不要夸张卖萌。"
+    "平静、克制、自然地说，像一位年轻女孩在安静地陪伴朋友。"
+    "保持稳定音量和清晰发音，情绪起伏小，不使用哭腔、气声、播音腔或撒娇语气。"
 )
 CACHE_DIR = Path(os.getenv("TTS_CACHE_DIR", "data/tts_cache"))
 GENERATION_TIMEOUT = int(os.getenv("TTS_TIMEOUT", "45"))
-MAX_TOKENS_PER_CHAR = int(os.getenv("TTS_MAX_TOKENS_PER_CHAR", "8"))
-MIN_MAX_TOKENS = int(os.getenv("TTS_MIN_MAX_TOKENS", "500"))
-HARD_MAX_TOKENS = int(os.getenv("TTS_HARD_MAX_TOKENS", "2048"))
-TEMPERATURE = float(os.getenv("TTS_TEMPERATURE", "0.9"))
-REPETITION_PENALTY = float(os.getenv("TTS_REPETITION_PENALTY", "1.05"))
-TOP_P = float(os.getenv("TTS_TOP_P", "1.0"))
-MAX_SEGMENT_CHARS = int(os.getenv("TTS_MAX_SEGMENT_CHARS", "150"))
+MAX_TOKENS_PER_CHAR = int(os.getenv("TTS_MAX_TOKENS_PER_CHAR", "5"))
+MIN_MAX_TOKENS = int(os.getenv("TTS_MIN_MAX_TOKENS", "120"))
+HARD_MAX_TOKENS = int(os.getenv("TTS_HARD_MAX_TOKENS", "384"))
+TEMPERATURE = float(os.getenv("TTS_TEMPERATURE", "0.65"))
+REPETITION_PENALTY = float(os.getenv("TTS_REPETITION_PENALTY", "1.12"))
+TOP_P = float(os.getenv("TTS_TOP_P", "0.92"))
+MAX_SEGMENT_CHARS = int(os.getenv("TTS_MAX_SEGMENT_CHARS", "42"))
 MAX_RETRIES = int(os.getenv("TTS_MAX_RETRIES", "2"))
-MIN_RMS = float(os.getenv("TTS_MIN_RMS", "0.01"))
-EXPECTED_SECONDS_PER_CHAR = float(os.getenv("TTS_SECONDS_PER_CHAR", "0.2"))
-MAX_DURATION_RATIO = float(os.getenv("TTS_MAX_DURATION_RATIO", "3.5"))
+MIN_RMS = float(os.getenv("TTS_MIN_RMS", "0.006"))
+EXPECTED_SECONDS_PER_CHAR = float(os.getenv("TTS_SECONDS_PER_CHAR", "0.28"))
+MAX_DURATION_RATIO = float(os.getenv("TTS_MAX_DURATION_RATIO", "2.4"))
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 logger = logging.getLogger("app.tts_server")
+
+
+class TTSRequestCancelled(RuntimeError):
+    pass
 
 
 class LocalTTS:
@@ -77,32 +81,6 @@ class LocalTTS:
                 logger.info("loading model=%s", MODEL_ID)
                 self._model = load_model(MODEL_ID)
                 logger.info("model ready=%s", MODEL_ID)
-        return self._model
-
-    def _reload_model(self):
-        """Reload the model to reset MLX Metal compute graph state.
-
-        Called when generation quality degrades (blank/noise audio, timeout).
-        This is the only reliable way to recover from Metal state corruption.
-        """
-        with self._load_lock:
-            logger.warning("reloading model to reset Metal state")
-            # Drop reference and force GC
-            old_model = self._model
-            self._model = None
-            del old_model
-            try:
-                import gc
-                gc.collect()
-            except Exception:
-                pass
-            self._clear_metal_cache()
-            # Reload
-            from mlx_audio.tts.utils import load_model
-
-            logger.info("reloading model=%s", MODEL_ID)
-            self._model = load_model(MODEL_ID)
-            logger.info("model reloaded and ready=%s", MODEL_ID)
         return self._model
 
     # ------------------------------------------------------------------
@@ -150,29 +128,19 @@ class LocalTTS:
                 "generation start chars=%d segments=%d voice=%s",
                 len(text), len(segments), voice,
             )
+            self._log_segments(segments)
 
             all_audio = []
             result_sample_rate = None
-            model_corrupted = False
-            current_model = model
-
             for i, seg in enumerate(segments):
-                if model_corrupted:
-                    logger.warning(
-                        "model state corrupted, skipping segment %d/%d",
-                        i + 1, len(segments),
-                    )
-                    continue
-
-                seg_audio, seg_sr, model_corrupted = self._generate_segment(
-                    current_model, seg, voice, instruct, i + 1, len(segments),
+                seg_audio, seg_sr = self._generate_segment(
+                    model, seg, voice, instruct, i + 1, len(segments),
                 )
-                current_model = self._model
-
-                if seg_audio is not None:
-                    if result_sample_rate is None:
-                        result_sample_rate = seg_sr
-                    all_audio.append(seg_audio)
+                if seg_audio is None:
+                    raise RuntimeError(f"TTS segment {i + 1}/{len(segments)} was cancelled")
+                if result_sample_rate is None:
+                    result_sample_rate = seg_sr
+                all_audio.append(seg_audio)
                 self._clear_metal_cache()
 
             if not all_audio:
@@ -264,13 +232,12 @@ class LocalTTS:
                 "streaming start chars=%d segments=%d voice=%s cancel_count=%d",
                 len(text), len(segments), voice, my_count,
             )
+            self._log_segments(segments)
 
             all_audio = []
             sample_rate = None
             header_sent = False
             client_gone = False
-            model_corrupted = False
-            current_model = model
 
             for i, seg in enumerate(segments):
                 if client_gone:
@@ -280,24 +247,17 @@ class LocalTTS:
                         "superseded by newer request, aborting at segment %d/%d",
                         i + 1, len(segments),
                     )
-                    return
-                if model_corrupted:
-                    logger.warning(
-                        "model state corrupted, skipping segment %d/%d",
-                        i + 1, len(segments),
-                    )
-                    continue
-
-                seg_audio, seg_sr, model_corrupted = self._generate_segment(
-                    current_model, seg, voice, instruct, i + 1, len(segments), my_count,
+                    raise TTSRequestCancelled("superseded by newer request")
+                seg_audio, seg_sr = self._generate_segment(
+                    model, seg, voice, instruct, i + 1, len(segments), my_count,
                 )
 
-                # _generate_segment may have reloaded the model; update reference
-                current_model = self._model
-
                 if seg_audio is None:
-                    self._clear_metal_cache()
-                    continue
+                    if self._is_cancelled(my_count):
+                        raise TTSRequestCancelled("superseded by newer request")
+                    raise RuntimeError(
+                        f"TTS segment {i + 1}/{len(segments)} failed after retries"
+                    )
 
                 if not header_sent:
                     sample_rate = seg_sr
@@ -349,16 +309,41 @@ class LocalTTS:
     # Helpers
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _clear_metal_cache() -> None:
+    def _clear_metal_cache(self) -> None:
+        """Aggressively clear MLX Metal state to prevent degradation across calls."""
+        # 1. Clear buffer cache
         try:
             import mlx.core as mx
             mx.clear_cache()
         except Exception:
             pass
+
+        # 2. Force-release all cached Metal buffers by temporarily setting limit to 0
         try:
             import mlx.metal as mx_metal
+            original_limit = mx_metal.get_cache_memory()
+            mx_metal.set_cache_limit(0)
             mx_metal.clear_cache()
+            # Restore a reasonable cache limit (200MB)
+            mx_metal.set_cache_limit(200 * 1024 * 1024)
+        except Exception:
+            pass
+
+        # 3. Reset decoder streaming state (cleans up residual buffers from interrupted generations)
+        if self._model is not None:
+            try:
+                speech_tokenizer = getattr(self._model, 'speech_tokenizer', None)
+                if speech_tokenizer is not None:
+                    decoder = getattr(speech_tokenizer, 'decoder', None)
+                    if decoder is not None and hasattr(decoder, 'reset_streaming_state'):
+                        decoder.reset_streaming_state()
+            except Exception:
+                pass
+
+        # 4. Reset peak memory counter for better diagnostics
+        try:
+            import mlx.metal as mx_metal
+            mx_metal.reset_peak_memory()
         except Exception:
             pass
 
@@ -439,6 +424,18 @@ class LocalTTS:
 
         return final if final else [text]
 
+    @staticmethod
+    def _log_segments(segments: list[str]) -> None:
+        for index, segment in enumerate(segments, start=1):
+            preview = segment.replace("\n", "\\n")
+            logger.info(
+                "segment input %d/%d chars=%d text=%s",
+                index,
+                len(segments),
+                len(segment),
+                json.dumps(preview, ensure_ascii=False),
+            )
+
     def _generate_segment(
         self,
         model,
@@ -451,111 +448,155 @@ class LocalTTS:
     ):
         """Generate audio for one segment.
 
-        Returns (np.array, sample_rate, model_corrupted) or (None, None, True).
-
-        model_corrupted=True means the MLX Metal state is degraded and reloading
-        didn't help — the caller should skip remaining segments.
+        Returns (np.array, sample_rate), or (None, None) when cancelled.
         """
         import numpy as np
 
-        calculated_max = max(MIN_MAX_TOKENS, len(text) * MAX_TOKENS_PER_CHAR)
-        effective_max = min(calculated_max, HARD_MAX_TOKENS)
         expected_duration = len(text) * EXPECTED_SECONDS_PER_CHAR
-        max_allowed_duration = expected_duration * MAX_DURATION_RATIO
+        max_allowed_duration = max(6.0, expected_duration * MAX_DURATION_RATIO)
 
-        for attempt in [1, 2]:
+        if my_count >= 0 and self._is_cancelled(my_count):
+            logger.info("segment %d/%d cancelled by newer request", idx, total)
+            return None, None
+
+        base_max = min(
+            max(MIN_MAX_TOKENS, len(text) * MAX_TOKENS_PER_CHAR),
+            HARD_MAX_TOKENS,
+        )
+        attempt_settings = (
+            (1.0, TEMPERATURE, TOP_P, instruct),
+            (
+                0.85,
+                min(TEMPERATURE + 0.15, 0.85),
+                min(TOP_P + 0.05, 1.0),
+                instruct + " 请逐字完整朗读，音量稳定，不拖长尾音。",
+            ),
+            (
+                0.7,
+                max(TEMPERATURE - 0.1, 0.4),
+                max(TOP_P - 0.08, 0.75),
+                instruct + " 请清晰、平稳、简短地完整朗读，不添加额外情绪。",
+            ),
+        )
+
+        for attempt in range(MAX_RETRIES + 1):
             if my_count >= 0 and self._is_cancelled(my_count):
-                logger.info(
-                    "segment %d/%d cancelled by newer request",
-                    idx, total,
-                )
-                return None, None, True
-
-            is_retry = attempt == 2
+                return None, None
+            token_scale, temperature, top_p, attempt_instruct = attempt_settings[
+                min(attempt, len(attempt_settings) - 1)
+            ]
+            effective_max = max(96, int(base_max * token_scale))
             logger.info(
-                "segment %d/%d attempt %d chars=%d max_tokens=%d%s",
-                idx, total, attempt, len(text), effective_max,
-                " (model reloaded)" if is_retry else "",
+                "segment %d/%d attempt=%d/%d chars=%d max_tokens=%d temp=%.2f top_p=%.2f",
+                idx, total, attempt + 1, MAX_RETRIES + 1, len(text),
+                effective_max, temperature, top_p,
             )
-
             result_audio = None
             result_sample_rate = None
+            token_count = 0
             start_time = time.time()
-            timed_out = False
-
             try:
                 generator = model.generate(
                     text=text,
                     voice=voice,
-                    instruct=instruct,
+                    instruct=attempt_instruct,
                     lang_code="Chinese",
                     speed=1.0,
                     split_pattern="\n",
                     max_tokens=effective_max,
                     verbose=False,
-                    temperature=TEMPERATURE,
-                    repetition_penalty=REPETITION_PENALTY,
-                    top_p=TOP_P,
+                    temperature=temperature,
+                    repetition_penalty=REPETITION_PENALTY + attempt * 0.02,
+                    top_p=top_p,
                     stream=False,
                 )
                 for result in generator:
-                    elapsed = time.time() - start_time
-                    if elapsed > GENERATION_TIMEOUT:
-                        timed_out = True
-                        break
                     result_audio = np.array(result.audio)
                     result_sample_rate = result.sample_rate
-                if timed_out:
-                    logger.warning(
-                        "segment %d/%d timed out after %.1fs",
-                        idx, total, time.time() - start_time,
-                    )
-
+                    token_count = int(getattr(result, "token_count", 0) or 0)
             except Exception:
-                logger.exception("segment %d/%d generation error", idx, total)
-                if attempt == 1:
-                    logger.warning("reloading model after generation error")
-                    model = self._reload_model()
-                    continue
-                return None, None, True
-
-            if result_audio is None or len(result_audio) == 0:
-                logger.warning("segment %d/%d empty audio", idx, total)
-                if attempt == 1:
-                    logger.warning("reloading model after empty audio")
-                    model = self._reload_model()
-                    continue
-                return None, None, True
-
-            duration = len(result_audio) / result_sample_rate
-            rms = float(np.sqrt(np.mean(result_audio ** 2)))
-
-            is_too_long = duration > max_allowed_duration
-            is_too_quiet = rms < MIN_RMS
-
-            if not is_too_long and not is_too_quiet:
-                elapsed = time.time() - start_time
-                logger.info(
-                    "segment %d/%d ok chars=%d samples=%d duration=%.1fs rms=%.4f %.1fs",
-                    idx, total, len(text), len(result_audio), duration, rms, elapsed,
+                logger.exception(
+                    "segment %d/%d attempt=%d generation error",
+                    idx, total, attempt + 1,
                 )
-                return result_audio, result_sample_rate, False
+
+            elapsed = time.time() - start_time
+            reasons: list[str] = []
+            if elapsed > GENERATION_TIMEOUT:
+                reasons.append("timeout")
+            if result_audio is None or len(result_audio) == 0 or not result_sample_rate:
+                reasons.append("empty")
+                duration = 0.0
+                rms = 0.0
+                peak = 0.0
+            else:
+                duration = len(result_audio) / result_sample_rate
+                absolute = np.abs(result_audio)
+                peak = float(np.max(absolute))
+                active_audio = result_audio[absolute > 0.003]
+                rms = (
+                    float(np.sqrt(np.mean(active_audio ** 2)))
+                    if len(active_audio) else 0.0
+                )
+                if duration > max_allowed_duration:
+                    reasons.append("too_long")
+                if peak < 0.02 or rms < MIN_RMS:
+                    reasons.append("too_quiet")
+                if token_count >= int(effective_max * 0.92):
+                    reasons.append("token_limit")
+                envelope_cv, zero_crossing_rate = self._speech_variation(
+                    result_audio,
+                    result_sample_rate,
+                )
+                if (
+                    len(text) >= 15
+                    and duration >= 4.0
+                    and envelope_cv < 0.22
+                    and zero_crossing_rate < 0.018
+                ):
+                    reasons.append("low_speech_variation")
+
+            if not reasons:
+                logger.info(
+                    "segment %d/%d ok attempt=%d chars=%d duration=%.1fs "
+                    "tokens=%d active_rms=%.4f peak=%.4f elapsed=%.1fs",
+                    idx, total, attempt + 1, len(text), duration, token_count,
+                    rms, peak, elapsed,
+                )
+                return result_audio, result_sample_rate
 
             logger.warning(
-                "segment %d/%d quality issue: %s%s duration=%.1fs (expected ~%.1fs, max %.1fs) rms=%.4f",
-                idx, total,
-                "too_long " if is_too_long else "",
-                "too_quiet " if is_too_quiet else "",
-                duration, expected_duration, max_allowed_duration, rms,
+                "segment %d/%d attempt=%d quality issue=%s duration=%.1fs "
+                "max=%.1fs tokens=%d/%d active_rms=%.4f peak=%.4f",
+                idx, total, attempt + 1, ",".join(reasons), duration,
+                max_allowed_duration, token_count, effective_max, rms, peak,
             )
+            self._clear_metal_cache()
 
-            if attempt == 1:
-                logger.warning("reloading model after quality issue")
-                model = self._reload_model()
-                continue
+        raise RuntimeError(
+            f"TTS segment {idx}/{total} failed after {MAX_RETRIES + 1} attempts"
+        )
 
-        logger.error("segment %d/%d failed after 2 attempts chars=%d", idx, total, len(text))
-        return None, None, True
+    @staticmethod
+    def _speech_variation(audio, sample_rate: int) -> tuple[float, float]:
+        import numpy as np
+
+        if len(audio) < 2 or sample_rate <= 0:
+            return 0.0, 0.0
+        frame_size = max(1, int(sample_rate * 0.04))
+        frame_count = len(audio) // frame_size
+        if frame_count < 2:
+            return 0.0, 0.0
+        framed = audio[:frame_count * frame_size].reshape(frame_count, frame_size)
+        envelope = np.sqrt(np.mean(framed ** 2, axis=1))
+        active_envelope = envelope[envelope > 0.003]
+        envelope_cv = (
+            float(np.std(active_envelope) / max(np.mean(active_envelope), 1e-6))
+            if len(active_envelope) > 1 else 0.0
+        )
+        zero_crossings = np.count_nonzero(np.diff(np.signbit(audio)))
+        zero_crossing_rate = float(zero_crossings / max(len(audio) - 1, 1))
+        return envelope_cv, zero_crossing_rate
 
     def _trim_tail_silence(
         self,
@@ -696,6 +737,9 @@ class TTSRequestHandler(BaseHTTPRequestHandler):
             # End chunked transfer
             self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
+        except TTSRequestCancelled:
+            logger.info("streaming request cancelled; closing incomplete transfer")
+            self.close_connection = True
         except (BrokenPipeError, ConnectionResetError):
             logger.info("client disconnected during streaming")
         except Exception:

@@ -424,6 +424,70 @@ class OrchestratorHelpersAccuracyTest(AccuracyTest):
         return self.results
 
 
+class TTSHelpersAccuracyTest(AccuracyTest):
+    """tts_server 分段与质量重试准确率测试"""
+
+    def __init__(self):
+        super().__init__("tts_helpers", "tts_server")
+
+    def run(self):
+        from types import SimpleNamespace
+
+        import numpy as np
+
+        from app import tts_server
+
+        service = tts_server.LocalTTS()
+        source = (
+            "我知道你现在有一点难受，也许不需要立刻找到答案。"
+            "我们可以先把这一刻说清楚，再慢慢看看下一步。"
+            "即使句子很长，语音也不应该漏掉其中任何一段内容。"
+        )
+        segments = service._split_text(source)
+        normalized = lambda value: "".join(value.split())
+        self.assert_equal(
+            "tts_segments_preserve_all_text",
+            normalized("".join(segments)),
+            normalized(source),
+        )
+        self.assert_true(
+            "tts_segments_respect_max_length",
+            all(len(segment) <= tts_server.MAX_SEGMENT_CHARS for segment in segments),
+        )
+
+        class RetryModel:
+            def __init__(self):
+                self.calls = []
+
+            def generate(self, **kwargs):
+                self.calls.append(kwargs)
+                sample_count = 10_000 if len(self.calls) == 1 else 2_000
+                yield SimpleNamespace(
+                    audio=np.full(sample_count, 0.1, dtype=np.float32),
+                    sample_rate=1_000,
+                )
+
+        model = RetryModel()
+        audio, sample_rate = service._generate_segment(
+            model,
+            "请陪我安静一会儿。",
+            "Serena",
+            tts_server.DEFAULT_INSTRUCT,
+            1,
+            1,
+        )
+        self.assert_equal("tts_quality_failure_retries", len(model.calls), 2)
+        self.assert_true(
+            "tts_retry_changes_generation_settings",
+            model.calls[0]["instruct"] != model.calls[1]["instruct"]
+            and model.calls[0]["temperature"] != model.calls[1]["temperature"],
+        )
+        self.assert_equal("tts_retry_returns_valid_sample_rate", sample_rate, 1_000)
+        self.assert_equal("tts_retry_returns_complete_audio", len(audio), 2_000)
+
+        return self.results
+
+
 def get_accuracy_tests() -> list[AccuracyTest]:
     """返回所有准确率测试实例"""
     return [
@@ -433,4 +497,5 @@ def get_accuracy_tests() -> list[AccuracyTest]:
         KnowledgeAccuracyTest(),
         LLMBaseAccuracyTest(),
         OrchestratorHelpersAccuracyTest(),
+        TTSHelpersAccuracyTest(),
     ]

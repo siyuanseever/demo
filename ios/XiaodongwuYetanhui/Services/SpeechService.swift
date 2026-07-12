@@ -31,7 +31,7 @@ final class SpeechService: NSObject, ObservableObject {
     private static let autoReadKey = "speech.automaticallyReadsReplies"
     private static let streamEndpoint = URL(string: "http://127.0.0.1:8768/v1/audio/speech/stream")!
     private static let fallbackEndpoint = URL(string: "http://127.0.0.1:8768/v1/audio/speech")!
-    private static let voiceInstruction = "温柔、自然、安静地说，像一位年轻女孩在夜晚陪伴亲近的朋友。语速稍慢，不要播音腔，不要夸张卖萌。"
+    private static let voiceInstruction = "平静、克制、自然地说，像一位年轻女孩在安静地陪伴朋友。保持稳定音量和清晰发音，情绪起伏小，不使用哭腔、气声、播音腔或撒娇语气。"
 
     private var audioEngine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
@@ -40,6 +40,7 @@ final class SpeechService: NSObject, ObservableObject {
     private var pendingBuffers: Int = 0
     private var playbackContinuation: CheckedContinuation<Void, Never>?
     private var queuedItem: QueuedItem?
+    private var queuedPrefetchTask: Task<Data, Error>?
 
     override init() {
         automaticallyReadsReplies = UserDefaults.standard.bool(forKey: Self.autoReadKey)
@@ -81,6 +82,10 @@ final class SpeechService: NSObject, ObservableObject {
 
         queuedItem = QueuedItem(messageID: messageID, text: cleanText)
         queuedMessageID = messageID
+        queuedPrefetchTask?.cancel()
+        queuedPrefetchTask = Task {
+            try await Self.fetchCompleteAudio(text: cleanText)
+        }
     }
 
     func previewVoice() {
@@ -93,6 +98,8 @@ final class SpeechService: NSObject, ObservableObject {
     func stop() {
         queuedItem = nil
         queuedMessageID = nil
+        queuedPrefetchTask?.cancel()
+        queuedPrefetchTask = nil
         generationTask?.cancel()
         generationTask = nil
         requestID = nil
@@ -100,7 +107,11 @@ final class SpeechService: NSObject, ObservableObject {
         resetPlaybackState()
     }
 
-    private func startPlayback(messageID: String, text: String) {
+    private func startPlayback(
+        messageID: String,
+        text: String,
+        preparedAudioTask: Task<Data, Error>? = nil
+    ) {
         let currentRequestID = UUID()
         requestID = currentRequestID
         activeMessageID = messageID
@@ -110,7 +121,12 @@ final class SpeechService: NSObject, ObservableObject {
         generationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                try await self.streamAndPlay(text: text, requestID: currentRequestID)
+                if let preparedAudioTask {
+                    let audio = try await preparedAudioTask.value
+                    try await self.playCompleteAudio(audio, requestID: currentRequestID)
+                } else {
+                    try await self.streamAndPlay(text: text, requestID: currentRequestID)
+                }
                 await self.handlePlaybackFinished(requestID: currentRequestID)
             } catch is CancellationError {
                 return
@@ -131,26 +147,22 @@ final class SpeechService: NSObject, ObservableObject {
 
     private func checkAndPlayQueued() {
         guard let item = queuedItem else { return }
+        let preparedAudioTask = queuedPrefetchTask
         queuedItem = nil
         queuedMessageID = nil
-        startPlayback(messageID: item.messageID, text: item.text)
+        queuedPrefetchTask = nil
+        startPlayback(
+            messageID: item.messageID,
+            text: item.text,
+            preparedAudioTask: preparedAudioTask
+        )
     }
 
     // MARK: - Streaming playback
 
     private func streamAndPlay(text: String, requestID: UUID) async throws {
-        var request = URLRequest(url: Self.streamEndpoint)
-        request.httpMethod = "POST"
+        var request = try Self.makeRequest(url: Self.streamEndpoint, text: text)
         request.timeoutInterval = 300
-        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            LocalSpeechRequest(
-                model: "qwen3-tts-0.6b-customvoice-8bit",
-                input: text,
-                voice: "Serena",
-                instruct: Self.voiceInstruction
-            )
-        )
 
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
@@ -217,6 +229,70 @@ final class SpeechService: NSObject, ObservableObject {
             schedulePCMBuffer(buffer, format: format, bytesPerFrame: bytesPerFrame)
         }
 
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            self.playbackContinuation = continuation
+            self.checkPlaybackComplete()
+        }
+    }
+
+    private static func fetchCompleteAudio(text: String) async throws -> Data {
+        var request = try makeRequest(url: fallbackEndpoint, text: text)
+        request.timeoutInterval = 300
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200,
+              data.count > 44 else {
+            throw SpeechServiceError.invalidResponse
+        }
+        return data
+    }
+
+    private static func makeRequest(url: URL, text: String) throws -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            LocalSpeechRequest(
+                model: "qwen3-tts-0.6b-customvoice-4bit",
+                input: text,
+                voice: "Serena",
+                instruct: voiceInstruction
+            )
+        )
+        return request
+    }
+
+    private func playCompleteAudio(_ wavData: Data, requestID: UUID) async throws {
+        guard wavData.count > 44 else { throw SpeechServiceError.invalidResponse }
+        let sampleRate = readUInt32(wavData, offset: 24)
+        let numChannels = readUInt16(wavData, offset: 22)
+        let bitsPerSample = readUInt16(wavData, offset: 34)
+        guard sampleRate > 0, numChannels > 0, bitsPerSample == 16,
+              let format = AVAudioFormat(
+                commonFormat: .pcmFormatInt16,
+                sampleRate: Double(sampleRate),
+                channels: AVAudioChannelCount(numChannels),
+                interleaved: true
+              ) else {
+            throw SpeechServiceError.invalidResponse
+        }
+
+        let engine = AVAudioEngine()
+        let playerNode = AVAudioPlayerNode()
+        engine.attach(playerNode)
+        engine.connect(playerNode, to: engine.mainMixerNode, format: format)
+        try engine.start()
+        playerNode.play()
+
+        guard requestID == self.requestID else { return }
+        self.audioEngine = engine
+        self.playerNode = playerNode
+        self.isPreparing = false
+        self.isSpeaking = true
+
+        let pcmData = Data(wavData.dropFirst(44))
+        let bytesPerFrame = Int(numChannels) * Int(bitsPerSample) / 8
+        schedulePCMBuffer(pcmData, format: format, bytesPerFrame: bytesPerFrame)
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             self.playbackContinuation = continuation
             self.checkPlaybackComplete()
