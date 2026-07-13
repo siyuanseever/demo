@@ -1,5 +1,8 @@
 import Foundation
 import SwiftUI
+#if os(macOS) && !targetEnvironment(macCatalyst)
+import AppKit
+#endif
 
 struct CompanionCharacter: Identifiable, Hashable {
     let id: String

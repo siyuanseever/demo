@@ -46,7 +46,7 @@ Catalyst target（基线）          Native macOS target（新主线）
 4. `SecureSettingsStore` 文案声称使用系统钥匙串，实际存入 UserDefaults；必须在原生版本接入真实数据前修复并迁移旧值。
 5. `MacPrototypeView`、`ChatView`、`StateOverviewView` 都超过 3,000 行。N1 不整体重构，N2 按纵切拆分。
 
-## N1 原生壳范围
+## N1 原生壳范围（已实现）
 
 新增一个原生 macOS SwiftUI application target，并完成：
 
@@ -58,15 +58,17 @@ Catalyst target（基线）          Native macOS target（新主线）
 
 N1 **不包含**真实发送、流式回复、TTS 自动播放、完整数据页面或移除 Catalyst。
 
+实现落点：独立 scheme/target `SensenStoryNative`，入口与壳界面位于 `ios/SensenStoryMac/`。原生壳已能启动、切换侧栏、读取既有沙盒 SQLite 概览，并提供后端诊断与设置占位；`scripts/run_native_mac.sh` 可从命令行构建并启动。Catalyst target 同时保持可构建。
+
 ## N1 进入条件与验收
 
 进入前：移除敏感 Key 日志；确定 Keychain 迁移策略；建立 Catalyst 当前启动内存基线。
 
-完成条件：原生 target 可无签名 Debug 构建并启动；导航与设置可点击；离线时展示缓存或明确空状态；空闲 10 分钟无持续内存增长；Catalyst 仍可构建运行。
+完成条件：原生 target 可无签名 Debug 构建并启动；导航与设置可点击；离线时展示缓存或明确空状态；空闲 10 分钟无持续内存增长；Catalyst 仍可构建运行。当前构建、启动、导航、缓存读取与 Catalyst 回归已通过；长时间空闲内存观察并入 N2 纵切前的稳定性基线。
 
 ## 后续顺序
 
-1. N1 原生壳。
+1. N1 原生壳（已完成）。
 2. N2 夜谈纵切：发送、quick/plan 并行、按需 deep、轨迹和缓存。
 3. N3 数据纵切：同步、记忆、日记、长期状态和心流。
 4. N4 使用相同数据进行 Catalyst/原生功能与性能对比。

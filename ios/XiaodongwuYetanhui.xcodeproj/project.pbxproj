@@ -120,6 +120,15 @@
 		C00000000000000000000101 /* MacPrototypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C00000000000000000000201 /* MacPrototypeView.swift */; };
 		D00000000000000000000101 /* SendInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000201 /* SendInstrumentation.swift */; };
 		E00000000000000000000101 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000201 /* SpeechService.swift */; };
+		F00000000000000000000101 /* SensenStoryNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000201 /* SensenStoryNativeApp.swift */; };
+		F00000000000000000000102 /* NativeMacRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000202 /* NativeMacRootView.swift */; };
+		F00000000000000000000103 /* NativeMacShellStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000203 /* NativeMacShellStore.swift */; };
+		F00000000000000000000104 /* CompanionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000203 /* CompanionModels.swift */; };
+		F00000000000000000000105 /* SQLiteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* SQLiteDatabase.swift */; };
+		F00000000000000000000106 /* ChatService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000315 /* ChatService.swift */; };
+		F00000000000000000000107 /* SendInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000201 /* SendInstrumentation.swift */; };
+		F00000000000000000000108 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000301 /* libsqlite3.tbd */; };
+		F00000000000000000000109 /* LocalDeepSeekService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000202 /* LocalDeepSeekService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -238,6 +247,10 @@
 		C00000000000000000000201 /* MacPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPrototypeView.swift; sourceTree = "<group>"; };
 		D00000000000000000000201 /* SendInstrumentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SendInstrumentation.swift; sourceTree = "<group>"; };
 		E00000000000000000000201 /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
+		F00000000000000000000201 /* SensenStoryNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensenStoryNativeApp.swift; sourceTree = "<group>"; };
+		F00000000000000000000202 /* NativeMacRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMacRootView.swift; sourceTree = "<group>"; };
+		F00000000000000000000203 /* NativeMacShellStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMacShellStore.swift; sourceTree = "<group>"; };
+		F00000000000000000000204 /* SensenStoryNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SensenStoryNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -249,6 +262,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F00000000000000000000501 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F00000000000000000000108 /* libsqlite3.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -256,6 +277,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000602 /* XiaodongwuYetanhui */,
+				F00000000000000000000601 /* SensenStoryMac */,
 				000000000000000000000610 /* Linked Resources */,
 				000000000000000000000611 /* Frameworks */,
 				000000000000000000000612 /* Products */,
@@ -433,8 +455,19 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000401 /* XiaodongwuYetanhui.app */,
+				F00000000000000000000204 /* SensenStoryNative.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		F00000000000000000000601 /* SensenStoryMac */ = {
+			isa = PBXGroup;
+			children = (
+				F00000000000000000000201 /* SensenStoryNativeApp.swift */,
+				F00000000000000000000202 /* NativeMacRootView.swift */,
+				F00000000000000000000203 /* NativeMacShellStore.swift */,
+			);
+			path = SensenStoryMac;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -457,6 +490,23 @@
 			productReference = 000000000000000000000401 /* XiaodongwuYetanhui.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F00000000000000000000701 /* SensenStoryNative */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F00000000000000000000903 /* Build configuration list for PBXNativeTarget "SensenStoryNative" */;
+			buildPhases = (
+				F00000000000000000000801 /* Sources */,
+				F00000000000000000000501 /* Frameworks */,
+				F00000000000000000000802 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SensenStoryNative;
+			productName = SensenStoryNative;
+			productReference = F00000000000000000000204 /* SensenStoryNative.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -468,6 +518,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					000000000000000000000701 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					F00000000000000000000701 = {
 						CreatedOnToolsVersion = 26.5;
 					};
 				};
@@ -487,6 +540,7 @@
 			projectRoot = "";
 			targets = (
 				000000000000000000000701 /* XiaodongwuYetanhui */,
+				F00000000000000000000701 /* SensenStoryNative */,
 			);
 		};
 /* End PBXProject section */
@@ -589,6 +643,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F00000000000000000000802 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -618,6 +679,21 @@
 				000000000000000000000178 /* StarMapView.swift in Sources */,
 				000000000000000000000126 /* SettingsView.swift in Sources */,
 				000000000000000000000127 /* EmotionCheckInView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F00000000000000000000801 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F00000000000000000000101 /* SensenStoryNativeApp.swift in Sources */,
+				F00000000000000000000102 /* NativeMacRootView.swift in Sources */,
+				F00000000000000000000103 /* NativeMacShellStore.swift in Sources */,
+				F00000000000000000000104 /* CompanionModels.swift in Sources */,
+				F00000000000000000000105 /* SQLiteDatabase.swift in Sources */,
+				F00000000000000000000106 /* ChatService.swift in Sources */,
+				F00000000000000000000107 /* SendInstrumentation.swift in Sources */,
+				F00000000000000000000109 /* LocalDeepSeekService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -795,6 +871,58 @@
 			};
 			name = Release;
 		};
+		F00000000000000000000904 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "森森物语 Native";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaolu.nighttalk.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG NATIVE_MAC_APP";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F00000000000000000000905 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "森森物语 Native";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaolu.nighttalk.native;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = NATIVE_MAC_APP;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -812,6 +940,15 @@
 			buildConfigurations = (
 				000000000000000000000904 /* Debug */,
 				000000000000000000000905 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F00000000000000000000903 /* Build configuration list for PBXNativeTarget "SensenStoryNative" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000000904 /* Debug */,
+				F00000000000000000000905 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
