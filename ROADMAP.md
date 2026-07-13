@@ -77,7 +77,7 @@
 
 迁移采用并行纵切，不做一次性重写：
 
-1. **N0 架构盘点**：标出可共享的 models/services、Catalyst 专属 UI、UIKit 依赖和数据契约。
+1. **N0 架构盘点（已完成）**：已在 `docs/native-macos-n0-architecture.md` 标出可共享的 models/services、Catalyst 专属 UI、UIKit 依赖和数据契约。
 2. **N1 原生壳**：建立原生 macOS SwiftUI target，只完成启动、导航、设置和诊断能力。
 3. **N2 夜谈纵切**：迁移“发送 → 后端 → 流式回复 → 本地缓存”完整路径。
 4. **N3 数据纵切**：迁移自动同步、长期记忆层级、日记和心流卡片。

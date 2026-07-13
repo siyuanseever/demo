@@ -289,7 +289,7 @@ private struct LocalAISettingsPanel: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Label("API Key 仅保存在这台 Mac 的系统钥匙串，不会写入数据库或同步给其他设备。", systemImage: "lock.shield.fill")
+                Label("API Key 仅保存在这台设备，不会写入对话数据库或同步给其他设备。", systemImage: "lock.shield.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

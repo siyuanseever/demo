@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 #if os(macOS)
 import AppKit
 #endif
@@ -145,29 +146,30 @@ private struct MacWorkspaceSidebar: View {
                     .tag(MacWorkspaceSection.settings)
             }
 
-            if !store.sessions.isEmpty {
-                Section("最近夜谈") {
-                    ForEach(store.sessions.prefix(6)) { session in
-                        Button {
-                            selection = .sessions
-                        } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(session.preview.isEmpty ? "一次安静的夜谈" : session.preview)
-                                    .font(.caption.weight(.medium))
-                                    .lineLimit(2)
-                                HStack(spacing: 6) {
-                                    Text(session.createdAt.isEmpty ? "未标记时间" : macShortDate(session.createdAt))
-                                    Text("·")
-                                    Text("\(session.messageCount) 条消息")
-                                }
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 2)
-                        }
-                        .buttonStyle(.plain)
-                    }
+            Section("本周留痕") {
+                MacWeeklyTraceRow(
+                    title: "夜谈",
+                    count: store.sessions.filter { macIsThisWeek($0.createdAt) }.count,
+                    systemImage: "bubble.left.and.bubble.right",
+                    tint: Color.accentPurple
+                ) {
+                    selection = .sessions
+                }
+                MacWeeklyTraceRow(
+                    title: "日记",
+                    count: store.journals.filter { macIsThisWeek($0.createdAt) }.count,
+                    systemImage: "book.closed",
+                    tint: Color.moodPositive
+                ) {
+                    selection = .journals
+                }
+                MacWeeklyTraceRow(
+                    title: "记忆更新",
+                    count: store.memories.filter { macIsThisWeek($0.updatedAt) }.count,
+                    systemImage: "sparkles",
+                    tint: Color.moodNeutral
+                ) {
+                    selection = .memories
                 }
             }
         }
@@ -185,6 +187,36 @@ private struct MacWorkspaceSidebar: View {
             .padding(14)
             .background(.thinMaterial)
         }
+    }
+}
+
+private struct MacWeeklyTraceRow: View {
+    let title: String
+    let count: Int
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(tint)
+                    .frame(width: 18)
+                Text(title)
+                    .font(.callout)
+                Spacer()
+                Text("\(count)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.primary.opacity(0.06), in: Capsule())
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("本周\(title) \(count) 条")
     }
 }
 
@@ -500,55 +532,12 @@ private struct MacConversationTopBar: View {
     @EnvironmentObject private var store: CompanionStore
 
     var body: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 12) {
-                CharacterAvatar(character: store.selectedCharacter, size: 36)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("和 \(store.selectedCharacter.name) 夜谈")
-                        .font(.headline)
-                    Text(store.sessionNotice ?? "你可以慢慢说，不需要先整理好。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
+        HStack(spacing: 12) {
+            CharacterAvatar(character: store.selectedCharacter, size: 28)
+            Text("和 \(store.selectedCharacter.name) 夜谈")
+                .font(.subheadline.weight(.semibold))
 
             Spacer()
-
-            if !store.starMapInsight.primaryGoalTitle.isEmpty {
-                VStack(alignment: .trailing, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.accentPurple)
-                        Text("心流导航")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(store.starMapInsight.primaryGoalTitle)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(Color.accentPurple)
-                    if !store.starMapInsight.primaryGoalNextStep.isEmpty {
-                        Text(store.starMapInsight.primaryGoalNextStep)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                    if !store.starMapInsight.flowSupport.isEmpty {
-                        Text(store.starMapInsight.flowSupport)
-                            .font(.callout)
-                            .foregroundStyle(.secondary.opacity(0.8))
-                            .lineLimit(2)
-                    }
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .background(Color.accentPurpleLight, in: RoundedRectangle(cornerRadius: 14))
-                .onTapGesture {
-                    store.triggerFlowRitual(intention: store.starMapInsight.primaryGoalNextStep)
-                }
-            }
 
             HStack(spacing: 8) {
                 Button {
@@ -570,9 +559,159 @@ private struct MacConversationTopBar: View {
                 .disabled(store.summarizingSessionID != nil)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .controlSize(.small)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .frame(height: 46)
         .background(.regularMaterial)
+    }
+}
+
+private struct MacFlowTopCarousel: View {
+    let insight: StarMapInsight
+    let startIntention: (String) -> Void
+    @State private var selectedIndex = 0
+    private let timer = Timer.publish(every: 7, on: .main, in: .common).autoconnect()
+
+    private struct Item: Identifiable {
+        let id: String
+        let icon: String
+        let eyebrow: String
+        let title: String
+        let detail: String
+        let tint: Color
+        let intention: String?
+    }
+
+    private var items: [Item] {
+        var result = [
+            Item(
+                id: "period",
+                icon: "moon.stars.fill",
+                eyebrow: insight.periodLabel.isEmpty ? "当前周期" : insight.periodLabel,
+                title: insight.coreInsight.isEmpty ? "这一周，先照看真正重要的事" : insight.coreInsight,
+                detail: insight.coreInsightDetail,
+                tint: Color.flowHeaderGradientTop,
+                intention: nil
+            ),
+            Item(
+                id: "primary",
+                icon: "scope",
+                eyebrow: "主要目标",
+                title: insight.primaryGoalTitle,
+                detail: insight.primaryGoalNextStep,
+                tint: Color.accentPurpleLight,
+                intention: insight.primaryGoalNextStep
+            ),
+        ]
+        if insight.hasSecondaryGoal {
+            result.append(
+                Item(
+                    id: "secondary",
+                    icon: "circle.dotted",
+                    eyebrow: "次要目标",
+                    title: insight.secondaryGoalTitle,
+                    detail: insight.secondaryGoalNextStep,
+                    tint: Color.decorativeMint.opacity(0.7),
+                    intention: insight.secondaryGoalNextStep
+                )
+            )
+        }
+        result.append(
+            Item(
+                id: "emotion",
+                icon: "cloud.sun.fill",
+                eyebrow: "近期情绪天气",
+                title: insight.recentEmotionTags.prefix(3).joined(separator: " · "),
+                detail: insight.recentEmotionSummary,
+                tint: Color.cardGreenBackground,
+                intention: nil
+            )
+        )
+        return result.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var body: some View {
+        let cards = items
+        if let item = cards.indices.contains(selectedIndex) ? cards[selectedIndex] : cards.first {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 7) {
+                    Image(systemName: item.icon)
+                        .foregroundStyle(Color.accentPurple)
+                    Text(item.eyebrow)
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button { move(-1, count: cards.count) } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .disabled(cards.count < 2)
+                    Button { move(1, count: cards.count) } label: {
+                        Image(systemName: "chevron.right")
+                    }
+                    .disabled(cards.count < 2)
+                }
+                .buttonStyle(.plain)
+
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 38, alignment: .topLeading)
+
+                Text(item.detail.isEmpty ? "这一页暂时没有更多说明。" : item.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, minHeight: 45, alignment: .topLeading)
+
+                HStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        ForEach(cards.indices, id: \.self) { index in
+                            Capsule()
+                                .fill(index == selectedIndex ? Color.accentPurple : Color.secondary.opacity(0.22))
+                                .frame(width: index == selectedIndex ? 13 : 5, height: 5)
+                        }
+                    }
+                    Spacer()
+                    if let intention = item.intention, !intention.isEmpty {
+                        Button("进入") {
+                            startIntention(intention)
+                        }
+                        .font(.caption.bold())
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentPurple)
+                    }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 178, maxHeight: 178, alignment: .topLeading)
+            .background(item.tint, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        if value.translation.width < -24 {
+                            move(1, count: cards.count)
+                        } else if value.translation.width > 24 {
+                            move(-1, count: cards.count)
+                        }
+                    }
+            )
+            .onReceive(timer) { _ in
+                move(1, count: cards.count)
+            }
+            .onChange(of: cards.count) {
+                selectedIndex = min(selectedIndex, max(cards.count - 1, 0))
+            }
+        }
+    }
+
+    private func move(_ offset: Int, count: Int) {
+        guard count > 1 else { return }
+        withAnimation(.easeInOut(duration: 0.22)) {
+            selectedIndex = (selectedIndex + offset + count) % count
+        }
     }
 }
 
@@ -1114,6 +1253,16 @@ private struct MacConversationSidebar: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if !store.starMapInsight.primaryGoalTitle.isEmpty {
+                    MacSidebarSection(title: "本周心流") {
+                        MacFlowTopCarousel(insight: store.starMapInsight) { intention in
+                            store.triggerFlowRitual(intention: intention)
+                        }
+                    }
+
+                    Divider()
+                }
+
                 VStack(spacing: 14) {
                     CharacterAvatar(character: store.selectedCharacter, size: 96)
                     Text(store.selectedCharacter.name)
@@ -3000,6 +3149,18 @@ private func macParseDate(_ value: String) -> Date? {
     return ISO8601DateFormatter().date(from: value)
 }
 
+private func macIsThisWeek(_ value: String, now: Date = Date()) -> Bool {
+    guard let date = macParseDate(value) else { return false }
+    let calendar = Calendar.current
+    guard
+        let currentWeek = calendar.dateInterval(of: .weekOfYear, for: now),
+        let itemWeek = calendar.dateInterval(of: .weekOfYear, for: date)
+    else {
+        return false
+    }
+    return currentWeek.start == itemWeek.start
+}
+
 private func macDateFormatter(_ format: String) -> DateFormatter {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "zh_CN")
@@ -3087,18 +3248,7 @@ private struct MacFlowRitualSheet: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.accentPurpleLight.ignoresSafeArea()
-            
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .padding(12)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 8)
-            
+
             VStack(spacing: 0) {
                 if let activeIntention, isClosing {
                     closingView(intention: activeIntention)
@@ -3108,6 +3258,22 @@ private struct MacFlowRitualSheet: View {
                     preparationView
                 }
             }
+
+            Button {
+                store.dismissFlowRitual()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(12)
+            .zIndex(20)
+            .accessibilityLabel("关闭心流任务")
         }
         .frame(maxWidth: 600, maxHeight: 500)
     }

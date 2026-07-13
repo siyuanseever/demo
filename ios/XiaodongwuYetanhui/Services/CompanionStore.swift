@@ -104,7 +104,6 @@ final class CompanionStore: ObservableObject {
         customDatabasePath = UserDefaults.standard.string(forKey: customDatabasePathKey) ?? ""
         fputs("[CompanionStore] customDatabasePath: \(customDatabasePath)\n", stderr)
         let apiKey = secureSettings.deepSeekAPIKey()
-        fputs("[CompanionStore] 读取到的 API Key: \(apiKey ?? "nil")\n", stderr)
         isLocalAIConfigured = apiKey?.isEmpty == false
         fputs("[CompanionStore] isLocalAIConfigured: \(isLocalAIConfigured)\n", stderr)
         isMacSyncTokenConfigured = secureSettings.macSyncToken()?.isEmpty == false
@@ -1019,7 +1018,7 @@ final class CompanionStore: ObservableObject {
         logger.info("[\(correlationID, privacy: .public)] chat request started mode=\(self.isGroupMode ? "auto" : "manual", privacy: .public)")
 
         let apiKey = secureSettings.deepSeekAPIKey()
-        fputs("[sendChatText] 读取 API Key: \(apiKey ?? "nil"), 空: \(apiKey?.isEmpty ?? true)\n", stderr)
+        fputs("[sendChatText] API Key configured: \(apiKey?.isEmpty == false)\n", stderr)
         if let apiKey, !apiKey.isEmpty {
             fputs("[sendChatText] 进入本地 DeepSeek 模式\n", stderr)
             await sendLocalChatText(
