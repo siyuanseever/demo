@@ -49,7 +49,7 @@ struct NativeMacRootView: View {
                         .frame(width: 8, height: 8)
                     Text(store.backendStatus.state.rawValue)
                     Spacer()
-                    Text("Native · N2")
+                    Text("Native · N3")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -80,11 +80,7 @@ struct NativeMacRootView: View {
         case .conversation:
             NativeConversationView()
         case .flow:
-            ContentUnavailableView(
-                "心流导航",
-                systemImage: "sparkles",
-                description: Text("N3 会迁移每周目标、近期情绪和可选的小步骤。")
-            )
+            NativeFlowView()
         case .cache:
             NativeDataLibraryView()
         case .diagnostics:
@@ -109,7 +105,7 @@ private struct NativeDiagnosticsView: View {
                 GroupBox("运行环境") {
                     VStack(alignment: .leading, spacing: 10) {
                         LabeledContent("平台", value: "Native macOS")
-                        LabeledContent("阶段", value: "N2 夜谈纵切")
+                        LabeledContent("阶段", value: "N3 数据纵切")
                         LabeledContent("Bundle ID", value: Bundle.main.bundleIdentifier ?? "未知")
                         LabeledContent("缓存路径", value: store.databasePath)
                         LabeledContent("内存消息上限", value: "120 条")
@@ -156,8 +152,8 @@ struct NativeMacSettingsView: View {
     var body: some View {
         Form {
             Section("原生迁移") {
-                LabeledContent("阶段", value: "N2 夜谈纵切")
-                Text("原生 App 直接调用 DeepSeek：quick + plan 并行，plan 决定是否按需 deep；不依赖 Python 或 SSE。")
+                LabeledContent("阶段", value: "N3 数据纵切")
+                Text("原生 App 直接调用 DeepSeek，并在本地管理夜谈、日记、记忆、长期状态和每周心流导航；不依赖 Python 或 SSE。")
                     .foregroundStyle(.secondary)
             }
 

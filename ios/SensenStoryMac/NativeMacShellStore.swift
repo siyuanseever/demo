@@ -13,6 +13,7 @@ final class NativeMacShellStore: ObservableObject {
     @Published private(set) var memories: [MemoryEntry] = []
     @Published private(set) var journals: [JournalEntry] = []
     @Published private(set) var stateProfiles: [StateProfile] = []
+    @Published private(set) var flowInsight: StarMapInsight?
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var selectedSessionID: String?
     @Published private(set) var latestAssessment: UserConversationAssessment?
@@ -22,7 +23,9 @@ final class NativeMacShellStore: ObservableObject {
     @Published private(set) var backendStatus: BackendConnectionStatus
     @Published private(set) var isCheckingBackend = false
     @Published private(set) var isSending = false
+    @Published private(set) var isGeneratingFlow = false
     @Published private(set) var operationStatus: String?
+    @Published private(set) var flowNotice: String?
     @Published var notice: String?
     @Published var apiKeyText: String
 
@@ -67,10 +70,15 @@ final class NativeMacShellStore: ObservableObject {
         !apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var hasFlowSources: Bool {
+        !journals.isEmpty || !memories.isEmpty || !stateProfiles.isEmpty
+    }
+
     func bootstrap() async {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
         loadLocalCache()
+        await refreshWeeklyFlow(force: false)
     }
 
     func loadLocalCache() {
@@ -89,6 +97,7 @@ final class NativeMacShellStore: ObservableObject {
         memories = database.memories(limit: 200)
         journals = database.journals(limit: 120)
         stateProfiles = database.stateProfiles(limit: 40)
+        flowInsight = database.latestStarMapInsight()
         if let selectedSessionID {
             messages = bounded(database.messages(sessionID: selectedSessionID, limit: maxDisplayMessages))
         }
@@ -234,10 +243,47 @@ final class NativeMacShellStore: ObservableObject {
             selectedSessionID = nil
             loadLocalCache()
             notice = "本轮总结已完成，结果已写入本地资料。"
+            await refreshWeeklyFlow(force: false)
         } catch {
             notice = "结束并总结失败：\(error.localizedDescription)"
         }
         operationStatus = nil
+    }
+
+    func refreshWeeklyFlow(force: Bool) async {
+        guard !isGeneratingFlow else { return }
+        guard let database else {
+            flowNotice = "本地数据库不可用，暂时无法生成心流导航。"
+            return
+        }
+        guard hasFlowSources else {
+            flowNotice = "完成一段夜谈并生成日记或记忆后，再开始整理本周导航。"
+            return
+        }
+        if !force, let flowInsight, Self.isCurrentWeek(flowInsight.generatedAt) {
+            flowNotice = "正在使用本周已生成的导航。"
+            return
+        }
+        let apiKey = apiKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else {
+            flowNotice = "配置 DeepSeek API Key 后，会自动生成本周心流导航。"
+            return
+        }
+
+        isGeneratingFlow = true
+        flowNotice = force ? "正在重新整理本周导航…" : "正在生成本周心流导航…"
+        defer { isGeneratingFlow = false }
+        do {
+            let insight = try await deepSeekService.generateWeeklyFlowInsight(
+                apiKey: apiKey,
+                database: database
+            )
+            database.saveStarMapInsight(insight)
+            flowInsight = insight
+            flowNotice = "本周导航已更新，并保存在本地。"
+        } catch {
+            flowNotice = "心流导航生成失败：\(error.localizedDescription)"
+        }
     }
 
     func saveAPIKey() {
@@ -325,6 +371,12 @@ final class NativeMacShellStore: ObservableObject {
 
     private func bounded(_ source: [ChatMessage]) -> [ChatMessage] {
         Array(source.suffix(maxDisplayMessages))
+    }
+
+    private static func isCurrentWeek(_ date: Date) -> Bool {
+        let calendar = Calendar.current
+        return calendar.component(.weekOfYear, from: date) == calendar.component(.weekOfYear, from: Date())
+            && calendar.component(.yearForWeekOfYear, from: date) == calendar.component(.yearForWeekOfYear, from: Date())
     }
 
     private func finishSend(correlationID: String, success: Bool, error: String?) {

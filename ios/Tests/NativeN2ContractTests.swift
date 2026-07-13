@@ -18,12 +18,13 @@ private struct NativeN2ContractTests {
             try testReplyStagePersistence()
             try testDashboardDataRoundTrip()
             try testConversationTurnGrouping()
+            try await testWeeklyFlowRoundTrip()
             try await testDirectQuickPlanDeepPipeline()
             try await testDirectQuickOnlyPipeline()
             try await testTenTurnDirectPipeline()
-            print("Native N2 contract tests passed")
+            print("Native N2/N3 contract tests passed")
         } catch {
-            fputs("Native N2 contract tests failed: \(error)\n", stderr)
+            fputs("Native N2/N3 contract tests failed: \(error)\n", stderr)
             exit(1)
         }
     }
@@ -158,6 +159,55 @@ private struct NativeN2ContractTests {
         try expect(profile.evidence.contains("能说出身体紧张"), "state evidence was lost")
         try expect(profile.supportStrategy == "先确认身体感受", "support strategy was lost")
         try expect(profile.sourceSessionID == sessionID, "state session relation was lost")
+    }
+
+    private static func testWeeklyFlowRoundTrip() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sensen-native-flow-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let database = try SQLiteDatabase(databaseURL: url)
+        let sessionID = database.createLocalSession()
+        database.addLocalJournal(
+            sessionID: sessionID,
+            journal: LocalJournalDraft(
+                summary: "最近有些疲惫，也开始注意自己的边界",
+                emotionCurve: ["紧绷", "清晰"],
+                keywords: ["压力", "边界"],
+                insights: ["先停下来更容易看清需要"],
+                suggestedNextStep: "留十分钟休息",
+                moodScore: -1,
+                dominantEmotion: "疲惫"
+            )
+        )
+        database.addLocalMemories(
+            sessionID: sessionID,
+            memories: [
+                LocalMemoryDraft(
+                    category: "emotion_pattern",
+                    subcategory: "stress",
+                    keywords: ["压力", "边界"],
+                    content: "高压时更需要清晰边界",
+                    evidence: "近期夜谈",
+                    confidence: 0.85,
+                    importance: 4
+                )
+            ]
+        )
+
+        let service = LocalDeepSeekService(session: .shared, endpoint: try fixtureEndpoint())
+        let insight = try await service.generateWeeklyFlowInsight(
+            apiKey: "fixture-key",
+            database: database
+        )
+        database.saveStarMapInsight(insight)
+
+        let persisted = try require(database.latestStarMapInsight(), "weekly flow was not persisted")
+        try expect(persisted.primaryGoalTitle == "给自己留一段安静时间", "primary flow goal was lost")
+        try expect(persisted.recentEmotionTags == ["疲惫", "觉察"], "flow emotion tags were lost")
+        try expect(persisted.memoryCues == ["高压时更需要清晰边界"], "flow memory cues were lost")
+        try expect(persisted.primaryGoalNextStep == "今晚留十分钟不处理任务", "flow next step was lost")
+        try expect(!persisted.isMockInsight, "persisted flow unexpectedly fell back to mock data")
     }
 
     @MainActor

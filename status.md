@@ -7,7 +7,7 @@
 
 ## 当前阶段
 
-原生 macOS N2 夜谈纵切完成，进入 N3 数据纵切与稳定性复验。Catalyst 继续作为兼容和性能对照，不再是唯一的 Mac 产品实现。
+原生 macOS N3 数据纵切完成，进入 N4 Catalyst/Native 并行验收。Catalyst 继续作为兼容和性能对照，不再是唯一的 Mac 产品实现。
 
 原生 App 直接调用 DeepSeek，并将消息、日记、记忆和长期状态写入自己的沙盒 SQLite；正常使用不依赖 Python 或 SSE。Web/Python 继续维护既有 Web UI 与仓库数据，两个运行时暂不自动互相覆盖。
 
@@ -59,7 +59,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 记忆二级目录/叶节点详情 | `implemented_verified`：Catalyst 分类视图与详情已实机检查；原生资料库提供分类、摘要与详情入口 |
 | 最近更新日记/记忆入口 | `implemented_verified`：Catalyst 最近更新模式与周分组日记已实机检查；原生资料库按更新时间排序 |
 | 心流单卡片轻互动 | 部分 UI 存在，完整交互未验收 |
-| 原生 macOS 迁移 | `N2 implemented_verified`：Native 直接调用 DeepSeek，quick/plan 并行、按需 deep、历史续聊、对话轨迹和本地持久化已通过契约、构建及内存回归；下一阶段为 N3 |
+| 原生 macOS 迁移 | `N3 implemented_verified`：在 N2 直连夜谈基础上，完成本地会话关联、记忆分类/最近更新、日记周分组/心情曲线、长期状态、每周心流缓存和 Yoyo 表情头像；下一阶段为 N4 |
 
 ---
 
@@ -120,6 +120,6 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 
 ## 暂缓 / 有门槛的后续
 
-- 原生 macOS N3-N5 数据纵切、并行验收和默认产品切换。
+- 原生 macOS N4-N5 并行验收和默认产品切换。
 - 原生与 Web 数据库之间的自动同步；在冲突策略明确前不建立隐式双向写入。
 - Web 新功能、移动端语音、账号、支付、云同步和新小游戏。

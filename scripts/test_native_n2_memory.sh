@@ -51,7 +51,7 @@ early_mb = statistics.mean(samples[2:7]) / 1024
 late_mb = statistics.mean(samples[-5:]) / 1024
 growth_mb = late_mb - early_mb
 
-print(f"Native N2 RSS peak={peak_mb:.1f}MB early={early_mb:.1f}MB late={late_mb:.1f}MB growth={growth_mb:.1f}MB")
+print(f"Native N2/N3 RSS peak={peak_mb:.1f}MB early={early_mb:.1f}MB late={late_mb:.1f}MB growth={growth_mb:.1f}MB")
 if peak_mb > 500:
     raise SystemExit("peak RSS exceeded 500MB")
 if growth_mb > 120:

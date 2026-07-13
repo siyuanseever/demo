@@ -16,7 +16,7 @@ struct NativeConversationView: View {
         }
         .background(
             LinearGradient(
-                colors: [Color(hex: 0xFDFAF2), Color(hex: 0xF2F7ED)],
+                colors: [Color.conversationBgTop, Color.conversationBgBottom],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -25,8 +25,11 @@ struct NativeConversationView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: store.selectedCharacter.systemImageName)
-                .foregroundStyle(store.selectedCharacter.bubbleColor)
+            NativeCharacterAvatar(
+                character: store.selectedCharacter,
+                expressionID: store.messages.last(where: { $0.role == .assistant })?.expressionID,
+                size: 34
+            )
             VStack(alignment: .leading, spacing: 1) {
                 Text("和\(store.selectedCharacter.name)夜谈")
                     .font(.headline)
@@ -141,10 +144,10 @@ struct NativeConversationView: View {
                 .lineLimit(1...5)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .background(.background.opacity(0.92), in: RoundedRectangle(cornerRadius: 14))
+                .background(Color.inputBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.primary.opacity(0.08))
+                        .stroke(Color.cardBorder.opacity(0.7))
                 )
                 .disabled(store.isSending)
 
@@ -189,7 +192,7 @@ private struct NativeMessageBubble: View {
                                 .font(.caption2)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 3)
-                                .background(.white.opacity(0.55), in: Capsule())
+                                .background(Color.overlayLight.opacity(0.82), in: Capsule())
                         }
                     }
                     .foregroundStyle(.secondary)
@@ -234,15 +237,15 @@ private struct NativeMessageBubble: View {
     }
 
     private var bubbleColor: Color {
-        message.role == .user ? Color.primary.opacity(0.045) : character.bubbleColor.opacity(0.72)
+        message.role == .user ? Color.overlaySubtle.opacity(0.92) : character.bubbleColor.opacity(0.82)
     }
 
     private var avatar: some View {
-        Image(systemName: character.systemImageName)
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(character.bubbleColor)
-            .frame(width: 34, height: 34)
-            .background(character.bubbleColor.opacity(0.18), in: Circle())
+        NativeCharacterAvatar(
+            character: character,
+            expressionID: message.expressionID,
+            size: 38
+        )
     }
 }
 
@@ -317,7 +320,7 @@ private struct NativeAssessmentStrip: View {
         .font(.caption2)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(.background.opacity(0.6), in: Capsule())
+        .background(Color.overlaySubtle.opacity(0.82), in: Capsule())
     }
 }
 

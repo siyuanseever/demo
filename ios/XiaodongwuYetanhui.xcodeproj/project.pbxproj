@@ -133,6 +133,16 @@
 		F00000000000000000000111 /* NativeDataLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000206 /* NativeDataLibraryView.swift */; };
 		F00000000000000000000112 /* NativeConversationTurn.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000207 /* NativeConversationTurn.swift */; };
 		F00000000000000000000113 /* SecureSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000201 /* SecureSettingsStore.swift */; };
+		F00000000000000000000114 /* NativeCharacterAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000208 /* NativeCharacterAvatar.swift */; };
+		F00000000000000000000115 /* NativeFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000209 /* NativeFlowView.swift */; };
+		F00000000000000000000116 /* sensen-home-rabbit-quiet-v1.png in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000327 /* sensen-home-rabbit-quiet-v1.png */; };
+		F00000000000000000000117 /* sensen-emoji-yoyo-bashful.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000332 /* sensen-emoji-yoyo-bashful.webp */; };
+		F00000000000000000000118 /* sensen-emoji-yoyo-concerned.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000333 /* sensen-emoji-yoyo-concerned.webp */; };
+		F00000000000000000000119 /* sensen-emoji-yoyo-gentlesmile.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000334 /* sensen-emoji-yoyo-gentlesmile.webp */; };
+		F00000000000000000000120 /* sensen-emoji-yoyo-hug.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000335 /* sensen-emoji-yoyo-hug.webp */; };
+		F00000000000000000000121 /* sensen-emoji-yoyo-listening.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000336 /* sensen-emoji-yoyo-listening.webp */; };
+		F00000000000000000000122 /* sensen-emoji-yoyo-proud.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000337 /* sensen-emoji-yoyo-proud.webp */; };
+		F00000000000000000000123 /* sensen-emoji-yoyo-understanding.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -258,6 +268,8 @@
 		F00000000000000000000205 /* NativeConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeConversationView.swift; sourceTree = "<group>"; };
 		F00000000000000000000206 /* NativeDataLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeDataLibraryView.swift; sourceTree = "<group>"; };
 		F00000000000000000000207 /* NativeConversationTurn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeConversationTurn.swift; sourceTree = "<group>"; };
+		F00000000000000000000208 /* NativeCharacterAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCharacterAvatar.swift; sourceTree = "<group>"; };
+		F00000000000000000000209 /* NativeFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFlowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -476,6 +488,8 @@
 				F00000000000000000000205 /* NativeConversationView.swift */,
 				F00000000000000000000206 /* NativeDataLibraryView.swift */,
 				F00000000000000000000207 /* NativeConversationTurn.swift */,
+				F00000000000000000000208 /* NativeCharacterAvatar.swift */,
+				F00000000000000000000209 /* NativeFlowView.swift */,
 			);
 			path = SensenStoryMac;
 			sourceTree = "<group>";
@@ -657,6 +671,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F00000000000000000000116 /* sensen-home-rabbit-quiet-v1.png in Resources */,
+				F00000000000000000000117 /* sensen-emoji-yoyo-bashful.webp in Resources */,
+				F00000000000000000000118 /* sensen-emoji-yoyo-concerned.webp in Resources */,
+				F00000000000000000000119 /* sensen-emoji-yoyo-gentlesmile.webp in Resources */,
+				F00000000000000000000120 /* sensen-emoji-yoyo-hug.webp in Resources */,
+				F00000000000000000000121 /* sensen-emoji-yoyo-listening.webp in Resources */,
+				F00000000000000000000122 /* sensen-emoji-yoyo-proud.webp in Resources */,
+				F00000000000000000000123 /* sensen-emoji-yoyo-understanding.webp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -708,6 +730,8 @@
 				F00000000000000000000111 /* NativeDataLibraryView.swift in Sources */,
 				F00000000000000000000112 /* NativeConversationTurn.swift in Sources */,
 				F00000000000000000000113 /* SecureSettingsStore.swift in Sources */,
+				F00000000000000000000114 /* NativeCharacterAvatar.swift in Sources */,
+				F00000000000000000000115 /* NativeFlowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

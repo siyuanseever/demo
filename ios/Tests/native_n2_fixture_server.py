@@ -22,9 +22,39 @@ class Handler(BaseHTTPRequestHandler):
 
         payload = json.loads(raw_body)
         prompt = "\n".join(item.get("content", "") for item in payload.get("messages", []))
-        if "你正在生成即时回应" in prompt:
+        if "本周心流导航" in prompt:
             content = json.dumps(
-                {"reply": "先接住你", "expression_id": "sad_1"},
+                {
+                    "primary_goal_title": "给自己留一段安静时间",
+                    "primary_goal_reason": "最近的记录反复提到压力和边界",
+                    "primary_goal_next_step": "今晚留十分钟不处理任务",
+                    "primary_goal_challenge": "轻量",
+                    "secondary_goal_title": "",
+                    "secondary_goal_reason": "",
+                    "secondary_goal_next_step": "",
+                    "secondary_goal_challenge": "",
+                    "recent_emotion_summary": "疲惫里正在长出一点清晰",
+                    "recent_emotion_tags": ["疲惫", "觉察"],
+                    "flow_support": "从一个不要求结果的小问题开始",
+                    "memory_cues": ["高压时更需要清晰边界"],
+                    "core_insight": "休息不是退出，而是在恢复选择感",
+                    "core_insight_detail": "近期记录显示，先停下来会更容易看清需要。",
+                    "recent_pattern_title": "最近的模式",
+                    "recent_pattern_items": ["压力", "边界", "休息"],
+                    "recent_pattern_detail": "压力升高后，会更需要明确边界。",
+                    "flow_condition_title": "容易进入心流的时候",
+                    "flow_condition_items": ["安静", "没有结果压力"],
+                    "flow_condition_detail": "在不被催促时更容易保持专注。",
+                    "gentle_reminder_title": "一个温柔提醒",
+                    "gentle_reminder": "这周不用把所有事都处理完。",
+                    "gentle_reminder_detail": "先照看最靠近此刻的一件事。",
+                    "source_summary": "基于本地日记、记忆和长期状态生成。",
+                },
+                ensure_ascii=False,
+            )
+        elif "你正在生成即时回应" in prompt:
+            content = json.dumps(
+                {"reply": "先接住你", "expression_id": "concerned"},
                 ensure_ascii=False,
             )
         elif "策略规划器" in prompt:
@@ -38,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
                     "risk_level": "low",
                     "response_mode": "insight",
                     "character_id": "yoyo",
-                    "expression_id": "sad_1",
+                    "expression_id": "understanding",
                     "knowledge_needs": [],
                     "memory_queries": [],
                     "knowledge_queries": [],
@@ -50,7 +80,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         else:
             content = json.dumps(
-                {"reply": "再一起看深一点", "expression_id": "thinking"},
+                {"reply": "再一起看深一点", "expression_id": "understanding"},
                 ensure_ascii=False,
             )
 
