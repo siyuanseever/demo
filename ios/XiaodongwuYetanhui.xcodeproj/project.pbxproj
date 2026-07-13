@@ -129,6 +129,10 @@
 		F00000000000000000000107 /* SendInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00000000000000000000201 /* SendInstrumentation.swift */; };
 		F00000000000000000000108 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000301 /* libsqlite3.tbd */; };
 		F00000000000000000000109 /* LocalDeepSeekService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000202 /* LocalDeepSeekService.swift */; };
+		F00000000000000000000110 /* NativeConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000205 /* NativeConversationView.swift */; };
+		F00000000000000000000111 /* NativeDataLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000206 /* NativeDataLibraryView.swift */; };
+		F00000000000000000000112 /* NativeConversationTurn.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000207 /* NativeConversationTurn.swift */; };
+		F00000000000000000000113 /* SecureSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000201 /* SecureSettingsStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -251,6 +255,9 @@
 		F00000000000000000000202 /* NativeMacRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMacRootView.swift; sourceTree = "<group>"; };
 		F00000000000000000000203 /* NativeMacShellStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMacShellStore.swift; sourceTree = "<group>"; };
 		F00000000000000000000204 /* SensenStoryNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SensenStoryNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F00000000000000000000205 /* NativeConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeConversationView.swift; sourceTree = "<group>"; };
+		F00000000000000000000206 /* NativeDataLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeDataLibraryView.swift; sourceTree = "<group>"; };
+		F00000000000000000000207 /* NativeConversationTurn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeConversationTurn.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -466,6 +473,9 @@
 				F00000000000000000000201 /* SensenStoryNativeApp.swift */,
 				F00000000000000000000202 /* NativeMacRootView.swift */,
 				F00000000000000000000203 /* NativeMacShellStore.swift */,
+				F00000000000000000000205 /* NativeConversationView.swift */,
+				F00000000000000000000206 /* NativeDataLibraryView.swift */,
+				F00000000000000000000207 /* NativeConversationTurn.swift */,
 			);
 			path = SensenStoryMac;
 			sourceTree = "<group>";
@@ -694,6 +704,10 @@
 				F00000000000000000000106 /* ChatService.swift in Sources */,
 				F00000000000000000000107 /* SendInstrumentation.swift in Sources */,
 				F00000000000000000000109 /* LocalDeepSeekService.swift in Sources */,
+				F00000000000000000000110 /* NativeConversationView.swift in Sources */,
+				F00000000000000000000111 /* NativeDataLibraryView.swift in Sources */,
+				F00000000000000000000112 /* NativeConversationTurn.swift in Sources */,
+				F00000000000000000000113 /* SecureSettingsStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

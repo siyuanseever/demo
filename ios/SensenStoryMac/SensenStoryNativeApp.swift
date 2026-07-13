@@ -14,15 +14,18 @@ struct SensenStoryNativeApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("新夜谈") {
+                    store.newConversation()
                     NotificationCenter.default.post(name: .nativeOpenConversation, object: nil)
                 }
                 .keyboardShortcut("n")
             }
 
             CommandMenu("夜谈") {
-                Button("结束并总结") {}
+                Button("结束并总结") {
+                    Task { await store.closeCurrentSession() }
+                }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
-                    .disabled(true)
+                    .disabled(store.isSending || store.messages.allSatisfy { $0.role != .user })
             }
 
             SidebarCommands()

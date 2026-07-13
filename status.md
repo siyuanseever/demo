@@ -1,15 +1,15 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-13（原生 macOS N1 可启动空壳完成）
+> 最后更新时间：2026-07-13（原生 macOS N2 DeepSeek 直连夜谈纵切完成）
 
 ---
 
 ## 当前阶段
 
-G0 自动化治理止血 + Mac Catalyst M0 基线与数据架构。
+原生 macOS N2 夜谈纵切完成，进入 N3 数据纵切与稳定性复验。Catalyst 继续作为兼容和性能对照，不再是唯一的 Mac 产品实现。
 
-当前运行版本是 iOS App 的 Mac Catalyst 迁移版，并非原生 macOS App。Web/Python 是权威数据和智能能力基础，Mac 沙盒 SQLite 是界面缓存。长期方向是分阶段迁移原生 macOS，但当前先处理可复现卡死。
+原生 App 直接调用 DeepSeek，并将消息、日记、记忆和长期状态写入自己的沙盒 SQLite；正常使用不依赖 Python 或 SSE。Web/Python 继续维护既有 Web UI 与仓库数据，两个运行时暂不自动互相覆盖。
 
 ---
 
@@ -45,7 +45,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 启动持续存活/核心页面 | 本机启动持续 8 分钟以上；夜谈、心流页面可达 |
 | 卡死复现与性能 trace | 未完成 |
 | 快速回复后等待深度回复卡死 | `fixed_pending_verification`：Mac 使用精简 SSE、跳过重复 final 解码，并取消回复后立即全量同步 |
-| Mac 本地直连回复顺序 | `implemented_pending_runtime_verification`：quick 与 plan 并行启动；quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
+| Mac 本地直连回复顺序 | `implemented_verified`：契约测试连续 10 轮验证 quick 与 plan 并行，quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
 | Mac 对话轨迹 | `implemented_verified`：夜谈右侧显示轻量轨迹；悬停或点击展开问答预览，点击条目可定位原始用户消息 |
 | Mac 语音输出 | `implemented_pending_listening_validation`：免费本地 Qwen3-TTS 0.6B 8-bit + Serena；支持常驻服务、单条播放/停止、生成状态、试听、自动朗读、失败提示和缓存；25 字实测约 4 秒 |
 | 每周心流导航 | `implemented_pending_runtime_verification`：App 启动/回前台按自然周检查；本地 Key 模式直接调用 DeepSeek 生成并写入 SQLite，不再依赖手动按钮 |
@@ -55,11 +55,11 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 内存持续增长至约 65GB | `fixed_pending_verification`：已修 MEM-001/MEM-002 和 SSE 1MB 上限，等待发送/同步/20 分钟 soak 独立复验 |
 | 自动刷新 | 当前 `syncIfNeeded()` 不执行同步，仍依赖手动刷新 |
 | 数据权威边界 | 已在规划中确认，尚未实现验收 |
-| 字段矩阵 | 未完成 |
-| 记忆二级目录/叶节点详情 | 未完成 |
-| 最近更新日记/记忆入口 | 未完成 |
+| 字段矩阵 | `implemented_verified`：见 `docs/n2-data-field-matrix.md`，原生 SQLite 往返测试覆盖 journal、memory、state profile 关键字段 |
+| 记忆二级目录/叶节点详情 | `implemented_verified`：Catalyst 分类视图与详情已实机检查；原生资料库提供分类、摘要与详情入口 |
+| 最近更新日记/记忆入口 | `implemented_verified`：Catalyst 最近更新模式与周分组日记已实机检查；原生资料库按更新时间排序 |
 | 心流单卡片轻互动 | 部分 UI 存在，完整交互未验收 |
-| 原生 macOS 迁移 | `N1 implemented_verified`：独立原生 target 可构建启动，导航、缓存概览和诊断壳已接入；下一阶段为 N2 夜谈纵切 |
+| 原生 macOS 迁移 | `N2 implemented_verified`：Native 直接调用 DeepSeek，quick/plan 并行、按需 deep、历史续聊、对话轨迹和本地持久化已通过契约、构建及内存回归；下一阶段为 N3 |
 
 ---
 
@@ -96,13 +96,22 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 - heartbeat 压力程序连续 5 次阻塞主线程，每次 pending tick 上限为 `1`，恢复后回到 `0`。
 - 尚缺真实 UI 发送、自动同步和 20 分钟 soak，因此 incident 不关闭。
 
+### 2026-07-13 原生 N2 验证证据
+
+- `SensenStoryNative`、Mac Catalyst 和 generic iOS 三个目标均无签名 Debug 构建通过。
+- 原生二进制未包含 `/api/chat/stream`、`text/event-stream` 或 SSE 错误文案；`ChatService` 实现仅编入 Web/Catalyst 兼容平台。
+- 本地 DeepSeek 契约测试通过：quick 与 plan 并行、quick-only 分支、按需 deep、连续 10 轮顺序和 SQLite 持久化均符合预期。
+- 原生 20 秒空闲 RSS：峰值 `127.1 MB`，前后窗口增长 `8.3 MB`。
+- Catalyst 30 秒空闲 RSS：峰值 `158.5 MB`，前后窗口增长 `10.4 MB`。
+- 上述短时回归没有出现失控增长，但不能替代真实发送和 20 分钟 soak，因此 `MAC-MEM-GROWTH-001` 暂不关闭。
+
 ---
 
 ## 已确认的产品方向
 
-- 当前实现：Mac Catalyst 迁移版；长期方向：原生 macOS 分阶段迁移。
-- 数据：Python 后端为权威源；Mac 沙盒数据库为缓存。
-- 同步：启动、回前台、写入完成和后端恢复时自动刷新；手动按钮只作兜底。
+- 当前实现：Catalyst 兼容基线 + 原生 macOS N2；原生 target 是新主线。
+- 原生数据：沙盒 SQLite 是运行数据源，DeepSeek 由 App 直接调用，不经过 Python/SSE。
+- Web 数据：Python 后端和仓库 `data/app.db` 继续服务 Web UI；跨运行时同步另行设计。
 - 心流：主界面/夜谈最多显示一张轻量卡片。
 - 行动：每卡最多一个可选点击；点击有即时正反馈并记录，不点击无负担。
 - 记忆：一级目录、二级目录、可点击叶节点详情必须完整可达。
@@ -111,6 +120,6 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 
 ## 暂缓 / 有门槛的后续
 
-- 原生 macOS N2-N5 代码迁移：N1 空壳保留为新主线；真实发送纵切仍需发送稳定性证据后推进。
-- 完全移除 Python 后端或同时维护 Swift/Python 两套权威业务逻辑。
+- 原生 macOS N3-N5 数据纵切、并行验收和默认产品切换。
+- 原生与 Web 数据库之间的自动同步；在冲突策略明确前不建立隐式双向写入。
 - Web 新功能、移动端语音、账号、支付、云同步和新小游戏。

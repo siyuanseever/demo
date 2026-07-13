@@ -288,6 +288,7 @@ private struct LocalKnowledgeItem {
 
 final class LocalDeepSeekService {
     private let session: URLSession
+    private let endpoint: URL
     private var sessionID: String?
     var currentSessionID: String? { sessionID }
 
@@ -295,8 +296,12 @@ final class LocalDeepSeekService {
         sessionID = nil
     }
 
-    init(session: URLSession = .shared) {
+    init(
+        session: URLSession = .shared,
+        endpoint: URL = URL(string: "https://api.deepseek.com/chat/completions")!
+    ) {
         self.session = session
+        self.endpoint = endpoint
     }
 
     func resetSession() {
@@ -317,7 +322,7 @@ final class LocalDeepSeekService {
             thinking: DeepSeekThinking(type: "disabled"),
             reasoningEffort: nil
         )
-        var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = 30
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -511,7 +516,7 @@ final class LocalDeepSeekService {
         database: SQLiteDatabase,
         onQuickReply: (@MainActor (ChatMessage) -> Void)? = nil
     ) async throws -> LocalChatResult {
-        fputs("[LocalDeepSeek] send 开始，text: \(text)\n", stderr)
+        fputs("[LocalDeepSeek] send 开始，字符数: \(text.count)\n", stderr)
         let activeSessionID: String
         if let sessionID {
             activeSessionID = sessionID
@@ -570,6 +575,7 @@ final class LocalDeepSeekService {
                 expressionID: quickExpressionID,
                 model: "deepseek-chat",
                 routePlan: ["next_action": "pending_plan"],
+                replyStage: "quick",
                 knowledgeCards: []
             )
             quickMessage = ChatMessage(
@@ -581,6 +587,7 @@ final class LocalDeepSeekService {
                 groupRole: qm.groupRole,
                 action: qm.action,
                 expressionID: qm.expressionID,
+                replyStage: "quick",
                 routeSummary: nil,
                 knowledgeCards: []
             )
@@ -706,6 +713,7 @@ final class LocalDeepSeekService {
             expressionID: deepExpressionID,
             model: "deepseek-chat",
             routePlan: plan.metadata,
+            replyStage: "deep",
             knowledgeCards: knowledgeCards
         )
         fputs("[LocalDeepSeek] 深度回复消息已保存\n", stderr)
@@ -722,6 +730,7 @@ final class LocalDeepSeekService {
                 groupRole: assistantMessage.groupRole,
                 action: assistantMessage.action,
                 expressionID: assistantMessage.expressionID,
+                replyStage: "deep",
                 routeSummary: plan.summary,
                 knowledgeCards: knowledgeCards
             ),
@@ -880,7 +889,7 @@ final class LocalDeepSeekService {
         maxTokens: Int,
         thinking: Bool
     ) throws -> URLRequest {
-        var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = thinking ? 120 : 90
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -1069,9 +1078,7 @@ final class LocalDeepSeekService {
             throw LocalDeepSeekError.httpStatus(httpResponse.statusCode, detail)
         }
         let payload = try JSONDecoder().decode(DeepSeekResponse.self, from: data)
-        guard let content = payload.choices.first?.message.content,
-              let contentData = content.data(using: .utf8)
-        else {
+        guard let content = payload.choices.first?.message.content else {
             throw LocalDeepSeekError.invalidResponse
         }
         fputs("[LocalDeepSeek] requestSessionExtraction: content 长度: \(content.count)\n", stderr)
@@ -1200,7 +1207,7 @@ final class LocalDeepSeekService {
         maxTokens: Int,
         thinking: Bool
     ) async throws -> Response {
-        var request = URLRequest(url: URL(string: "https://api.deepseek.com/chat/completions")!)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = thinking ? 120 : 90
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")

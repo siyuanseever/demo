@@ -305,7 +305,7 @@ final class CompanionStore: ObservableObject {
 
     func sendDraft(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        fputs("[sendDraft] 收到消息: \(trimmed), isSending: \(isSending)\n", stderr)
+        fputs("[sendDraft] 收到消息，字符数: \(trimmed.count), isSending: \(isSending)\n", stderr)
         guard !trimmed.isEmpty, !isSending else { return }
         await sendChatText(trimmed, fallbackReply: nil, shouldSuggestCheckIn: true)
     }
@@ -1106,12 +1106,17 @@ final class CompanionStore: ObservableObject {
             chatOperationStatus = "深度回应已生成，正在收尾…"
             logger.info("chat deep reply received")
         }
-        appendAssistantResponse(update.response, fallbackCharacter: selectedCharacter)
+        appendAssistantResponse(
+            update.response,
+            fallbackCharacter: selectedCharacter,
+            replyStage: update.stage == .quick ? "quick" : "deep"
+        )
     }
 
     private func appendAssistantResponse(
         _ response: ChatServiceResponse,
-        fallbackCharacter: CompanionCharacter
+        fallbackCharacter: CompanionCharacter,
+        replyStage: String = ""
     ) {
         if response.groupMessages.isEmpty {
             if let responseCharacter = self.character(id: response.characterID) {
@@ -1125,6 +1130,7 @@ final class CompanionStore: ObservableObject {
                     characterID: response.characterID ?? fallbackCharacter.id,
                     createdAt: "",
                     expressionID: response.expressionID ?? "",
+                    replyStage: replyStage,
                     routeSummary: response.routeSummary,
                     knowledgeCards: response.knowledgeCards
                 )
@@ -1143,6 +1149,7 @@ final class CompanionStore: ObservableObject {
                     groupRole: groupMessage.role,
                     action: groupMessage.action,
                     expressionID: groupMessage.expressionID ?? response.expressionID ?? "",
+                    replyStage: replyStage,
                     routeSummary: index == 0 ? response.routeSummary : nil,
                     knowledgeCards: groupMessage.knowledgeCards
                 )

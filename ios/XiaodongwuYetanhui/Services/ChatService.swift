@@ -132,6 +132,7 @@ struct RemoteChatMessage {
     let groupRole: String
     let action: String
     let expressionID: String
+    let replyStage: String
     let knowledgeCardIDs: [String]
     let routePlan: SyncRoutePlanRecord?
 }
@@ -402,6 +403,7 @@ struct SyncStateProfileRecord: Encodable {
     }
 }
 
+#if !(os(macOS) && !targetEnvironment(macCatalyst))
 final class ChatService {
     private var baseURL: URL
     private let session: URLSession
@@ -526,29 +528,10 @@ final class ChatService {
             var dataLines: [String] = []
             var bufferedEventByteCount = 0
             let maximumEventByteCount = 1_048_576
-            streamLoop: for try await line in bytes.lines {
-                if line.hasPrefix("event:") {
-                    eventType = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
-                    continue
-                }
-                if line.hasPrefix("data:") {
-                    let dataLine = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
-                    bufferedEventByteCount += dataLine.utf8.count
-                    guard bufferedEventByteCount <= maximumEventByteCount else {
-                        throw ChatServiceError.streamBufferExceeded(maximumEventByteCount)
-                    }
-                    dataLines.append(dataLine)
-                    continue
-                }
-                guard line.isEmpty, !dataLines.isEmpty else { continue }
-
-                let currentEventType = eventType
-                let data = Data(dataLines.joined(separator: "\n").utf8)
-                eventType = "message"
-                dataLines.removeAll(keepingCapacity: true)
-                bufferedEventByteCount = 0
-
-                switch currentEventType {
+            func processEvent(type: String, lines: [String]) async throws -> Bool {
+                guard !lines.isEmpty else { return false }
+                let data = Data(lines.joined(separator: "\n").utf8)
+                switch type {
                 case "quick_reply":
                     let body = try JSONDecoder().decode(QuickReplyResponseBody.self, from: data)
                     let response = ChatServiceResponse(
@@ -584,10 +567,46 @@ final class ChatService {
                     let body = try JSONDecoder().decode(StreamErrorResponseBody.self, from: data)
                     throw ChatServiceError.stream(body.error)
                 case "done":
-                    break streamLoop
+                    return true
                 default:
+                    break
+                }
+                return false
+            }
+
+            streamLoop: for try await line in bytes.lines {
+                if line.hasPrefix("event:") {
+                    if !dataLines.isEmpty {
+                        let shouldStop = try await processEvent(type: eventType, lines: dataLines)
+                        dataLines.removeAll(keepingCapacity: true)
+                        bufferedEventByteCount = 0
+                        if shouldStop { break streamLoop }
+                    }
+                    eventType = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
                     continue
                 }
+                if line.hasPrefix("data:") {
+                    let dataLine = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+                    bufferedEventByteCount += dataLine.utf8.count
+                    guard bufferedEventByteCount <= maximumEventByteCount else {
+                        throw ChatServiceError.streamBufferExceeded(maximumEventByteCount)
+                    }
+                    dataLines.append(dataLine)
+                    continue
+                }
+                guard line.isEmpty, !dataLines.isEmpty else { continue }
+
+                let currentEventType = eventType
+                let currentDataLines = dataLines
+                eventType = "message"
+                dataLines.removeAll(keepingCapacity: true)
+                bufferedEventByteCount = 0
+                if try await processEvent(type: currentEventType, lines: currentDataLines) {
+                    break streamLoop
+                }
+            }
+            if !dataLines.isEmpty {
+                _ = try await processEvent(type: eventType, lines: dataLines)
             }
 
             guard let latestResponse else {
@@ -990,6 +1009,7 @@ private struct RemoteMessageResponseBody: Decodable {
     let groupRole: String?
     let action: String?
     let expressionID: String?
+    let replyStage: String?
     let knowledgeCardIDs: [String]?
     let routePlan: SyncRoutePlanRecord?
 
@@ -1004,6 +1024,7 @@ private struct RemoteMessageResponseBody: Decodable {
         case groupRole = "group_role"
         case action
         case expressionID = "expression_id"
+        case replyStage = "reply_stage"
         case knowledgeCardIDs = "knowledge_card_ids"
         case routePlan = "route_plan"
     }
@@ -1020,6 +1041,7 @@ private struct RemoteMessageResponseBody: Decodable {
         groupRole = try container.decodeIfPresent(String.self, forKey: .groupRole)
         action = try container.decodeIfPresent(String.self, forKey: .action)
         expressionID = try container.decodeIfPresent(String.self, forKey: .expressionID)
+        replyStage = try container.decodeIfPresent(String.self, forKey: .replyStage)
         knowledgeCardIDs = try container.decodeIfPresent([String].self, forKey: .knowledgeCardIDs)
         // 容错：route_plan 可能是嵌套格式（多角色）或扁平格式（单角色），
         // 格式不匹配时设为 nil，避免毁掉整个消息列表的解码。
@@ -1038,6 +1060,7 @@ private struct RemoteMessageResponseBody: Decodable {
             groupRole: groupRole ?? "",
             action: action ?? "",
             expressionID: expressionID ?? "",
+            replyStage: replyStage ?? "",
             knowledgeCardIDs: knowledgeCardIDs ?? [],
             routePlan: routePlan
         )
@@ -1789,3 +1812,4 @@ private enum ChatServiceError: Error, CustomStringConvertible {
         }
     }
 }
+#endif

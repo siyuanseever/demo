@@ -23,7 +23,7 @@ private enum NativeMacSection: String, CaseIterable, Identifiable {
         switch self {
         case .conversation: "bubble.left.and.bubble.right.fill"
         case .flow: "sparkles"
-        case .cache: "externaldrive.fill"
+        case .cache: "books.vertical.fill"
         case .diagnostics: "stethoscope"
         case .settings: "gearshape.fill"
         }
@@ -41,16 +41,17 @@ struct NativeMacRootView: View {
                     .tag(section)
             }
             .navigationTitle("森森物语")
-            .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 260)
+            .navigationSplitViewColumnWidth(min: 184, ideal: 210, max: 250)
             .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 8) {
                     Circle()
-                        .fill(store.backendStatus.state == .online ? Color.green : Color.orange)
+                        .fill(statusColor)
                         .frame(width: 8, height: 8)
-                    Text("原生 macOS · N1")
-                        .font(.caption)
+                    Text(store.backendStatus.state.rawValue)
                     Spacer()
+                    Text("Native · N2")
                 }
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(12)
                 .background(.thinMaterial)
@@ -59,8 +60,17 @@ struct NativeMacRootView: View {
             detailView(for: selection ?? .conversation)
         }
         .navigationSplitViewStyle(.balanced)
+        .task { await store.bootstrap() }
         .onReceive(NotificationCenter.default.publisher(for: .nativeOpenConversation)) { _ in
             selection = .conversation
+        }
+    }
+
+    private var statusColor: Color {
+        switch store.backendStatus.state {
+        case .online: .green
+        case .checking: .yellow
+        case .unknown, .fallback: .orange
         }
     }
 
@@ -68,101 +78,19 @@ struct NativeMacRootView: View {
     private func detailView(for section: NativeMacSection) -> some View {
         switch section {
         case .conversation:
-            NativeConversationShellView()
+            NativeConversationView()
         case .flow:
-            NativePlaceholderView(
-                title: "心流导航",
-                subtitle: "N3 将接入每周目标、近期情绪和可选的小步骤。",
-                systemImage: "sparkles"
+            ContentUnavailableView(
+                "心流导航",
+                systemImage: "sparkles",
+                description: Text("N3 会迁移每周目标、近期情绪和可选的小步骤。")
             )
         case .cache:
-            NativeCacheOverviewView()
+            NativeDataLibraryView()
         case .diagnostics:
             NativeDiagnosticsView()
         case .settings:
             NativeMacSettingsView()
-        }
-    }
-}
-
-private struct NativeConversationShellView: View {
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Label("和忧忧兔夜谈", systemImage: "moon.stars.fill")
-                    .font(.headline)
-                Spacer()
-                Button("新夜谈", systemImage: "plus") {}
-                Button("结束并总结", systemImage: "sparkles") {}
-                    .disabled(true)
-            }
-            .controlSize(.small)
-            .padding(.horizontal, 18)
-            .frame(height: 46)
-            .background(.regularMaterial)
-
-            Divider()
-
-            ContentUnavailableView {
-                Label("原生夜谈已经有了一个安静的房间", systemImage: "bubble.left.and.bubble.right")
-            } description: {
-                Text("N2 会把 quick / plan 并行、按需 deep、对话轨迹和本地缓存完整迁移到这里。")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-
-            HStack(spacing: 12) {
-                TextField("N2 接入真实发送后，可以从这里开始夜谈…", text: .constant(""))
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(true)
-                Button("发送", systemImage: "paperplane.fill") {}
-                    .disabled(true)
-            }
-            .padding(16)
-            .background(.regularMaterial)
-        }
-        .background(
-            LinearGradient(
-                colors: [Color(hex: 0xFDFAF2), Color(hex: 0xF2F7ED)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-    }
-}
-
-private struct NativeCacheOverviewView: View {
-    @EnvironmentObject private var store: NativeMacShellStore
-
-    private let columns = [GridItem(.adaptive(minimum: 170), spacing: 14)]
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                NativePageHeader(
-                    title: "本地资料",
-                    subtitle: "原生 target 已经复用现有 SQLite schema，并以只读概览验证共享核心。"
-                )
-
-                LazyVGrid(columns: columns, spacing: 14) {
-                    NativeMetricCard(title: "会话", value: store.snapshot.sessionCount, icon: "bubble.left.and.bubble.right")
-                    NativeMetricCard(title: "消息", value: store.snapshot.messageCount, icon: "text.bubble")
-                    NativeMetricCard(title: "记忆", value: store.snapshot.memoryCount, icon: "books.vertical")
-                    NativeMetricCard(title: "日记", value: store.snapshot.journalCount, icon: "book.closed")
-                }
-
-                if let databaseError = store.databaseError {
-                    Label(databaseError, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-            }
-            .padding(28)
-        }
-        .toolbar {
-            Button("刷新缓存", systemImage: "arrow.clockwise") {
-                store.loadLocalCache()
-            }
         }
     }
 }
@@ -174,34 +102,47 @@ private struct NativeDiagnosticsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 NativePageHeader(
-                    title: "原生诊断",
-                    subtitle: "用于验证 target、缓存和本机后端边界，不承载正式产品功能。"
+                    title: "运行诊断",
+                    subtitle: "观察原生 target、本地数据库和 DeepSeek 直连状态，不把调试信息混进夜谈。"
                 )
 
                 GroupBox("运行环境") {
                     VStack(alignment: .leading, spacing: 10) {
                         LabeledContent("平台", value: "Native macOS")
+                        LabeledContent("阶段", value: "N2 夜谈纵切")
                         LabeledContent("Bundle ID", value: Bundle.main.bundleIdentifier ?? "未知")
                         LabeledContent("缓存路径", value: store.databasePath)
+                        LabeledContent("内存消息上限", value: "120 条")
                     }
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
                 }
 
-                GroupBox("Python 后端") {
+                GroupBox("DeepSeek API") {
                     VStack(alignment: .leading, spacing: 12) {
                         LabeledContent("状态", value: store.backendStatus.state.rawValue)
+                        LabeledContent("服务", value: store.backendStatus.baseURL)
                         Text(store.backendStatus.detail)
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                        Button(store.isCheckingBackend ? "正在检查…" : "检查 localhost 后端") {
-                            Task { await store.checkBackend() }
+                        HStack {
+                            Button(store.isCheckingBackend ? "正在检查…" : "检查连接") {
+                                Task { await store.testDeepSeekConnection() }
+                            }
+                            .disabled(store.isCheckingBackend)
+                            Button("刷新本地资料") {
+                                store.loadLocalCache()
+                            }
                         }
-                        .disabled(store.isCheckingBackend)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
+                }
+
+                if let databaseError = store.databaseError {
+                    Label(databaseError, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
                 }
             }
             .padding(28)
@@ -215,17 +156,25 @@ struct NativeMacSettingsView: View {
     var body: some View {
         Form {
             Section("原生迁移") {
-                LabeledContent("阶段", value: "N1 原生壳")
-                Text("真实聊天、TTS 和完整同步将在后续纵切中接入。Catalyst 版本仍是当前可用基线。")
+                LabeledContent("阶段", value: "N2 夜谈纵切")
+                Text("原生 App 直接调用 DeepSeek：quick + plan 并行，plan 决定是否按需 deep；不依赖 Python 或 SSE。")
                     .foregroundStyle(.secondary)
             }
 
-            Section("数据边界") {
-                Text("Python 后端仍是权威数据源；原生 App 只使用独立沙盒缓存，不直接读写仓库数据库。")
-                    .foregroundStyle(.secondary)
-                Button("重新读取本地缓存") {
-                    store.loadLocalCache()
+            Section("DeepSeek") {
+                SecureField("DeepSeek API Key", text: $store.apiKeyText)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("保存 Key") { store.saveAPIKey() }
+                    Button(store.isCheckingBackend ? "测试中…" : "测试连接") {
+                        Task { await store.testDeepSeekConnection() }
+                    }
+                    .disabled(store.isCheckingBackend)
+                    Button("删除 Key", role: .destructive) { store.deleteAPIKey() }
                 }
+                Text("Key 只供原生 App 直接访问 DeepSeek；聊天、总结和资料读取均不要求启动 Python 服务。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -234,17 +183,7 @@ struct NativeMacSettingsView: View {
     }
 }
 
-private struct NativePlaceholderView: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-
-    var body: some View {
-        ContentUnavailableView(title, systemImage: systemImage, description: Text(subtitle))
-    }
-}
-
-private struct NativePageHeader: View {
+struct NativePageHeader: View {
     let title: String
     let subtitle: String
 
@@ -255,31 +194,5 @@ private struct NativePageHeader: View {
             Text(subtitle)
                 .foregroundStyle(.secondary)
         }
-    }
-}
-
-private struct NativeMetricCard: View {
-    let title: String
-    let value: Int
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(value)")
-                    .font(.title2.bold())
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(16)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }

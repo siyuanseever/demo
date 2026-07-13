@@ -5,8 +5,8 @@ final class SQLiteDatabase {
     private var handle: OpaquePointer?
     let path: String
 
-    init() throws {
-        let databaseURL = try Self.preparedDatabaseURL()
+    init(databaseURL: URL? = nil) throws {
+        let databaseURL = try databaseURL ?? Self.preparedDatabaseURL()
         path = databaseURL.path
         if sqlite3_open(databaseURL.path, &handle) != SQLITE_OK {
             throw DatabaseError.openFailed(String(cString: sqlite3_errmsg(handle)))
@@ -124,7 +124,7 @@ final class SQLiteDatabase {
     func recentMessages(limit: Int = 16) -> [ChatMessage] {
         rows(
             sql: """
-            SELECT id, role, content, metadata, created_at
+            SELECT id, role, content, model, metadata, created_at
             FROM messages
             ORDER BY created_at DESC
             LIMIT ?
@@ -143,6 +143,7 @@ final class SQLiteDatabase {
                 groupRole: metadata["group_role"] as? String ?? "",
                 action: metadata["action"] as? String ?? "",
                 expressionID: metadata["expression_id"] as? String ?? "",
+                replyStage: Self.replyStage(metadata: metadata, model: row["model"] ?? ""),
                 routeSummary: Self.routeSummary(from: metadata["route_plan"] as? [String: Any]),
                 knowledgeCards: Self.knowledgeCards(from: metadata["knowledge_card_ids"])
             )
@@ -326,6 +327,7 @@ final class SQLiteDatabase {
         expressionID: String = "",
         model: String = "",
         routePlan: [String: Any]? = nil,
+        replyStage: String = "",
         knowledgeCards: [KnowledgeCard] = []
     ) -> ChatMessage {
         let messageID = UUID().uuidString
@@ -339,6 +341,9 @@ final class SQLiteDatabase {
         }
         if let routePlan {
             metadata["route_plan"] = routePlan
+        }
+        if !replyStage.isEmpty {
+            metadata["reply_stage"] = replyStage
         }
         if !knowledgeCards.isEmpty {
             metadata["knowledge_card_ids"] = knowledgeCards.map(\.id)
@@ -365,6 +370,7 @@ final class SQLiteDatabase {
             characterID: characterID,
             createdAt: createdAt,
             expressionID: expressionID,
+            replyStage: replyStage,
             routeSummary: Self.routeSummary(from: routePlan),
             knowledgeCards: knowledgeCards
         )
@@ -566,7 +572,7 @@ final class SQLiteDatabase {
     func messages(sessionID: String, limit: Int = 120) -> [ChatMessage] {
         rows(
             sql: """
-            SELECT id, role, content, metadata, created_at
+            SELECT id, role, content, model, metadata, created_at
             FROM messages
             WHERE session_id = ?
             ORDER BY created_at ASC
@@ -1104,6 +1110,9 @@ final class SQLiteDatabase {
         if !message.expressionID.isEmpty {
             metadata["expression_id"] = message.expressionID
         }
+        if !message.replyStage.isEmpty {
+            metadata["reply_stage"] = message.replyStage
+        }
         if !message.knowledgeCardIDs.isEmpty {
             metadata["knowledge_card_ids"] = message.knowledgeCardIDs
         }
@@ -1178,6 +1187,7 @@ final class SQLiteDatabase {
             groupRole: metadata["group_role"] as? String ?? "",
             action: metadata["action"] as? String ?? "",
             expressionID: metadata["expression_id"] as? String ?? "",
+            replyStage: replyStage(metadata: metadata, model: row["model"] ?? ""),
             routeSummary: routeSummary(from: metadata["route_plan"] as? [String: Any]),
             knowledgeCards: knowledgeCards(from: metadata["knowledge_card_ids"])
         )
@@ -1221,6 +1231,16 @@ final class SQLiteDatabase {
             return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复，\(anchorName)收束"
         }
         return "本轮规划\(mode)：\(empathyName)共情，\(needName)点明需求，\(mainName)主回复"
+    }
+
+    private static func replyStage(metadata: [String: Any], model: String) -> String {
+        if let stage = metadata["reply_stage"] as? String, !stage.isEmpty {
+            return stage
+        }
+        if let path = metadata["reply_path"] as? String, path == "quick" {
+            return "quick"
+        }
+        return model == "quick" ? "quick" : ""
     }
 
     private static let isoDateFormatter = ISO8601DateFormatter()

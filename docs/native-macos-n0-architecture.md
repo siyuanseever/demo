@@ -5,28 +5,28 @@
 
 ## 结论
 
-采用**同一 Xcode 工程、独立原生 macOS target、共享现有源码**的渐进迁移方案。保留 Catalyst 作为可运行基线，直到原生版本完成夜谈纵切和稳定性对比；不进行一次性重写，也不借迁移改变 Python 后端的数据权威地位。
+采用**同一 Xcode 工程、独立原生 macOS target、共享现有源码**的渐进迁移方案。保留 Catalyst 作为可运行基线，直到原生版本完成夜谈纵切和稳定性对比；不进行一次性重写。原生 macOS 路径使用本地 SQLite 并直接调用 DeepSeek，不要求启动 Python 后端；Web/Catalyst 暂时保留 Python API 兼容路径。
 
 当前工程约 22 个 Swift 文件、20,558 行。只有 3 个文件直接 `import UIKit`，共有 16 处 Catalyst 条件分支，因此大部分 Models、Services 和 SwiftUI 视图具备复用基础。主要成本来自平台适配和现有大文件拆分，而不是业务逻辑重写。
 
 ## 目标架构
 
 ```text
-Python backend + data/app.db（权威数据与智能能力）
-                    ↓ localhost API
-Shared Swift Core（Models / Services / Store / SQLite cache）
-              ↙                         ↘
-Catalyst target（基线）          Native macOS target（新主线）
+Web / Catalyst                     Native macOS（新主线）
+Python API + data/app.db           LocalDeepSeekService + local SQLite
+          ↘                         ↙
+       Shared Swift Core（Models / Services / data contract）
 ```
 
-原生 App 继续使用沙盒 SQLite 缓存，不直接并发读写仓库数据库。DeepSeek 直连、双阶段回复、TTS 和同步协议保持同一实现。
+原生 App 使用自己的沙盒 SQLite 作为运行数据源，不直接读写仓库数据库。聊天采用 `quick + plan` 并行，plan 决定是否继续 deep；这条路径不使用 SSE。SSE 只作为 Web/Catalyst 的兼容协议保留。
 
 ## 依赖矩阵
 
 | 区域 | 复用判断 | N1 处理 |
 |---|---|---|
 | `Models/CompanionModels.swift` | 高 | 共享；保留平台颜色适配 |
-| `ChatService`、`LocalDeepSeekService` | 高 | 共享 Foundation 网络层 |
+| `LocalDeepSeekService` | 高 | 原生直连 DeepSeek 的 Foundation 网络层 |
+| `ChatService` | 中 | 仅供 Web/Catalyst Python/SSE 兼容路径复用，不加入原生发送链路 |
 | `InteractionService`、`RecommendationService` | 高 | 直接共享 |
 | `SpeechService` | 中高 | 共享 AVFoundation；验证 macOS 音频会话与播放队列 |
 | `SQLiteDatabase` | 中高 | 共享 schema；抽离数据库 URL 策略 |
@@ -51,14 +51,14 @@ Catalyst target（基线）          Native macOS target（新主线）
 新增一个原生 macOS SwiftUI application target，并完成：
 
 - 独立 App 入口、单窗口和三栏导航。
-- 设置页基础框架、后端状态和诊断入口。
+- 设置页基础框架、DeepSeek 连接状态和诊断入口。
 - 空夜谈页面及缓存只读加载。
 - 原生菜单：新夜谈、结束总结、设置、显示/隐藏侧栏。
 - Models、网络、SQLite、日志代码通过共享 target membership 引入，不复制文件。
 
 N1 **不包含**真实发送、流式回复、TTS 自动播放、完整数据页面或移除 Catalyst。
 
-实现落点：独立 scheme/target `SensenStoryNative`，入口与壳界面位于 `ios/SensenStoryMac/`。原生壳已能启动、切换侧栏、读取既有沙盒 SQLite 概览，并提供后端诊断与设置占位；`scripts/run_native_mac.sh` 可从命令行构建并启动。Catalyst target 同时保持可构建。
+实现落点：独立 scheme/target `SensenStoryNative`，入口与壳界面位于 `ios/SensenStoryMac/`。原生壳已能启动、切换侧栏、读取沙盒 SQLite 概览，并提供 DeepSeek 诊断与设置入口；`scripts/run_native_mac.sh` 可从命令行构建并启动。Catalyst target 同时保持可构建。
 
 ## N1 进入条件与验收
 
@@ -69,7 +69,7 @@ N1 **不包含**真实发送、流式回复、TTS 自动播放、完整数据页
 ## 后续顺序
 
 1. N1 原生壳（已完成）。
-2. N2 夜谈纵切：发送、quick/plan 并行、按需 deep、轨迹和缓存。
+2. N2 夜谈纵切（已实现）：DeepSeek 直连、quick/plan 并行、按需 deep、轨迹和本地持久化。
 3. N3 数据纵切：同步、记忆、日记、长期状态和心流。
 4. N4 使用相同数据进行 Catalyst/原生功能与性能对比。
 5. N5 达到稳定性退出门槛后切换默认产品。

@@ -57,19 +57,19 @@
 - 情绪曲线、关键词、洞察、建议下一步、来源和时间等已有数据，应根据语义进入合适层级。
 - 对缺失、旧版本和不兼容数据提供明确空状态或降级展示，不静默丢失。
 
-### 工作流 D：Mac 数据架构与自动同步
+### 工作流 D：Mac 数据架构与平台边界
 
-当前实现是 **iOS App 通过 Mac Catalyst 迁移到 Mac**，不是原生 macOS App。当前版本继续作为故障复现和稳定化基线；长期方向是分阶段迁移到原生 macOS target。
+当前同时保留 Mac Catalyst 基线与原生 macOS target。Catalyst 用于兼容和对照；原生 target 是新主线，直接调用 DeepSeek，并使用自己的本地 SQLite，不依赖 Python 进程或 SSE。
 
-短期采用单一权威源和本地缓存：
+平台边界如下：
 
-- Python 后端及其 `data/app.db` 是既有会话、总结、记忆和长期画像的权威源。
-- Mac App 沙盒 Documents 中的 `app.db` 是界面读取和离线降级缓存，不与仓库数据库共享同一个文件。
-- App 通过本机 API 拉取数据，在启动、回到前台、完成夜谈/总结以及检测到后端恢复时自动增量刷新。
-- 设置页的“刷新本机后端数据”保留为故障恢复手段，不再是正常使用的必经步骤。
-- 自动刷新必须去重、可取消、有超时，不阻塞主线程；页面先展示缓存，再安静地刷新。
+- 原生 macOS：`LocalDeepSeekService` 直接访问 DeepSeek；沙盒 `app.db` 是该 App 的运行数据源。
+- Web：继续使用 Python 编排和 `data/app.db`，按现有 SSE 协议服务浏览器界面。
+- Catalyst：保留兼容路径；配置本地 API Key 时可直连 DeepSeek，否则可回退现有 Python API。
+- 原生与 Python 数据库暂不自动互相覆盖；未来如需迁移或同步，必须定义显式导入、冲突和 schema 迁移规则。
+- 所有异步刷新和模型任务必须去重、可取消、有超时，不阻塞主线程。
 
-不直接让 Mac App 持续读写仓库里的 `data/app.db`，原因是 App Sandbox 路径权限、两个进程并发写入、schema 迁移和数据损坏风险。未来若要成为完全独立的 Mac App，应单独设计“内嵌后端”或“完整 Swift 本地引擎”，不能让 Python 和 Swift 两套逻辑同时成为权威实现。
+原生 App 不直接读写仓库里的 `data/app.db`，避免 Sandbox 权限、并发写入和 schema 迁移风险。它已经采用 Swift 本地引擎，不再把“启动 Python 后端”作为正常使用前置条件。
 
 ### 工作流 E：原生 macOS 分阶段迁移
 
@@ -79,12 +79,12 @@
 
 1. **N0 架构盘点（已完成）**：已在 `docs/native-macos-n0-architecture.md` 标出可共享的 models/services、Catalyst 专属 UI、UIKit 依赖和数据契约。
 2. **N1 原生壳（已完成）**：独立 `SensenStoryNative` target 已完成启动、导航、设置、诊断和只读缓存概览。
-3. **N2 夜谈纵切**：迁移“发送 → 后端 → 流式回复 → 本地缓存”完整路径。
+3. **N2 夜谈纵切（已完成）**：原生 App 直接调用 DeepSeek，完成 quick/plan 并行、按需 deep、历史续聊、对话轨迹与本地持久化；不依赖 Python/SSE。
 4. **N3 数据纵切**：迁移自动同步、长期记忆层级、日记和心流卡片。
-5. **N4 并行验收**：使用同一后端和脱敏数据集比较 Catalyst 与原生版本。
+5. **N4 并行验收**：使用同一脱敏数据集比较 Catalyst 与原生版本的功能和性能。
 6. **N5 切换**：原生版本通过功能、数据兼容、连续发送和长时间运行验收后，才停止 Catalyst 主线。
 
-平台迁移与后端重写是两个独立决策；原生迁移不得顺带改变数据权威源或心理安全契约。
+原生迁移不得改变心理安全契约。传输层按平台拆分：Native 直连 DeepSeek 并使用本地 SQLite，Web/Catalyst 保留 Python 兼容路径。
 
 ### 本阶段非目标
 

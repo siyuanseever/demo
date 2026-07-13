@@ -41,6 +41,7 @@ struct ChatMessage: Identifiable, Hashable {
     var groupRole: String = ""
     var action: String = ""
     var expressionID: String = ""
+    var replyStage: String = ""
     var routeSummary: String?
     var knowledgeCards: [KnowledgeCard] = []
 }
