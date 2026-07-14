@@ -206,9 +206,9 @@ final class SQLiteDatabase {
 
     func deleteSession(_ sessionID: String) {
         execute(sql: "DELETE FROM messages WHERE session_id = ?", bindings: [sessionID])
-        execute(sql: "DELETE FROM memories WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM memories WHERE source_session_id = ?", bindings: [sessionID])
         execute(sql: "DELETE FROM journals WHERE session_id = ?", bindings: [sessionID])
-        execute(sql: "DELETE FROM user_state_profiles WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM user_state_profiles WHERE source_session_id = ?", bindings: [sessionID])
         execute(sql: "DELETE FROM sessions WHERE id = ?", bindings: [sessionID])
     }
 

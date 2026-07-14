@@ -148,6 +148,7 @@ private struct NativeDiagnosticsView: View {
 
 struct NativeMacSettingsView: View {
     @EnvironmentObject private var store: NativeMacShellStore
+    @EnvironmentObject private var speech: SpeechService
 
     var body: some View {
         Form {
@@ -171,6 +172,35 @@ struct NativeMacSettingsView: View {
                 Text("Key 只供原生 App 直接访问 DeepSeek；聊天、总结和资料读取均不要求启动 Python 服务。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("忧忧兔的声音") {
+                LabeledContent("语音", value: speech.voiceName)
+                Toggle("自动朗读新回复", isOn: $speech.automaticallyReadsReplies)
+                Button {
+                    if speech.activeMessageID == "speech-preview" && speech.isActive {
+                        speech.stop()
+                    } else {
+                        speech.previewVoice()
+                    }
+                } label: {
+                    Label(
+                        speech.activeMessageID == "speech-preview" && speech.isPreparing
+                            ? "正在生成试听…"
+                            : (speech.activeMessageID == "speech-preview" && speech.isSpeaking ? "停止试听" : "试听声音"),
+                        systemImage: speech.activeMessageID == "speech-preview" && speech.isActive
+                            ? "stop.circle.fill"
+                            : "speaker.wave.2.fill"
+                    )
+                }
+                Text("使用本机 Qwen3-TTS 服务。需要先启动 `scripts/run_tts.sh`；语音失败不会影响文字回复。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let error = speech.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .formStyle(.grouped)

@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct SensenStoryNativeApp: App {
     @StateObject private var store = NativeMacShellStore()
+    @StateObject private var speech = SpeechService()
 
     var body: some Scene {
         WindowGroup("森森物语") {
             NativeMacRootView()
                 .environmentObject(store)
+                .environmentObject(speech)
                 .frame(minWidth: 960, minHeight: 640)
         }
         .defaultSize(width: 1180, height: 760)
@@ -34,7 +36,8 @@ struct SensenStoryNativeApp: App {
         Settings {
             NativeMacSettingsView()
                 .environmentObject(store)
-                .frame(width: 560, height: 360)
+                .environmentObject(speech)
+                .frame(width: 560, height: 500)
         }
     }
 }

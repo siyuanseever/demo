@@ -17,6 +17,7 @@ private struct NativeN2ContractTests {
         do {
             try testReplyStagePersistence()
             try testDashboardDataRoundTrip()
+            try testSessionDeletionCascade()
             try testConversationTurnGrouping()
             try await testWeeklyFlowRoundTrip()
             try await testDirectQuickPlanDeepPipeline()
@@ -159,6 +160,66 @@ private struct NativeN2ContractTests {
         try expect(profile.evidence.contains("能说出身体紧张"), "state evidence was lost")
         try expect(profile.supportStrategy == "先确认身体感受", "support strategy was lost")
         try expect(profile.sourceSessionID == sessionID, "state session relation was lost")
+    }
+
+    private static func testSessionDeletionCascade() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sensen-native-delete-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let database = try SQLiteDatabase(databaseURL: url)
+        let sessionID = database.createLocalSession()
+        _ = database.addLocalMessage(sessionID: sessionID, role: .user, content: "准备删除")
+        database.addLocalJournal(
+            sessionID: sessionID,
+            journal: LocalJournalDraft(
+                summary: "删除测试",
+                emotionCurve: [],
+                keywords: [],
+                insights: [],
+                suggestedNextStep: "",
+                moodScore: 0,
+                dominantEmotion: ""
+            )
+        )
+        database.addLocalMemories(
+            sessionID: sessionID,
+            memories: [
+                LocalMemoryDraft(
+                    category: "test",
+                    subcategory: "delete",
+                    keywords: [],
+                    content: "关联记忆",
+                    evidence: "测试",
+                    confidence: 1,
+                    importance: 1
+                )
+            ]
+        )
+        database.upsertLocalStateProfiles(
+            sessionID: sessionID,
+            profiles: [
+                LocalStateProfileDraft(
+                    action: "update",
+                    domain: "delete_test",
+                    stage: "",
+                    summary: "关联状态",
+                    intensity: 1,
+                    trend: "",
+                    confidence: 1,
+                    evidence: [],
+                    supportStrategy: ""
+                )
+            ]
+        )
+
+        database.deleteSession(sessionID)
+
+        try expect(database.sessions().allSatisfy { $0.id != sessionID }, "session deletion failed")
+        try expect(database.messages(sessionID: sessionID).isEmpty, "session messages were not deleted")
+        try expect(database.journals().allSatisfy { $0.sessionID != sessionID }, "session journal was not deleted")
+        try expect(database.memories().allSatisfy { $0.sourceSessionID != sessionID }, "session memory was not deleted")
+        try expect(database.stateProfiles().allSatisfy { $0.sourceSessionID != sessionID }, "session state profile was not deleted")
     }
 
     private static func testWeeklyFlowRoundTrip() async throws {

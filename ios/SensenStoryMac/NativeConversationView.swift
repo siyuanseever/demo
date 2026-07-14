@@ -1,18 +1,27 @@
+import AppKit
 import SwiftUI
 
 struct NativeConversationView: View {
     @EnvironmentObject private var store: NativeMacShellStore
+    @EnvironmentObject private var speech: SpeechService
     @State private var draft = ""
-    @State private var hoveredTurnID: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                header
+                Divider()
+                statusArea
+                conversationBody
+                Divider()
+                composer
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
             Divider()
-            statusArea
-            conversationBody
-            Divider()
-            composer
+
+            NativeConversationSidebar()
+                .frame(width: 300)
         }
         .background(
             LinearGradient(
@@ -21,6 +30,12 @@ struct NativeConversationView: View {
                 endPoint: .bottomTrailing
             )
         )
+        .task(id: automaticSpeechMessage?.id) {
+            guard speech.automaticallyReadsReplies,
+                  let message = automaticSpeechMessage else { return }
+            await Task.yield()
+            speech.enqueue(messageID: message.id, text: message.content)
+        }
     }
 
     private var header: some View {
@@ -85,54 +100,43 @@ struct NativeConversationView: View {
 
     private var conversationBody: some View {
         ScrollViewReader { proxy in
-            HStack(spacing: 0) {
-                Group {
-                    if store.messages.isEmpty {
-                        ContentUnavailableView {
-                            Label("今晚想从哪里说起？", systemImage: "moon.stars")
-                        } description: {
-                            Text("不用整理好。先写下一句最靠近此刻的话。")
-                        }
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                ForEach(store.messages) { message in
-                                    NativeMessageBubble(message: message)
-                                        .id(message.id)
-                                }
+            Group {
+                if store.messages.isEmpty {
+                    ContentUnavailableView {
+                        Label("今晚想从哪里说起？", systemImage: "moon.stars")
+                    } description: {
+                        Text("不用整理好。先写下一句最靠近此刻的话。")
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(store.messages) { message in
+                                NativeMessageBubble(message: message)
+                                    .id(message.id)
                             }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 20)
                         }
+                        .padding(.leading, 24)
+                        .padding(.trailing, 54)
+                        .padding(.vertical, 20)
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .trailing) {
-                    if let turn = turns.first(where: { $0.id == hoveredTurnID }) {
-                        NativeTurnPreview(turn: turn)
-                            .frame(width: 280)
-                            .padding(.trailing, 48)
-                            .transition(.opacity.combined(with: .move(edge: .trailing)))
-                    }
-                }
-
-                Divider()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .trailing) {
                 NativeConversationTrail(
                     turns: turns,
-                    hoveredTurnID: $hoveredTurnID,
                     onSelect: { turn in
                         withAnimation(.easeInOut(duration: 0.25)) {
                             proxy.scrollTo(turn.user.id, anchor: .top)
                         }
                     }
                 )
-                .frame(width: 44)
+                .frame(width: 360)
             }
-            .onChange(of: store.messages.count) {
+            .task(id: store.messages.last?.id) {
                 guard let lastID = store.messages.last?.id else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo(lastID, anchor: .bottom)
-                }
+                await Task.yield()
+                proxy.scrollTo(lastID, anchor: .bottom)
             }
         }
     }
@@ -164,6 +168,10 @@ struct NativeConversationView: View {
         NativeConversationTurn.build(from: store.messages)
     }
 
+    private var automaticSpeechMessage: ChatMessage? {
+        store.messages.last(where: { $0.role == .assistant })
+    }
+
     private func submit() {
         let text = draft
         draft = ""
@@ -172,6 +180,8 @@ struct NativeConversationView: View {
 }
 
 private struct NativeMessageBubble: View {
+    @EnvironmentObject private var speech: SpeechService
+    @State private var selectedKnowledgeCard: KnowledgeCard?
     let message: ChatMessage
 
     var body: some View {
@@ -214,13 +224,36 @@ private struct NativeMessageBubble: View {
                 if !message.knowledgeCards.isEmpty {
                     HStack(spacing: 6) {
                         ForEach(message.knowledgeCards.prefix(3)) { card in
-                            Label(card.title, systemImage: "leaf.fill")
-                                .font(.caption2)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.1), in: Capsule())
+                            Button {
+                                selectedKnowledgeCard = card
+                            } label: {
+                                Label(card.title, systemImage: "leaf.fill")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.green.opacity(0.1), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
+                }
+
+                if message.role == .assistant {
+                    Button {
+                        speech.toggle(messageID: message.id, text: message.content)
+                    } label: {
+                        Label(
+                            speech.activeMessageID == message.id && speech.isPreparing
+                                ? "正在生成语音…"
+                                : (speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听忧忧兔说"),
+                            systemImage: speech.activeMessageID == message.id && speech.isActive
+                                ? "stop.circle.fill"
+                                : "speaker.wave.2.fill"
+                        )
+                        .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentPurple)
                 }
             }
             .frame(maxWidth: 700, alignment: message.role == .user ? .trailing : .leading)
@@ -230,6 +263,25 @@ private struct NativeMessageBubble: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+        .contextMenu {
+            Button("复制", systemImage: "doc.on.doc") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message.content, forType: .string)
+            }
+        }
+        .popover(item: $selectedKnowledgeCard) { card in
+            VStack(alignment: .leading, spacing: 12) {
+                Label("本轮参考知识", systemImage: "leaf.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                Text(card.title).font(.title3.bold())
+                Text(card.concept.isEmpty ? "当前只保存了知识卡标识：\(card.id)" : card.concept)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+            .padding(18)
+            .frame(width: 360, alignment: .leading)
+        }
     }
 
     private var character: CompanionCharacter {
@@ -251,32 +303,77 @@ private struct NativeMessageBubble: View {
 
 private struct NativeConversationTrail: View {
     let turns: [NativeConversationTurn]
-    @Binding var hoveredTurnID: String?
     let onSelect: (NativeConversationTurn) -> Void
+    @State private var hoveredTurnID: String?
+
+    private let shortTick: CGFloat = 10
+    private let longTick: CGFloat = 28
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 9) {
-                ForEach(turns) { turn in
-                    Button {
-                        onSelect(turn)
-                    } label: {
-                        Capsule()
-                            .fill(hoveredTurnID == turn.id ? Color.accentColor : Color.secondary.opacity(0.35))
-                            .frame(width: hoveredTurnID == turn.id ? 24 : 9, height: 4)
-                            .frame(width: 32, height: 12, alignment: .trailing)
+        let visibleTurns = Array(turns.suffix(36))
+
+        GeometryReader { geometry in
+            let availableHeight = max(1, geometry.size.height - 36)
+            let rowHeight = min(28, max(14, availableHeight / CGFloat(max(visibleTurns.count, 1))))
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 18)
+                ForEach(visibleTurns) { turn in
+                    trailRow(turn, visibleTurns: visibleTurns, rowHeight: rowHeight)
+                }
+                Spacer(minLength: 18)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+        }
+    }
+
+    private func trailRow(
+        _ turn: NativeConversationTurn,
+        visibleTurns: [NativeConversationTurn],
+        rowHeight: CGFloat
+    ) -> some View {
+        let isHovered = hoveredTurnID == turn.id
+
+        return ZStack(alignment: .trailing) {
+            if isHovered {
+                NativeTurnPreview(turn: turn)
+                    .frame(width: 300)
+                    .padding(.trailing, 52)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+
+            Color.clear
+                .frame(width: 44, height: rowHeight)
+                .contentShape(Rectangle())
+                .overlay(alignment: .trailing) {
+                    Capsule()
+                        .fill(isHovered ? Color.accentColor : Color.secondary.opacity(0.28))
+                        .frame(width: tickLength(for: turn, visibleTurns: visibleTurns), height: 4)
+                        .padding(.trailing, 8)
+                }
+                .onTapGesture { onSelect(turn) }
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        hoveredTurnID = hovering ? turn.id : nil
                     }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in
-                        withAnimation(.easeOut(duration: 0.12)) {
-                            hoveredTurnID = hovering ? turn.id : nil
-                        }
-                    }
-                    .help(turn.user.content)
                 }
             }
-            .padding(.vertical, 18)
+        .frame(width: 360, height: rowHeight, alignment: .trailing)
+        .zIndex(isHovered ? 10 : 0)
+        .help(turn.user.content)
+    }
+
+    private func tickLength(for turn: NativeConversationTurn, visibleTurns: [NativeConversationTurn]) -> CGFloat {
+        guard let hoveredTurnID,
+              let currentIndex = visibleTurns.firstIndex(where: { $0.id == turn.id }),
+              let hoveredIndex = visibleTurns.firstIndex(where: { $0.id == hoveredTurnID }) else {
+            return shortTick
         }
+        let distance = abs(currentIndex - hoveredIndex)
+        guard distance <= 3 else { return shortTick }
+        let ratio = CGFloat(3 - distance) / 3
+        return shortTick + (longTick - shortTick) * ratio
     }
 }
 
@@ -297,6 +394,269 @@ private struct NativeTurnPreview: View {
         .padding(14)
         .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 14))
         .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
+    }
+}
+
+private struct NativeConversationSidebar: View {
+    @EnvironmentObject private var store: NativeMacShellStore
+    @State private var flowCardIndex = 0
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                NativeSidebarSection(title: "本周心流") {
+                    NativeSidebarFlowCarousel(cards: flowCards, selectedIndex: $flowCardIndex)
+                }
+
+                Divider()
+
+                VStack(spacing: 10) {
+                    NativeRabbitPortrait()
+                        .frame(height: 150)
+                    Text(store.selectedCharacter.name)
+                        .font(.title3.bold())
+                    Text(store.selectedCharacter.tagline)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider()
+
+                NativeSidebarSection(title: "此刻的你") {
+                    NativeSidebarAssessment(
+                        assessment: store.latestAssessment,
+                        isAnalyzing: store.isSending
+                    )
+                }
+
+                NativeSidebarSection(title: "这次夜谈") {
+                    Label("\(store.messages.count) 条消息", systemImage: "text.bubble")
+                    Label("DeepSeek 直连双阶段", systemImage: "brain.head.profile")
+                }
+                .font(.callout)
+            }
+            .padding(20)
+        }
+        .background(Color.sidebarBackground)
+        .task(id: flowCards.map(\.id)) {
+            flowCardIndex = min(flowCardIndex, max(flowCards.count - 1, 0))
+            while !Task.isCancelled, flowCards.count > 1 {
+                try? await Task.sleep(for: .seconds(8))
+                guard !Task.isCancelled, flowCards.count > 1 else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    flowCardIndex = (flowCardIndex + 1) % flowCards.count
+                }
+            }
+        }
+    }
+
+    private var flowCards: [NativeSidebarFlowCardModel] {
+        guard let insight = store.flowInsight else { return [] }
+        var cards = [
+            NativeSidebarFlowCardModel(
+                id: "primary",
+                title: "主要方向",
+                headline: insight.primaryGoalTitle,
+                detail: insight.primaryGoalNextStep.isEmpty ? insight.primaryGoalReason : insight.primaryGoalNextStep,
+                systemImage: "scope"
+            )
+        ]
+        if insight.hasSecondaryGoal {
+            cards.append(
+                NativeSidebarFlowCardModel(
+                    id: "secondary",
+                    title: "次要方向",
+                    headline: insight.secondaryGoalTitle,
+                    detail: insight.secondaryGoalNextStep.isEmpty ? insight.secondaryGoalReason : insight.secondaryGoalNextStep,
+                    systemImage: "arrow.triangle.branch"
+                )
+            )
+        }
+        if !insight.recentEmotionSummary.isEmpty {
+            cards.append(
+                NativeSidebarFlowCardModel(
+                    id: "emotion",
+                    title: "最近的情绪天气",
+                    headline: insight.recentEmotionTags.prefix(3).joined(separator: " · "),
+                    detail: insight.recentEmotionSummary,
+                    systemImage: "cloud.sun.fill"
+                )
+            )
+        }
+        return cards.filter { !$0.headline.isEmpty || !$0.detail.isEmpty }
+    }
+}
+
+private struct NativeSidebarFlowCardModel: Identifiable {
+    let id: String
+    let title: String
+    let headline: String
+    let detail: String
+    let systemImage: String
+}
+
+private struct NativeSidebarFlowCarousel: View {
+    let cards: [NativeSidebarFlowCardModel]
+    @Binding var selectedIndex: Int
+
+    var body: some View {
+        if cards.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("还没有本周导航", systemImage: "sparkles")
+                    .font(.callout.bold())
+                Text("完成夜谈总结后，这里会安静地出现本周方向。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+            .padding(14)
+            .background(Color.cardBackground.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
+        } else {
+            let index = min(selectedIndex, cards.count - 1)
+            let card = cards[index]
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label(card.title, systemImage: card.systemImage)
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.accentPurple)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Button { move(-1) } label: { Image(systemName: "chevron.left") }
+                        Button { move(1) } label: { Image(systemName: "chevron.right") }
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text(card.headline)
+                    .font(.headline)
+                    .lineLimit(2)
+                Text(card.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+                Spacer(minLength: 0)
+                HStack(spacing: 5) {
+                    ForEach(cards.indices, id: \.self) { item in
+                        Capsule()
+                            .fill(item == index ? Color.accentPurple : Color.secondary.opacity(0.2))
+                            .frame(width: item == index ? 16 : 6, height: 5)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 142, maxHeight: 142, alignment: .topLeading)
+            .padding(14)
+            .background(
+                LinearGradient(
+                    colors: [Color.flowGradientTop, Color.flowGradientBottom],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 14)
+            )
+        }
+    }
+
+    private func move(_ offset: Int) {
+        guard cards.count > 1 else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedIndex = (selectedIndex + offset + cards.count) % cards.count
+        }
+    }
+}
+
+private struct NativeRabbitPortrait: View {
+    var body: some View {
+        Group {
+            if let url = Bundle.main.url(forResource: "sensen-home-rabbit-quiet-v1", withExtension: "png"),
+               let image = NSImage(contentsOf: url) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                NativeCharacterAvatar(
+                    character: CompanionFixtures.characters[0],
+                    expressionID: "listening",
+                    size: 112
+                )
+            }
+        }
+        .accessibilityLabel("忧忧兔正在安静陪伴")
+    }
+}
+
+private struct NativeSidebarSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct NativeSidebarAssessment: View {
+    let assessment: UserConversationAssessment?
+    let isAnalyzing: Bool
+
+    var body: some View {
+        if let assessment {
+            VStack(alignment: .leading, spacing: 10) {
+                assessmentRow("状态与情绪", assessment.userState, "heart.text.square.fill")
+                assessmentRow("此刻需要", assessment.coreNeed, "hand.raised.fingers.spread.fill")
+                HStack(spacing: 6) {
+                    Text("风险 · \(riskLabel(assessment.riskLevel))")
+                    Text("回应 · \(assessment.responseMode)")
+                }
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.accentPurple.opacity(0.09), in: Capsule())
+                if !assessment.reason.isEmpty {
+                    Text(assessment.reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                }
+            }
+        } else {
+            Label(
+                isAnalyzing ? "正在理解你此刻的情绪与需要…" : "开始说话后，这里会显示本轮理解。",
+                systemImage: isAnalyzing ? "waveform.badge.magnifyingglass" : "moon.stars"
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func assessmentRow(_ title: String, _ value: String, _ icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label(title, systemImage: icon)
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            Text(value.isEmpty ? "正在继续理解" : value)
+                .font(.callout)
+        }
+    }
+
+    private func riskLabel(_ value: String) -> String {
+        switch value.lowercased() {
+        case "medium", "moderate": "需留意"
+        case "high": "较高"
+        case "crisis", "critical": "紧急"
+        default: "较低"
+        }
     }
 }
 
@@ -328,22 +688,58 @@ private struct NativeCloseSummaryCard: View {
     let summary: SessionCloseSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("本轮整理完成", systemImage: "checkmark.seal.fill")
-                .font(.caption.bold())
-                .foregroundStyle(.green)
-            Text(summary.journalSummary)
-                .font(.caption)
-                .lineLimit(4)
-            HStack {
-                Text("\(summary.memoryCount) 条记忆")
-                Text("\(summary.stateProfileCount) 项长期状态更新")
-                if let emotion = summary.journal?.dominantEmotion, !emotion.isEmpty {
-                    Text(emotion)
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(summary.journalSummary)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                if let journal = summary.journal {
+                    if !journal.insights.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("洞察").font(.caption.bold()).foregroundStyle(.secondary)
+                            ForEach(journal.insights, id: \.self) { insight in
+                                Label(insight, systemImage: "lightbulb.fill").font(.caption)
+                            }
+                        }
+                    }
+                    if !journal.suggestedNextStep.isEmpty {
+                        Label(journal.suggestedNextStep, systemImage: "arrow.forward.circle.fill")
+                            .font(.caption)
+                    }
+                }
+                if !summary.memories.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("本轮记忆").font(.caption.bold()).foregroundStyle(.secondary)
+                        ForEach(summary.memories) { memory in
+                            Text("• \(memory.content)").font(.caption)
+                        }
+                    }
+                }
+                if !summary.stateProfiles.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("长期状态更新").font(.caption.bold()).foregroundStyle(.secondary)
+                        ForEach(summary.stateProfiles) { profile in
+                            Text("• \(profile.domain)：\(profile.summary)").font(.caption)
+                        }
+                    }
                 }
             }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            .padding(.top, 8)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("本轮整理完成", systemImage: "checkmark.seal.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.green)
+                HStack {
+                    Text("\(summary.memoryCount) 条记忆")
+                    Text("\(summary.stateProfileCount) 项长期状态更新")
+                    if let emotion = summary.journal?.dominantEmotion, !emotion.isEmpty {
+                        Text(emotion)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
         }
         .padding(10)
         .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))

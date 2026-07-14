@@ -125,6 +125,19 @@ final class NativeMacShellStore: ObservableObject {
         notice = nil
     }
 
+    func deleteSession(_ sessionID: String) {
+        guard let database else {
+            notice = "本地数据库不可用，无法删除会话。"
+            return
+        }
+        if selectedSessionID == sessionID {
+            newConversation()
+        }
+        database.deleteSession(sessionID)
+        loadLocalCache()
+        notice = "这段夜谈及其关联日记、记忆和状态记录已删除。"
+    }
+
     func send(_ rawText: String) {
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isSending else { return }

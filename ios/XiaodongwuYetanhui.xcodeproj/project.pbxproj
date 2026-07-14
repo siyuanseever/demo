@@ -143,6 +143,7 @@
 		F00000000000000000000121 /* sensen-emoji-yoyo-listening.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000336 /* sensen-emoji-yoyo-listening.webp */; };
 		F00000000000000000000122 /* sensen-emoji-yoyo-proud.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000337 /* sensen-emoji-yoyo-proud.webp */; };
 		F00000000000000000000123 /* sensen-emoji-yoyo-understanding.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */; };
+		F00000000000000000000124 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000201 /* SpeechService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -732,6 +733,7 @@
 				F00000000000000000000113 /* SecureSettingsStore.swift in Sources */,
 				F00000000000000000000114 /* NativeCharacterAvatar.swift in Sources */,
 				F00000000000000000000115 /* NativeFlowView.swift in Sources */,
+				F00000000000000000000124 /* SpeechService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
