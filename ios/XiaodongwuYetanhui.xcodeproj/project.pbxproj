@@ -144,6 +144,7 @@
 		F00000000000000000000122 /* sensen-emoji-yoyo-proud.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000337 /* sensen-emoji-yoyo-proud.webp */; };
 		F00000000000000000000123 /* sensen-emoji-yoyo-understanding.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */; };
 		F00000000000000000000124 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000201 /* SpeechService.swift */; };
+		F00000000000000000000125 /* SensenStoryNative.icns in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000220 /* SensenStoryNative.icns */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -271,6 +272,8 @@
 		F00000000000000000000207 /* NativeConversationTurn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeConversationTurn.swift; sourceTree = "<group>"; };
 		F00000000000000000000208 /* NativeCharacterAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCharacterAvatar.swift; sourceTree = "<group>"; };
 		F00000000000000000000209 /* NativeFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeFlowView.swift; sourceTree = "<group>"; };
+		F00000000000000000000220 /* SensenStoryNative.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Resources/SensenStoryNative.icns; sourceTree = "<group>"; };
+		F00000000000000000000221 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -491,6 +494,8 @@
 				F00000000000000000000207 /* NativeConversationTurn.swift */,
 				F00000000000000000000208 /* NativeCharacterAvatar.swift */,
 				F00000000000000000000209 /* NativeFlowView.swift */,
+				F00000000000000000000220 /* SensenStoryNative.icns */,
+				F00000000000000000000221 /* Info.plist */,
 			);
 			path = SensenStoryMac;
 			sourceTree = "<group>";
@@ -672,6 +677,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F00000000000000000000125 /* SensenStoryNative.icns in Resources */,
 				F00000000000000000000116 /* sensen-home-rabbit-quiet-v1.png in Resources */,
 				F00000000000000000000117 /* sensen-emoji-yoyo-bashful.webp in Resources */,
 				F00000000000000000000118 /* sensen-emoji-yoyo-concerned.webp in Resources */,
@@ -864,7 +870,6 @@
 		000000000000000000000904 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -914,12 +919,15 @@
 		F00000000000000000000904 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SensenStoryMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "森森物语 Native";
+				INFOPLIST_KEY_CFBundleIconFile = SensenStoryNative.icns;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -944,8 +952,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SensenStoryMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "森森物语 Native";
+				INFOPLIST_KEY_CFBundleIconFile = SensenStoryNative.icns;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
