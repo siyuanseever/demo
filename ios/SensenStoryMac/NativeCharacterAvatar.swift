@@ -1,6 +1,33 @@
 import AppKit
 import SwiftUI
 
+private final class NativeBundledImageCache {
+    static let shared = NativeBundledImageCache()
+
+    private let cache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 16
+        return cache
+    }()
+
+    func image(named assetName: String) -> NSImage? {
+        let cacheKey = assetName as NSString
+        if let cachedImage = cache.object(forKey: cacheKey) {
+            return cachedImage
+        }
+
+        for fileExtension in ["webp", "png", "jpg", "jpeg"] {
+            guard let url = Bundle.main.url(forResource: assetName, withExtension: fileExtension),
+                  let image = NSImage(contentsOf: url) else {
+                continue
+            }
+            cache.setObject(image, forKey: cacheKey)
+            return image
+        }
+        return nil
+    }
+}
+
 struct NativeCharacterAvatar: View {
     let character: CompanionCharacter
     let expressionID: String?
@@ -41,13 +68,6 @@ struct NativeCharacterAvatar: View {
 
     private var bundledImage: NSImage? {
         let assetName = expression?.assetName ?? character.avatarName
-        for fileExtension in ["webp", "png", "jpg", "jpeg"] {
-            guard let url = Bundle.main.url(forResource: assetName, withExtension: fileExtension),
-                  let image = NSImage(contentsOf: url) else {
-                continue
-            }
-            return image
-        }
-        return nil
+        return NativeBundledImageCache.shared.image(named: assetName)
     }
 }
