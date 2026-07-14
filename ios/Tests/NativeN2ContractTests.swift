@@ -37,6 +37,8 @@ private struct NativeN2ContractTests {
 
         let database = try SQLiteDatabase(databaseURL: url)
         let sessionID = database.createLocalSession()
+        try expect(database.sessionExists(sessionID), "created session must be discoverable")
+        try expect(!database.sessionExists("missing-session"), "missing session was reported as available")
         _ = database.addLocalMessage(sessionID: sessionID, role: .user, content: "测试问题")
         _ = database.addLocalMessage(
             sessionID: sessionID,
@@ -160,6 +162,37 @@ private struct NativeN2ContractTests {
         try expect(profile.evidence.contains("能说出身体紧张"), "state evidence was lost")
         try expect(profile.supportStrategy == "先确认身体感受", "support strategy was lost")
         try expect(profile.sourceSessionID == sessionID, "state session relation was lost")
+
+        let nextSessionID = database.createLocalSession()
+        database.upsertLocalStateProfiles(
+            sessionID: nextSessionID,
+            profiles: [
+                LocalStateProfileDraft(
+                    action: "update",
+                    domain: "emotion_regulation",
+                    stage: "逐渐稳定",
+                    summary: "开始主动安排恢复时间",
+                    intensity: 4,
+                    trend: "softening",
+                    confidence: 0.82,
+                    evidence: ["主动提出先休息"],
+                    supportStrategy: "继续保留恢复空间"
+                )
+            ]
+        )
+        let currentProfile = try require(database.stateProfiles().first, "updated state profile was not persisted")
+        try expect(database.stateProfiles().count == 1, "current state must remain one row per domain")
+        try expect(currentProfile.summary == "开始主动安排恢复时间", "current state did not update")
+        let versions = database.stateProfileVersions()
+        try expect(versions.count == 2, "state history must retain both versions")
+        try expect(versions.first?.sourceSessionID == nextSessionID, "latest state version lost its source session")
+        try expect(versions.last?.sourceSessionID == sessionID, "earlier state version was overwritten")
+
+        database.deleteSession(nextSessionID)
+        let restoredProfile = try require(database.stateProfiles().first, "state profile did not fall back after deleting latest source")
+        try expect(restoredProfile.summary == "能够识别压力来源", "state profile did not restore the previous version")
+        try expect(restoredProfile.sourceSessionID == sessionID, "restored state profile lost its source session")
+        try expect(database.stateProfileVersions().count == 1, "deleted session state version remained in history")
     }
 
     private static func testSessionDeletionCascade() throws {
@@ -220,6 +253,7 @@ private struct NativeN2ContractTests {
         try expect(database.journals().allSatisfy { $0.sessionID != sessionID }, "session journal was not deleted")
         try expect(database.memories().allSatisfy { $0.sourceSessionID != sessionID }, "session memory was not deleted")
         try expect(database.stateProfiles().allSatisfy { $0.sourceSessionID != sessionID }, "session state profile was not deleted")
+        try expect(database.stateProfileVersions().allSatisfy { $0.sourceSessionID != sessionID }, "session state version was not deleted")
     }
 
     private static func testWeeklyFlowRoundTrip() async throws {

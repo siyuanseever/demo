@@ -13,6 +13,7 @@ final class NativeMacShellStore: ObservableObject {
     @Published private(set) var memories: [MemoryEntry] = []
     @Published private(set) var journals: [JournalEntry] = []
     @Published private(set) var stateProfiles: [StateProfile] = []
+    @Published private(set) var stateProfileVersions: [StateProfile] = []
     @Published private(set) var flowInsight: StarMapInsight?
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var selectedSessionID: String?
@@ -35,6 +36,10 @@ final class NativeMacShellStore: ObservableObject {
     private var sendTask: Task<Void, Never>?
     private var hasBootstrapped = false
     private let maxDisplayMessages = 120
+    private let maxLoadedSessions = 500
+    private let maxLoadedMemories = 1_000
+    private let maxLoadedJournals = 500
+    private let maxLoadedStateVersions = 500
 
     init(
         deepSeekService: LocalDeepSeekService = LocalDeepSeekService(),
@@ -93,10 +98,11 @@ final class NativeMacShellStore: ObservableObject {
             memoryCount: database.count(table: "memories"),
             journalCount: database.count(table: "journals")
         )
-        sessions = database.sessions(limit: 100)
-        memories = database.memories(limit: 200)
-        journals = database.journals(limit: 120)
+        sessions = database.sessions(limit: maxLoadedSessions)
+        memories = database.memories(limit: maxLoadedMemories)
+        journals = database.journals(limit: maxLoadedJournals)
         stateProfiles = database.stateProfiles(limit: 40)
+        stateProfileVersions = database.stateProfileVersions(limit: maxLoadedStateVersions)
         flowInsight = database.latestStarMapInsight()
         if let selectedSessionID {
             messages = bounded(database.messages(sessionID: selectedSessionID, limit: maxDisplayMessages))
@@ -115,14 +121,20 @@ final class NativeMacShellStore: ObservableObject {
         operationStatus = nil
     }
 
-    func openSession(_ sessionID: String) {
+    @discardableResult
+    func openSession(_ sessionID: String) -> Bool {
         cancelSend()
+        guard database?.sessionExists(sessionID) == true else {
+            notice = "这段来源夜谈已不存在，可能已经被删除。"
+            return false
+        }
         selectedSessionID = sessionID
         deepSeekService.useSession(sessionID)
         messages = bounded(database?.messages(sessionID: sessionID, limit: maxDisplayMessages) ?? [])
         latestAssessment = nil
         closeSummary = nil
         notice = nil
+        return true
     }
 
     func deleteSession(_ sessionID: String) {

@@ -29,6 +29,8 @@ final class SQLiteDatabase {
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories(updated_at)")
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_journals_session ON journals(session_id)")
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_journals_created ON journals(created_at)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_state_versions_domain ON user_state_profile_versions(domain, created_at DESC)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_state_versions_session ON user_state_profile_versions(source_session_id)")
     }
 
     deinit {
@@ -110,6 +112,27 @@ final class SQLiteDatabase {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 UNIQUE(user_id, domain)
+            )
+            """
+        )
+        execute(
+            sql: """
+            CREATE TABLE IF NOT EXISTS user_state_profile_versions (
+                id TEXT PRIMARY KEY,
+                profile_id TEXT NOT NULL,
+                user_id TEXT NOT NULL DEFAULT 'default',
+                domain TEXT NOT NULL,
+                stage TEXT NOT NULL DEFAULT '',
+                summary TEXT NOT NULL DEFAULT '',
+                intensity INTEGER NOT NULL DEFAULT 0,
+                trend TEXT NOT NULL DEFAULT '',
+                confidence REAL NOT NULL DEFAULT 0,
+                evidence TEXT NOT NULL DEFAULT '[]',
+                support_strategy TEXT NOT NULL DEFAULT '',
+                source_session_id TEXT NOT NULL DEFAULT '',
+                action TEXT NOT NULL DEFAULT '',
+                reason TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -197,6 +220,13 @@ final class SQLiteDatabase {
         return sessionID
     }
 
+    func sessionExists(_ sessionID: String) -> Bool {
+        !rows(
+            sql: "SELECT id FROM sessions WHERE id = ? LIMIT 1",
+            bindings: [sessionID]
+        ).isEmpty
+    }
+
     func endLocalSession(_ sessionID: String) {
         execute(
             sql: "UPDATE sessions SET ended_at = ? WHERE id = ?",
@@ -205,11 +235,57 @@ final class SQLiteDatabase {
     }
 
     func deleteSession(_ sessionID: String) {
+        let affectedDomains = rows(
+            sql: "SELECT domain FROM user_state_profiles WHERE source_session_id = ?",
+            bindings: [sessionID]
+        ).compactMap { $0["domain"] }
         execute(sql: "DELETE FROM messages WHERE session_id = ?", bindings: [sessionID])
         execute(sql: "DELETE FROM memories WHERE source_session_id = ?", bindings: [sessionID])
         execute(sql: "DELETE FROM journals WHERE session_id = ?", bindings: [sessionID])
+        execute(sql: "DELETE FROM user_state_profile_versions WHERE source_session_id = ?", bindings: [sessionID])
         execute(sql: "DELETE FROM user_state_profiles WHERE source_session_id = ?", bindings: [sessionID])
+        for domain in affectedDomains {
+            restoreLatestStateProfile(domain: domain)
+        }
         execute(sql: "DELETE FROM sessions WHERE id = ?", bindings: [sessionID])
+    }
+
+    private func restoreLatestStateProfile(domain: String) {
+        guard let version = rows(
+            sql: """
+            SELECT profile_id, domain, stage, summary, intensity, trend, confidence,
+                   evidence, support_strategy, source_session_id, created_at
+            FROM user_state_profile_versions
+            WHERE user_id = 'default' AND domain = ?
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT 1
+            """,
+            bindings: [domain]
+        ).first else { return }
+        let createdAt = version["created_at"] ?? Self.string(from: Date())
+        execute(
+            sql: """
+            INSERT INTO user_state_profiles (
+                id, user_id, domain, stage, summary, intensity, trend, confidence,
+                evidence, support_strategy, source_session_id, created_at, updated_at
+            )
+            VALUES (?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            bindings: [
+                version["profile_id"] ?? UUID().uuidString,
+                version["domain"] ?? domain,
+                version["stage"] ?? "",
+                version["summary"] ?? "",
+                version["intensity"] ?? "0",
+                version["trend"] ?? "",
+                version["confidence"] ?? "0",
+                version["evidence"] ?? "[]",
+                version["support_strategy"] ?? "",
+                version["source_session_id"] ?? "",
+                createdAt,
+                createdAt,
+            ]
+        )
     }
 
     func addLocalJournal(sessionID: String, journal: LocalJournalDraft) {
@@ -270,7 +346,7 @@ final class SQLiteDatabase {
             guard profile.action != "no_change" else { continue }
             let existing = rows(
                 sql: """
-                SELECT evidence
+                SELECT id, evidence
                 FROM user_state_profiles
                 WHERE user_id = 'default' AND domain = ?
                 LIMIT 1
@@ -282,6 +358,8 @@ final class SQLiteDatabase {
                 evidence.append(item)
             }
             evidence = Array(evidence.suffix(8))
+            let profileID = existing?["id"] ?? UUID().uuidString
+            let evidenceJSON = Self.jsonString(from: evidence)
             execute(
                 sql: """
                 INSERT INTO user_state_profiles (
@@ -301,17 +379,42 @@ final class SQLiteDatabase {
                     updated_at = excluded.updated_at
                 """,
                 bindings: [
-                    UUID().uuidString,
+                    profileID,
                     profile.domain,
                     profile.stage,
                     profile.summary,
                     String(profile.intensity),
                     profile.trend,
                     String(profile.confidence),
-                    Self.jsonString(from: evidence),
+                    evidenceJSON,
                     profile.supportStrategy,
                     sessionID,
                     now,
+                    now,
+                ]
+            )
+            execute(
+                sql: """
+                INSERT INTO user_state_profile_versions (
+                    id, profile_id, user_id, domain, stage, summary, intensity, trend,
+                    confidence, evidence, support_strategy, source_session_id, action,
+                    reason, created_at
+                )
+                VALUES (?, ?, 'default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?)
+                """,
+                bindings: [
+                    UUID().uuidString,
+                    profileID,
+                    profile.domain,
+                    profile.stage,
+                    profile.summary,
+                    String(profile.intensity),
+                    profile.trend,
+                    String(profile.confidence),
+                    evidenceJSON,
+                    profile.supportStrategy,
+                    sessionID,
+                    profile.action ?? "update",
                     now,
                 ]
             )
@@ -658,6 +761,34 @@ final class SQLiteDatabase {
                 supportStrategy: row["support_strategy"] ?? "",
                 sourceSessionID: row["source_session_id"] ?? "",
                 updatedAt: row["updated_at"] ?? ""
+            )
+        }
+    }
+
+    func stateProfileVersions(limit: Int = 120) -> [StateProfile] {
+        rows(
+            sql: """
+            SELECT id, domain, stage, summary, intensity, trend, confidence, evidence,
+                   support_strategy, source_session_id, created_at
+            FROM user_state_profile_versions
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT ?
+            """,
+            bindings: [String(limit)]
+        )
+        .map { row in
+            StateProfile(
+                id: row["id"] ?? UUID().uuidString,
+                domain: row["domain"] ?? "状态",
+                stage: row["stage"] ?? "",
+                summary: row["summary"] ?? "",
+                intensity: Int(row["intensity"] ?? "0") ?? 0,
+                trend: row["trend"] ?? "",
+                confidence: Double(row["confidence"] ?? "0") ?? 0,
+                evidence: row["evidence"] ?? "",
+                supportStrategy: row["support_strategy"] ?? "",
+                sourceSessionID: row["source_session_id"] ?? "",
+                updatedAt: row["created_at"] ?? ""
             )
         }
     }
