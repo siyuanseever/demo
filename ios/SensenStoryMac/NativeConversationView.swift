@@ -101,28 +101,28 @@ struct NativeConversationView: View {
 
     private var conversationBody: some View {
         ScrollViewReader { proxy in
-            Group {
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(store.messages) { message in
+                        NativeMessageBubble(message: message)
+                            .id(message.id)
+                    }
+                }
+                .padding(.leading, 54)
+                .padding(.trailing, 24)
+                .padding(.vertical, 20)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay {
                 if store.messages.isEmpty {
                     ContentUnavailableView {
                         Label("今晚想从哪里说起？", systemImage: "moon.stars")
                     } description: {
                         Text("不用整理好。先写下一句最靠近此刻的话。")
                     }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(store.messages) { message in
-                                NativeMessageBubble(message: message)
-                                    .id(message.id)
-                            }
-                        }
-                        .padding(.leading, 54)
-                        .padding(.trailing, 24)
-                        .padding(.vertical, 20)
-                    }
+                    .allowsHitTesting(false)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .leading) {
                 NativeConversationTrail(
                     turns: turns,
@@ -136,7 +136,8 @@ struct NativeConversationView: View {
             }
             .task(id: store.messages.last?.id) {
                 guard let lastID = store.messages.last?.id else { return }
-                await Task.yield()
+                try? await Task.sleep(for: .milliseconds(40))
+                guard !Task.isCancelled else { return }
                 proxy.scrollTo(lastID, anchor: .bottom)
             }
         }
