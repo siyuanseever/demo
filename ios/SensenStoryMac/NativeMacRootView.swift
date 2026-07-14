@@ -33,6 +33,7 @@ private enum NativeMacSection: String, CaseIterable, Identifiable {
 struct NativeMacRootView: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @State private var selection: NativeMacSection? = .conversation
+    @State private var conversationFlowCardIndex = 0
 
     var body: some View {
         NavigationSplitView {
@@ -61,6 +62,10 @@ struct NativeMacRootView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .task { await store.bootstrap() }
+        .onChange(of: selection) { oldSection, newSection in
+            guard oldSection != .conversation, newSection == .conversation else { return }
+            conversationFlowCardIndex += 1
+        }
         .onReceive(NotificationCenter.default.publisher(for: .nativeOpenConversation)) { _ in
             selection = .conversation
         }
@@ -78,7 +83,7 @@ struct NativeMacRootView: View {
     private func detailView(for section: NativeMacSection) -> some View {
         switch section {
         case .conversation:
-            NativeConversationView()
+            NativeConversationView(flowCardIndex: $conversationFlowCardIndex)
         case .flow:
             NativeFlowView()
         case .cache:

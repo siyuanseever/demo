@@ -9,6 +9,16 @@ private enum NativeDataTab: String, CaseIterable, Identifiable {
     case states = "长期状态"
 
     var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .overview: "square.grid.2x2.fill"
+        case .sessions: "bubble.left.and.bubble.right.fill"
+        case .memories: "books.vertical.fill"
+        case .journals: "book.closed.fill"
+        case .states: "person.text.rectangle.fill"
+        }
+    }
 }
 
 struct NativeDataLibraryView: View {
@@ -34,7 +44,7 @@ struct NativeDataLibraryView: View {
 
             Picker("资料类型", selection: $tab) {
                 ForEach(NativeDataTab.allCases) { item in
-                    Text(item.rawValue).tag(item)
+                    Label(item.rawValue, systemImage: item.systemImage).tag(item)
                 }
             }
             .pickerStyle(.segmented)
@@ -195,7 +205,7 @@ private struct NativeMemoryBrowser: View {
     private var categories: [(String, [MemoryEntry])] {
         Dictionary(grouping: store.memories, by: \.category)
             .map { ($0.key, $0.value) }
-            .sorted { $0.0 < $1.0 }
+            .sorted { NativeDataTaxonomy.categoryOrder($0.0) < NativeDataTaxonomy.categoryOrder($1.0) }
     }
 
     var body: some View {
@@ -225,7 +235,7 @@ private struct NativeMemoryBrowser: View {
                                             .padding(.top, 8)
                                         } label: {
                                             HStack {
-                                                Text(subcategory)
+                                                Text(NativeDataTaxonomy.subcategoryLabel(subcategory))
                                                 Spacer()
                                                 Text("\(items.count)").foregroundStyle(.secondary)
                                             }
@@ -238,7 +248,10 @@ private struct NativeMemoryBrowser: View {
                                 .padding(.top, 10)
                             } label: {
                                 HStack {
-                                    Label(category, systemImage: "folder.fill")
+                                    Label(
+                                        NativeDataTaxonomy.categoryLabel(category),
+                                        systemImage: NativeDataTaxonomy.categoryIcon(category)
+                                    )
                                     Spacer()
                                     Text("\(memories.count)").foregroundStyle(.secondary)
                                 }
@@ -261,7 +274,10 @@ private struct NativeMemoryBrowser: View {
     private func subcategories(_ memories: [MemoryEntry]) -> [(String, [MemoryEntry])] {
         Dictionary(grouping: memories, by: \.subcategory)
             .map { ($0.key, $0.value) }
-            .sorted { $0.0 < $1.0 }
+            .sorted {
+                NativeDataTaxonomy.subcategoryLabel($0.0)
+                    < NativeDataTaxonomy.subcategoryLabel($1.0)
+            }
     }
 }
 
@@ -402,9 +418,15 @@ private struct NativeStateProfileGrid: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 5) {
                             HStack {
-                                Text(profile.domain).font(.headline)
+                                Label(
+                                    NativeDataTaxonomy.stateDomainLabel(profile.domain),
+                                    systemImage: NativeDataTaxonomy.stateDomainIcon(profile.domain)
+                                )
+                                .font(.headline)
                                 Spacer()
-                                Text(profile.trend).font(.caption).foregroundStyle(.secondary)
+                                Text(NativeDataTaxonomy.trendLabel(profile.trend))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             Text(profile.summary)
                                 .font(.caption)
@@ -448,7 +470,10 @@ private struct NativeMemoryCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text("\(memory.category) / \(memory.subcategory)")
+                    Text(
+                        "\(NativeDataTaxonomy.categoryLabel(memory.category)) / "
+                            + NativeDataTaxonomy.subcategoryLabel(memory.subcategory)
+                    )
                         .font(.caption.bold())
                     Spacer()
                     Text("重要度 \(memory.importance)")
@@ -582,6 +607,118 @@ private struct NativeMoodPoint: Identifiable {
 private enum NativeMoodColor {
     static func color(_ score: Int) -> Color {
         score >= 2 ? .moodPositive : score >= -1 ? .moodNeutral : .moodNegative
+    }
+}
+
+private enum NativeDataTaxonomy {
+    private static let categoryKeys = [
+        "self_core",
+        "emotion_pattern",
+        "body_response",
+        "relationship_pattern",
+        "trauma_shadow",
+        "resource_support",
+        "life_habit",
+        "goal_action",
+    ]
+
+    private static let categoryLabels = [
+        "self_core": "自我核心",
+        "emotion_pattern": "情绪模式",
+        "body_response": "身体反应",
+        "relationship_pattern": "关系模式",
+        "trauma_shadow": "创伤影子",
+        "resource_support": "支持资源",
+        "life_habit": "生活习惯",
+        "goal_action": "目标行动",
+    ]
+
+    private static let categoryIcons = [
+        "self_core": "person.crop.circle.fill",
+        "emotion_pattern": "heart.text.square.fill",
+        "body_response": "waveform.path.ecg",
+        "relationship_pattern": "person.2.fill",
+        "trauma_shadow": "cloud.moon.fill",
+        "resource_support": "hands.sparkles.fill",
+        "life_habit": "cup.and.saucer.fill",
+        "goal_action": "flag.checkered",
+    ]
+
+    private static let subcategoryLabels = [
+        "identity": "身份与自我认同", "values": "价值观", "energy_source": "能量来源",
+        "boundary": "个人边界", "self_image": "自我形象", "inner_critic": "内在批评",
+        "self_compassion": "自我关怀", "anxiety": "焦虑", "freeze_response": "冻结反应",
+        "shame": "羞耻", "grief": "悲伤与失落", "anger": "愤怒", "loneliness": "孤独",
+        "numbness": "麻木", "fatigue": "疲惫", "tension": "紧绷", "sleep": "睡眠",
+        "somatic_signal": "身体信号", "collapse": "耗竭与坍塌", "sensory_overload": "感官过载",
+        "pain": "疼痛与不适", "family": "家庭关系", "intimacy": "亲密关系",
+        "work_relation": "工作关系", "attachment_trigger": "依恋触发", "support_need": "支持需要",
+        "rejection": "拒绝与疏离", "boundary_conflict": "边界冲突", "fear": "恐惧",
+        "abandonment": "被抛弃感", "humiliation": "羞辱经历", "suppression": "压抑与控制",
+        "dark_part": "阴影部分", "hypervigilance": "过度警觉", "trigger": "创伤触发",
+        "person": "支持我的人", "place": "安全的地方", "activity": "有帮助的活动",
+        "ritual": "安定仪式", "inner_strength": "内在力量", "professional_support": "专业支持",
+        "creative_resource": "创作与文化资源", "routine": "日常节奏", "food": "饮食",
+        "movement": "活动与运动", "work_rhythm": "工作节奏", "rest": "休息",
+        "environment": "生活环境", "digital_habit": "数字习惯", "career": "职业方向",
+        "project": "正在推进的项目", "small_step": "下一小步", "avoidance": "回避模式",
+        "decision": "选择与决定", "uncertainty": "不确定性", "learning": "学习与探索",
+        "general": "其他记录",
+    ]
+
+    private static let stateLabels = [
+        "self_relation": "与自己的关系",
+        "emotion_regulation": "情绪调节",
+        "relationship": "关系与连接",
+        "agency_boundary": "行动力与边界",
+        "trauma_pattern": "创伤模式",
+        "meaning_value": "意义与价值",
+    ]
+
+    private static let stateIcons = [
+        "self_relation": "person.crop.circle",
+        "emotion_regulation": "heart.circle",
+        "relationship": "person.2.circle",
+        "agency_boundary": "shield.lefthalf.filled",
+        "trauma_pattern": "waveform.path.ecg.rectangle",
+        "meaning_value": "sparkles",
+    ]
+
+    private static let trendLabels = [
+        "unknown": "仍在观察", "stable": "相对稳定", "softening": "正在缓和",
+        "intensifying": "有所增强", "fluctuating": "有所起伏", "integrating": "正在整合",
+    ]
+
+    static func categoryOrder(_ key: String) -> Int {
+        categoryKeys.firstIndex(of: key) ?? categoryKeys.count
+    }
+
+    static func categoryLabel(_ key: String) -> String {
+        categoryLabels[key] ?? readableFallback(key)
+    }
+
+    static func categoryIcon(_ key: String) -> String {
+        categoryIcons[key] ?? "folder.fill"
+    }
+
+    static func subcategoryLabel(_ key: String) -> String {
+        subcategoryLabels[key] ?? readableFallback(key)
+    }
+
+    static func stateDomainLabel(_ key: String) -> String {
+        stateLabels[key] ?? readableFallback(key)
+    }
+
+    static func stateDomainIcon(_ key: String) -> String {
+        stateIcons[key] ?? "person.text.rectangle"
+    }
+
+    static func trendLabel(_ key: String) -> String {
+        trendLabels[key] ?? readableFallback(key)
+    }
+
+    private static func readableFallback(_ key: String) -> String {
+        key.replacingOccurrences(of: "_", with: " ")
     }
 }
 

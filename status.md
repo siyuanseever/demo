@@ -1,7 +1,7 @@
 # 当前进度状态
 
 > 人维护的结构化进度视图。
-> 最后更新时间：2026-07-13（原生 macOS N2 DeepSeek 直连夜谈纵切完成）
+> 最后更新时间：2026-07-14（原生 macOS N3 界面与交互收敛）
 
 ---
 
@@ -46,9 +46,9 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 卡死复现与性能 trace | 未完成 |
 | 快速回复后等待深度回复卡死 | `fixed_pending_verification`：Mac 使用精简 SSE、跳过重复 final 解码，并取消回复后立即全量同步 |
 | Mac 本地直连回复顺序 | `implemented_verified`：契约测试连续 10 轮验证 quick 与 plan 并行，quick 先显示，plan 决定 deep、quick_only、clarify 或 interaction |
-| Mac 对话轨迹 | `implemented_verified`：夜谈右侧显示轻量轨迹；悬停或点击展开问答预览，点击条目可定位原始用户消息 |
+| Mac 对话轨迹 | `implemented_verified`：夜谈左侧叠加轻量轨迹，与右侧系统滚动条分离；连续悬停区域展开问答预览，点击条目可定位原始用户消息 |
 | Mac 语音输出 | `implemented_pending_listening_validation`：免费本地 Qwen3-TTS 0.6B 8-bit + Serena；支持常驻服务、单条播放/停止、生成状态、试听、自动朗读、失败提示和缓存；25 字实测约 4 秒 |
-| 每周心流导航 | `implemented_pending_runtime_verification`：App 启动/回前台按自然周检查；本地 Key 模式直接调用 DeepSeek 生成并写入 SQLite，不再依赖手动按钮 |
+| 每周心流导航 | `implemented_pending_runtime_verification`：App 启动/回前台按自然周检查；夜谈停留期间卡片不自动轮播，仅在重新进入夜谈或用户手动点击时切换 |
 | 夜谈用户状态卡 | `implemented_pending_runtime_verification`：右栏心理地图已替换为本轮结构化状态、核心需要、风险、回应模式和规划理由 |
 | 回复价值评估集 | `awaiting_user_scores`：已选 24 条候选，八类主题各 3 条，来自 14 个 session；本地评分页面已生成 |
 | 单条消息发送后卡死、后端无请求 | P0，仍需按独立复现场景验证 |
@@ -59,7 +59,7 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 | 记忆二级目录/叶节点详情 | `implemented_verified`：Catalyst 分类视图与详情已实机检查；原生资料库提供分类、摘要与详情入口 |
 | 最近更新日记/记忆入口 | `implemented_verified`：Catalyst 最近更新模式与周分组日记已实机检查；原生资料库按更新时间排序 |
 | 心流单卡片轻互动 | 部分 UI 存在，完整交互未验收 |
-| 原生 macOS 迁移 | `N3 implemented_verified`：在 N2 直连夜谈基础上，完成本地会话关联、记忆分类/最近更新、日记周分组/心情曲线、长期状态、每周心流缓存和 Yoyo 表情头像；下一阶段为 N4 |
+| 原生 macOS 迁移 | `N3 implemented_verified`：在 N2 直连夜谈基础上，完成本地会话关联、中文记忆分类/最近更新、日记周分组/心情曲线、长期状态、每周心流缓存和随回复变化的 Yoyo 表情头像；下一阶段为 N4 |
 
 ---
 

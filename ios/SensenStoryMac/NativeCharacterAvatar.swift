@@ -21,9 +21,9 @@ struct NativeCharacterAvatar: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.29, style: .continuous))
+        .clipShape(Circle())
         .overlay {
-            RoundedRectangle(cornerRadius: size * 0.29, style: .continuous)
+            Circle()
                 .stroke(Color.avatarStroke.opacity(0.8), lineWidth: 1)
         }
         .shadow(color: character.bubbleColor.opacity(0.18), radius: 4, y: 2)

@@ -4,6 +4,7 @@ import SwiftUI
 struct NativeConversationView: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @EnvironmentObject private var speech: SpeechService
+    @Binding var flowCardIndex: Int
     @State private var draft = ""
 
     var body: some View {
@@ -20,7 +21,7 @@ struct NativeConversationView: View {
 
             Divider()
 
-            NativeConversationSidebar()
+            NativeConversationSidebar(flowCardIndex: $flowCardIndex)
                 .frame(width: 300)
         }
         .background(
@@ -115,14 +116,14 @@ struct NativeConversationView: View {
                                     .id(message.id)
                             }
                         }
-                        .padding(.leading, 24)
-                        .padding(.trailing, 54)
+                        .padding(.leading, 54)
+                        .padding(.trailing, 24)
                         .padding(.vertical, 20)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .trailing) {
+            .overlay(alignment: .leading) {
                 NativeConversationTrail(
                     turns: turns,
                     onSelect: { turn in
@@ -334,23 +335,23 @@ private struct NativeConversationTrail: View {
     ) -> some View {
         let isHovered = hoveredTurnID == turn.id
 
-        return ZStack(alignment: .trailing) {
+        return ZStack(alignment: .leading) {
             if isHovered {
                 NativeTurnPreview(turn: turn)
                     .frame(width: 300)
-                    .padding(.trailing, 52)
+                    .padding(.leading, 52)
                     .allowsHitTesting(false)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
             }
 
             Color.clear
                 .frame(width: 44, height: rowHeight)
                 .contentShape(Rectangle())
-                .overlay(alignment: .trailing) {
+                .overlay(alignment: .leading) {
                     Capsule()
                         .fill(isHovered ? Color.accentColor : Color.secondary.opacity(0.28))
                         .frame(width: tickLength(for: turn, visibleTurns: visibleTurns), height: 4)
-                        .padding(.trailing, 8)
+                        .padding(.leading, 8)
                 }
                 .onTapGesture { onSelect(turn) }
                 .onHover { hovering in
@@ -359,7 +360,7 @@ private struct NativeConversationTrail: View {
                     }
                 }
             }
-        .frame(width: 360, height: rowHeight, alignment: .trailing)
+        .frame(width: 360, height: rowHeight, alignment: .leading)
         .zIndex(isHovered ? 10 : 0)
         .help(turn.user.content)
     }
@@ -399,7 +400,7 @@ private struct NativeTurnPreview: View {
 
 private struct NativeConversationSidebar: View {
     @EnvironmentObject private var store: NativeMacShellStore
-    @State private var flowCardIndex = 0
+    @Binding var flowCardIndex: Int
 
     var body: some View {
         ScrollView {
@@ -411,8 +412,11 @@ private struct NativeConversationSidebar: View {
                 Divider()
 
                 VStack(spacing: 10) {
-                    NativeRabbitPortrait()
-                        .frame(height: 150)
+                    NativeRabbitPortrait(
+                        character: store.selectedCharacter,
+                        expressionID: latestAssistantMessage?.expressionID
+                    )
+                    .frame(height: 150)
                     Text(store.selectedCharacter.name)
                         .font(.title3.bold())
                     Text(store.selectedCharacter.tagline)
@@ -441,16 +445,10 @@ private struct NativeConversationSidebar: View {
             .padding(20)
         }
         .background(Color.sidebarBackground)
-        .task(id: flowCards.map(\.id)) {
-            flowCardIndex = min(flowCardIndex, max(flowCards.count - 1, 0))
-            while !Task.isCancelled, flowCards.count > 1 {
-                try? await Task.sleep(for: .seconds(8))
-                guard !Task.isCancelled, flowCards.count > 1 else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    flowCardIndex = (flowCardIndex + 1) % flowCards.count
-                }
-            }
-        }
+    }
+
+    private var latestAssistantMessage: ChatMessage? {
+        store.messages.last(where: { $0.role == .assistant })
     }
 
     private var flowCards: [NativeSidebarFlowCardModel] {
@@ -515,7 +513,7 @@ private struct NativeSidebarFlowCarousel: View {
             .padding(14)
             .background(Color.cardBackground.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
         } else {
-            let index = min(selectedIndex, cards.count - 1)
+            let index = selectedIndex % cards.count
             let card = cards[index]
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -560,29 +558,37 @@ private struct NativeSidebarFlowCarousel: View {
 
     private func move(_ offset: Int) {
         guard cards.count > 1 else { return }
+        let index = selectedIndex % cards.count
         withAnimation(.easeInOut(duration: 0.2)) {
-            selectedIndex = (selectedIndex + offset + cards.count) % cards.count
+            selectedIndex = (index + offset + cards.count) % cards.count
         }
     }
 }
 
 private struct NativeRabbitPortrait: View {
+    let character: CompanionCharacter
+    let expressionID: String?
+
     var body: some View {
-        Group {
-            if let url = Bundle.main.url(forResource: "sensen-home-rabbit-quiet-v1", withExtension: "png"),
-               let image = NSImage(contentsOf: url) {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                NativeCharacterAvatar(
-                    character: CompanionFixtures.characters[0],
-                    expressionID: "listening",
-                    size: 112
-                )
-            }
+        VStack(spacing: 8) {
+            NativeCharacterAvatar(
+                character: character,
+                expressionID: expressionID,
+                size: 112
+            )
+            Text(expressionLabel)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .accessibilityLabel("忧忧兔正在安静陪伴")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, 10)
+        .background(character.bubbleColor.opacity(0.34), in: RoundedRectangle(cornerRadius: 18))
+        .animation(.easeInOut(duration: 0.2), value: expressionID)
+        .accessibilityLabel("\(character.name)，\(expressionLabel)")
+    }
+
+    private var expressionLabel: String {
+        character.expression(id: expressionID ?? character.defaultExpressionID)?.label ?? "正在倾听"
     }
 }
 
