@@ -24,6 +24,7 @@ private enum NativeDataTab: String, CaseIterable, Identifiable {
 struct NativeDataLibraryView: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @State private var tab: NativeDataTab = .overview
+    @State private var query = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +37,11 @@ struct NativeDataLibraryView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                if tab != .overview {
+                    TextField("搜索\(tab.rawValue)", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 240)
+                }
                 Button("刷新本地资料", systemImage: "arrow.clockwise") {
                     store.loadLocalCache()
                 }
@@ -54,6 +60,9 @@ struct NativeDataLibraryView: View {
             Divider()
             content
         }
+        .onChange(of: tab) { _, _ in
+            query = ""
+        }
     }
 
     @ViewBuilder
@@ -62,13 +71,13 @@ struct NativeDataLibraryView: View {
         case .overview:
             NativeOverviewGrid(tab: $tab)
         case .sessions:
-            NativeSessionList()
+            NativeSessionList(query: query)
         case .memories:
-            NativeMemoryBrowser()
+            NativeMemoryBrowser(query: query)
         case .journals:
-            NativeJournalTimeline()
+            NativeJournalTimeline(query: query)
         case .states:
-            NativeStateProfileGrid()
+            NativeStateProfileGrid(query: query)
         }
     }
 }
@@ -95,82 +104,43 @@ private struct NativeOverviewGrid: View {
 private struct NativeSessionList: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @State private var sessionToDelete: SessionSummary?
+    @State private var expandedPeriods: Set<String> = []
+    let query: String
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
-                ForEach(store.sessions) { session in
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if let journal = store.journals.first(where: { $0.sessionID == session.id }) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Label("会后日记", systemImage: "book.closed.fill")
-                                        .font(.caption.bold())
-                                    Text(journal.summary)
-                                    if !journal.insights.isEmpty {
-                                        Text("洞察：\(journal.insights.joined(separator: "；"))")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    if !journal.suggestedNextStep.isEmpty {
-                                        Label(journal.suggestedNextStep, systemImage: "arrow.forward.circle.fill")
-                                            .font(.caption)
-                                    }
-                                }
-                                .padding(12)
-                                .background(Color.cardBackground.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
-                            }
-
-                            let linkedMemories = store.memories.filter { $0.sourceSessionID == session.id }
-                            if !linkedMemories.isEmpty {
-                                VStack(alignment: .leading, spacing: 7) {
-                                    Label("关联记忆 · \(linkedMemories.count)", systemImage: "brain.head.profile")
-                                        .font(.caption.bold())
-                                    ForEach(linkedMemories) { memory in
-                                        Text("• \(memory.content)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
+            if filteredSessions.isEmpty {
+                NativeDataEmptyState(query: query, type: "会话")
+            } else {
+                LazyVStack(alignment: .leading, spacing: 14) {
+                    ForEach(sessionGroups, id: \.0) { period, sessions in
+                        DisclosureGroup(isExpanded: periodExpansionBinding(period)) {
+                            LazyVStack(alignment: .leading, spacing: 10) {
+                                ForEach(sessions) { session in
+                                    sessionCard(session)
                                 }
                             }
-
+                            .padding(.top, 10)
+                        } label: {
                             HStack {
-                                Button("继续这段夜谈", systemImage: "arrowshape.turn.up.left.fill") {
-                                    store.openSession(session.id)
-                                    NotificationCenter.default.post(name: .nativeOpenConversation, object: nil)
-                                }
-                                Button("删除", systemImage: "trash", role: .destructive) {
-                                    sessionToDelete = session
-                                }
+                                Text(period)
+                                    .font(.headline)
+                                Text("\(sessions.count) 段")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
                             }
                         }
-                        .padding(.top, 12)
-                    } label: {
-                        HStack(alignment: .top, spacing: 14) {
-                            Image(systemName: "moon.stars.fill")
-                                .foregroundStyle(.indigo)
-                                .frame(width: 32, height: 32)
-                                .background(Color.indigo.opacity(0.1), in: Circle())
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(session.preview.isEmpty ? "一段夜谈" : session.preview)
-                                    .lineLimit(2)
-                                HStack {
-                                    Text(session.createdAt)
-                                    Text("\(session.messageCount) 条消息")
-                                    if !session.endedAt.isEmpty { Text("已总结") }
-                                    let memoryCount = store.memories.filter { $0.sourceSessionID == session.id }.count
-                                    if memoryCount > 0 { Text("\(memoryCount) 条记忆") }
-                                }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
-                        }
+                        .padding(14)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                     }
-                    .padding(14)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                 }
+                .padding(24)
             }
-            .padding(24)
+        }
+        .onAppear { updateExpandedPeriods(for: query) }
+        .onChange(of: query) { _, newQuery in
+            updateExpandedPeriods(for: newQuery)
         }
         .alert(
             "删除这段夜谈？",
@@ -186,8 +156,158 @@ private struct NativeSessionList: View {
             }
             Button("取消", role: .cancel) { sessionToDelete = nil }
         } message: { _ in
-            Text("会同时删除这段夜谈关联的消息、日记和记忆，此操作无法撤销。")
+            Text("会同时删除这段夜谈关联的消息、日记、记忆和状态更新，此操作无法撤销。")
         }
+    }
+
+    private func sessionCard(_ session: SessionSummary) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 12) {
+                if let journal = store.journals.first(where: { $0.sessionID == session.id }) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("会后日记", systemImage: "book.closed.fill")
+                            .font(.caption.bold())
+                        Text(journal.summary)
+                        if !journal.insights.isEmpty {
+                            Text("洞察：\(journal.insights.joined(separator: "；"))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if !journal.suggestedNextStep.isEmpty {
+                            Label(journal.suggestedNextStep, systemImage: "arrow.forward.circle.fill")
+                                .font(.caption)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.cardBackground.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
+                }
+
+                let linkedMemories = store.memories.filter { $0.sourceSessionID == session.id }
+                if !linkedMemories.isEmpty {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Label("关联记忆 · \(linkedMemories.count)", systemImage: "brain.head.profile")
+                            .font(.caption.bold())
+                        ForEach(linkedMemories) { memory in
+                            Text("• \(memory.content)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                let linkedProfiles = stateUpdates(for: session.id)
+                if !linkedProfiles.isEmpty {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Label("长期状态更新 · \(linkedProfiles.count)", systemImage: "person.text.rectangle.fill")
+                            .font(.caption.bold())
+                        ForEach(linkedProfiles) { profile in
+                            Text("• \(NativeDataTaxonomy.stateDomainLabel(profile.domain))：\(profile.summary)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                HStack {
+                    Button("继续这段夜谈", systemImage: "arrowshape.turn.up.left.fill") {
+                        if store.openSession(session.id) {
+                            NotificationCenter.default.post(name: .nativeOpenConversation, object: nil)
+                        }
+                    }
+                    Button("删除", systemImage: "trash", role: .destructive) {
+                        sessionToDelete = session
+                    }
+                }
+            }
+            .padding(.top, 12)
+        } label: {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "moon.stars.fill")
+                    .foregroundStyle(.indigo)
+                    .frame(width: 32, height: 32)
+                    .background(Color.indigo.opacity(0.1), in: Circle())
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(session.preview.isEmpty ? "一段夜谈" : session.preview)
+                        .lineLimit(2)
+                    HStack {
+                        Text(NativeDateFormat.displayDate(session.createdAt))
+                        Text("\(session.messageCount) 条消息")
+                        if !session.endedAt.isEmpty { Text("已总结") }
+                        let memoryCount = store.memories.filter { $0.sourceSessionID == session.id }.count
+                        if memoryCount > 0 { Text("\(memoryCount) 条记忆") }
+                        let profileCount = stateUpdates(for: session.id).count
+                        if profileCount > 0 { Text("\(profileCount) 项状态") }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var filteredSessions: [SessionSummary] {
+        let needle = normalizedQuery
+        guard !needle.isEmpty else { return store.sessions }
+        return store.sessions.filter { session in
+            if session.preview.localizedCaseInsensitiveContains(needle) { return true }
+            if store.journals.contains(where: {
+                $0.sessionID == session.id && $0.summary.localizedCaseInsensitiveContains(needle)
+            }) { return true }
+            if store.memories.contains(where: {
+                $0.sourceSessionID == session.id
+                    && ($0.content.localizedCaseInsensitiveContains(needle)
+                        || $0.keywords.contains(where: { $0.localizedCaseInsensitiveContains(needle) }))
+            }) { return true }
+            return (store.stateProfiles + store.stateProfileVersions).contains(where: {
+                $0.sourceSessionID == session.id
+                    && ($0.summary.localizedCaseInsensitiveContains(needle)
+                        || NativeDataTaxonomy.stateDomainLabel($0.domain).localizedCaseInsensitiveContains(needle))
+            })
+        }
+    }
+
+    private var sessionGroups: [(String, [SessionSummary])] {
+        Dictionary(grouping: filteredSessions) { NativeDateFormat.periodLabel($0.createdAt) }
+            .map { label, sessions in
+                (label, sessions.sorted { $0.createdAt > $1.createdAt })
+            }
+            .sorted {
+                ($0.1.first?.createdAt ?? "") > ($1.1.first?.createdAt ?? "")
+            }
+    }
+
+    private var normalizedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func periodExpansionBinding(_ period: String) -> Binding<Bool> {
+        Binding(
+            get: { expandedPeriods.contains(period) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedPeriods.insert(period)
+                } else {
+                    expandedPeriods.remove(period)
+                }
+            }
+        )
+    }
+
+    private func updateExpandedPeriods(for query: String) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedQuery.isEmpty {
+            expandedPeriods = Set(sessionGroups.first.map { [$0.0] } ?? [])
+        } else {
+            expandedPeriods = Set(sessionGroups.map(\.0))
+        }
+    }
+
+    private func stateUpdates(for sessionID: String) -> [StateProfile] {
+        let versions = store.stateProfileVersions.filter { $0.sourceSessionID == sessionID }
+        if !versions.isEmpty { return versions }
+        return store.stateProfiles.filter { $0.sourceSessionID == sessionID }
     }
 }
 
@@ -201,9 +321,12 @@ private enum NativeMemoryViewMode: String, CaseIterable, Identifiable {
 private struct NativeMemoryBrowser: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @State private var mode: NativeMemoryViewMode = .categories
+    let query: String
 
     private var categories: [(String, [MemoryEntry])] {
-        Dictionary(grouping: store.memories, by: \.category)
+        Dictionary(grouping: filteredMemories) { memory in
+            NativeDataTaxonomy.normalizedCategory(memory.category)
+        }
             .map { ($0.key, $0.value) }
             .sorted { NativeDataTaxonomy.categoryOrder($0.0) < NativeDataTaxonomy.categoryOrder($1.0) }
     }
@@ -220,7 +343,10 @@ private struct NativeMemoryBrowser: View {
             .padding(.top, 18)
 
             ScrollView {
-                LazyVStack(spacing: 12) {
+                if filteredMemories.isEmpty {
+                    NativeDataEmptyState(query: query, type: "记忆")
+                } else {
+                    LazyVStack(spacing: 12) {
                     if mode == .categories {
                         ForEach(categories, id: \.0) { category, memories in
                             DisclosureGroup {
@@ -261,12 +387,13 @@ private struct NativeMemoryBrowser: View {
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                         }
                     } else {
-                        ForEach(store.memories.sorted { $0.updatedAt > $1.updatedAt }) { memory in
+                        ForEach(filteredMemories.sorted { $0.updatedAt > $1.updatedAt }) { memory in
                             NativeMemoryCard(memory: memory)
                         }
                     }
+                    }
+                    .padding(24)
                 }
-                .padding(24)
             }
         }
     }
@@ -279,36 +406,61 @@ private struct NativeMemoryBrowser: View {
                     < NativeDataTaxonomy.subcategoryLabel($1.0)
             }
     }
+
+    private var filteredMemories: [MemoryEntry] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return store.memories }
+        return store.memories.filter { memory in
+            memory.content.localizedCaseInsensitiveContains(needle)
+                || NativeDataTaxonomy.categoryLabel(memory.category).localizedCaseInsensitiveContains(needle)
+                || NativeDataTaxonomy.subcategoryLabel(memory.subcategory).localizedCaseInsensitiveContains(needle)
+                || memory.keywords.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+        }
+    }
 }
 
 private struct NativeJournalTimeline: View {
     @EnvironmentObject private var store: NativeMacShellStore
+    let query: String
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                if !store.journals.isEmpty {
-                    NativeMoodChart(journals: store.journals)
-                }
-                ForEach(journalWeeks, id: \.0) { week, journals in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(week)
-                            .font(.headline)
-                        NativeWeeklyReportCard(weekLabel: week, journals: journals)
-                        ForEach(journals) { journal in
-                            NativeJournalCard(journal: journal)
+            if filteredJournals.isEmpty {
+                NativeDataEmptyState(query: query, type: "日记")
+            } else {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    NativeMoodChart(journals: filteredJournals)
+                    ForEach(journalWeeks, id: \.0) { week, journals in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(week)
+                                .font(.headline)
+                            NativeWeeklyReportCard(weekLabel: week, journals: journals)
+                            ForEach(journals) { journal in
+                                NativeJournalCard(journal: journal)
+                            }
                         }
                     }
                 }
+                .padding(24)
             }
-            .padding(24)
         }
     }
 
     private var journalWeeks: [(String, [JournalEntry])] {
-        Dictionary(grouping: store.journals) { NativeDateFormat.weekLabel($0.createdAt) }
+        Dictionary(grouping: filteredJournals) { NativeDateFormat.weekLabel($0.createdAt) }
             .map { ($0.key, $0.value.sorted { $0.createdAt > $1.createdAt }) }
             .sorted { ($0.1.first?.createdAt ?? "") > ($1.1.first?.createdAt ?? "") }
+    }
+
+    private var filteredJournals: [JournalEntry] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return store.journals }
+        return store.journals.filter { journal in
+            journal.summary.localizedCaseInsensitiveContains(needle)
+                || journal.dominantEmotion.localizedCaseInsensitiveContains(needle)
+                || journal.keywords.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+                || journal.insights.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+        }
     }
 }
 
@@ -386,61 +538,211 @@ private struct NativeWeeklyReportCard: View {
 
 private struct NativeStateProfileGrid: View {
     @EnvironmentObject private var store: NativeMacShellStore
-    private let columns = [GridItem(.adaptive(minimum: 260), spacing: 14)]
+    private let columns = [GridItem(.adaptive(minimum: 300), spacing: 14, alignment: .top)]
+    let query: String
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 14) {
-                ForEach(store.stateProfiles) { profile in
-                    DisclosureGroup {
-                        VStack(alignment: .leading, spacing: 8) {
-                            if !profile.stage.isEmpty {
-                                Text(profile.stage).font(.caption.bold()).foregroundStyle(.indigo)
-                            }
-                            Text(profile.summary).textSelection(.enabled)
-                            ProgressView(value: Double(profile.intensity), total: 10)
-                                .tint(profile.intensity >= 7 ? .orange : .green)
-                            if !profile.supportStrategy.isEmpty {
-                                Text("支持方式：\(profile.supportStrategy)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            if !profile.evidence.isEmpty {
-                                Text("依据：\(profile.evidence)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text("置信度 \(Int(profile.confidence * 100))% · 更新于 \(profile.updatedAt)")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                        .padding(.top, 10)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            HStack {
-                                Label(
-                                    NativeDataTaxonomy.stateDomainLabel(profile.domain),
-                                    systemImage: NativeDataTaxonomy.stateDomainIcon(profile.domain)
-                                )
-                                .font(.headline)
-                                Spacer()
-                                Text(NativeDataTaxonomy.trendLabel(profile.trend))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(profile.summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
+            if domainGroups.isEmpty {
+                NativeDataEmptyState(query: query, type: "长期状态")
+            } else {
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(domainGroups) { group in
+                        NativeStateDomainCard(group: group)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .padding(24)
+            }
+        }
+    }
+
+    private var filteredProfiles: [StateProfile] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return store.stateProfiles }
+        return store.stateProfiles.filter { profile in
+            NativeDataTaxonomy.stateDomainLabel(profile.domain).localizedCaseInsensitiveContains(needle)
+                || profile.summary.localizedCaseInsensitiveContains(needle)
+                || profile.stage.localizedCaseInsensitiveContains(needle)
+                || profile.supportStrategy.localizedCaseInsensitiveContains(needle)
+        }
+    }
+
+    private var filteredVersions: [StateProfile] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return store.stateProfileVersions }
+        return store.stateProfileVersions.filter { profile in
+            NativeDataTaxonomy.stateDomainLabel(profile.domain).localizedCaseInsensitiveContains(needle)
+                || profile.summary.localizedCaseInsensitiveContains(needle)
+                || profile.stage.localizedCaseInsensitiveContains(needle)
+                || profile.supportStrategy.localizedCaseInsensitiveContains(needle)
+        }
+    }
+
+    private var domainGroups: [NativeStateDomainGroup] {
+        let currentByDomain = Dictionary(
+            uniqueKeysWithValues: filteredProfiles.map { ($0.domain, $0) }
+        )
+        let versionsByDomain = Dictionary(grouping: filteredVersions, by: \.domain)
+        let knownDomains = NativeDataTaxonomy.stateDomainKeys
+        let availableDomains = Set(currentByDomain.keys).union(versionsByDomain.keys)
+        let unknownDomains = availableDomains
+            .filter { !knownDomains.contains($0) }
+            .sorted()
+        let domains = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? knownDomains + unknownDomains
+            : availableDomains.sorted {
+                NativeDataTaxonomy.stateDomainOrder($0) < NativeDataTaxonomy.stateDomainOrder($1)
+            }
+        return domains.map { domain in
+            let current = currentByDomain[domain]
+            let history = (versionsByDomain[domain] ?? [])
+                .filter { version in
+                    guard let current else { return true }
+                    return version.updatedAt != current.updatedAt || version.summary != current.summary
+                }
+                .sorted { $0.updatedAt > $1.updatedAt }
+            return NativeStateDomainGroup(
+                domain: domain,
+                current: current,
+                history: history
+            )
+        }
+    }
+}
+
+private struct NativeStateDomainGroup: Identifiable {
+    let domain: String
+    let current: StateProfile?
+    let history: [StateProfile]
+
+    var id: String { domain }
+}
+
+private struct NativeStateDomainCard: View {
+    let group: NativeStateDomainGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label(
+                    NativeDataTaxonomy.stateDomainLabel(group.domain),
+                    systemImage: NativeDataTaxonomy.stateDomainIcon(group.domain)
+                )
+                .font(.headline)
+                Spacer()
+                if let current = group.current {
+                    Text(NativeDataTaxonomy.trendLabel(current.trend))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(24)
+
+            if let current = group.current {
+                Label("当前状态", systemImage: "circle.inset.filled")
+                    .font(.caption.bold())
+                    .foregroundStyle(.indigo)
+                NativeCurrentStateContent(profile: current)
+
+                if !group.history.isEmpty {
+                    DisclosureGroup("历史变化 · \(group.history.count)") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(group.history) { profile in
+                                NativeStateHistoryRow(profile: profile)
+                            }
+                        }
+                        .padding(.top, 8)
+                    }
+                    .font(.caption.bold())
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("尚未形成稳定记录")
+                        .font(.callout.weight(.medium))
+                    Text("后续夜谈积累出足够证据后，这里会出现当前状态和历史变化。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct NativeCurrentStateContent: View {
+    let profile: StateProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !profile.stage.isEmpty {
+                Text(profile.stage)
+                    .font(.caption.bold())
+                    .foregroundStyle(.indigo)
+            }
+            Text(profile.summary).textSelection(.enabled)
+            ProgressView(value: Double(profile.intensity), total: 10)
+                .tint(profile.intensity >= 7 ? .orange : .green)
+            if !profile.supportStrategy.isEmpty {
+                Text("支持方式：\(profile.supportStrategy)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !profile.evidence.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("依据")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    ForEach(NativeStateEvidence.items(from: profile.evidence), id: \.self) { item in
+                        Text("• \(item)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Text("置信度 \(Int(profile.confidence * 100))% · 更新于 \(NativeDateFormat.displayDate(profile.updatedAt))")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            if !profile.sourceSessionID.isEmpty {
+                NativeSourceSessionButton(sessionID: profile.sourceSessionID)
+            }
+        }
+    }
+}
+
+private enum NativeStateEvidence {
+    static func items(from value: String) -> [String] {
+        guard let data = value.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([String].self, from: data),
+              !decoded.isEmpty else {
+            return [value]
+        }
+        return decoded
+    }
+}
+
+private struct NativeStateHistoryRow: View {
+    let profile: StateProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(NativeDateFormat.displayDate(profile.updatedAt))
+                Spacer()
+                Text(NativeDataTaxonomy.trendLabel(profile.trend))
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            Text(profile.summary)
+                .font(.caption)
+                .textSelection(.enabled)
+            if !profile.sourceSessionID.isEmpty {
+                NativeSourceSessionButton(sessionID: profile.sourceSessionID)
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -460,11 +762,14 @@ private struct NativeMemoryCard: View {
                         .foregroundStyle(.secondary)
                 }
                 HStack {
-                    if !memory.updatedAt.isEmpty { Text("更新于 \(memory.updatedAt)") }
+                    if !memory.updatedAt.isEmpty { Text("更新于 \(NativeDateFormat.displayDate(memory.updatedAt))") }
                     if !memory.sourceSessionID.isEmpty { Text("来源会话 \(memory.sourceSessionID.prefix(8))") }
                 }
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+                if !memory.sourceSessionID.isEmpty {
+                    NativeSourceSessionButton(sessionID: memory.sourceSessionID)
+                }
             }
             .padding(.top, 8)
         } label: {
@@ -521,6 +826,9 @@ private struct NativeJournalCard: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .textSelection(.enabled)
+                if !journal.sessionID.isEmpty {
+                    NativeSourceSessionButton(sessionID: journal.sessionID)
+                }
             }
             .padding(.top, 8)
         } label: {
@@ -528,7 +836,9 @@ private struct NativeJournalCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Label(journal.dominantEmotion.isEmpty ? "日记总结" : journal.dominantEmotion, systemImage: "book.closed.fill")
                         .font(.headline)
-                    Text(journal.createdAt).font(.caption).foregroundStyle(.secondary)
+                    Text(NativeDateFormat.displayDate(journal.createdAt))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("心情 \(journal.moodScore)")
@@ -559,6 +869,47 @@ private struct NativeTagFlow: View {
                 }
             }
         }
+    }
+}
+
+private struct NativeDataEmptyState: View {
+    let query: String
+    let type: String
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(title, systemImage: query.isEmpty ? "tray" : "magnifyingglass")
+        } description: {
+            Text(detail)
+        }
+        .frame(maxWidth: .infinity, minHeight: 320)
+        .padding(24)
+    }
+
+    private var title: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "还没有\(type)"
+            : "没有找到相关\(type)"
+    }
+
+    private var detail: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "完成夜谈和总结后，内容会出现在这里。"
+            : "试试更短的关键词，或切换到其他资料分类。"
+    }
+}
+
+private struct NativeSourceSessionButton: View {
+    @EnvironmentObject private var store: NativeMacShellStore
+    let sessionID: String
+
+    var body: some View {
+        Button("打开来源夜谈", systemImage: "arrowshape.turn.up.left.fill") {
+            if store.openSession(sessionID) {
+                NotificationCenter.default.post(name: .nativeOpenConversation, object: nil)
+            }
+        }
+        .buttonStyle(.link)
     }
 }
 
@@ -644,6 +995,39 @@ private enum NativeDataTaxonomy {
         "goal_action": "flag.checkered",
     ]
 
+    private static let categoryAliases = [
+        "self relation": "self_core",
+        "self_relation": "self_core",
+        "meaning value": "self_core",
+        "meaning_value": "self_core",
+        "preference": "self_core",
+        "偏好": "self_core",
+        "兴趣": "self_core",
+        "experience": "self_core",
+        "agency boundary": "self_core",
+        "agency_boundary": "self_core",
+        "behavioral pattern": "life_habit",
+        "behavioral_pattern": "life_habit",
+        "behavior": "life_habit",
+        "行为模式": "life_habit",
+        "经济状况": "life_habit",
+        "health": "body_response",
+        "健康": "body_response",
+        "social": "relationship_pattern",
+        "relationship": "relationship_pattern",
+        "关系": "relationship_pattern",
+        "关系模式": "relationship_pattern",
+        "社交关系": "relationship_pattern",
+        "trauma pattern": "trauma_shadow",
+        "trauma_pattern": "trauma_shadow",
+        "coping strategy": "resource_support",
+        "coping_strategy": "resource_support",
+        "coping mechanism": "resource_support",
+        "coping_mechanism": "resource_support",
+        "work": "goal_action",
+        "工作经历": "goal_action",
+    ]
+
     private static let subcategoryLabels = [
         "identity": "身份与自我认同", "values": "价值观", "energy_source": "能量来源",
         "boundary": "个人边界", "self_image": "自我形象", "inner_critic": "内在批评",
@@ -675,6 +1059,15 @@ private enum NativeDataTaxonomy {
         "meaning_value": "意义与价值",
     ]
 
+    static let stateDomainKeys = [
+        "self_relation",
+        "emotion_regulation",
+        "relationship",
+        "agency_boundary",
+        "trauma_pattern",
+        "meaning_value",
+    ]
+
     private static let stateIcons = [
         "self_relation": "person.crop.circle",
         "emotion_regulation": "heart.circle",
@@ -690,15 +1083,22 @@ private enum NativeDataTaxonomy {
     ]
 
     static func categoryOrder(_ key: String) -> Int {
-        categoryKeys.firstIndex(of: key) ?? categoryKeys.count
+        categoryKeys.firstIndex(of: normalizedCategory(key)) ?? categoryKeys.count
     }
 
     static func categoryLabel(_ key: String) -> String {
-        categoryLabels[key] ?? readableFallback(key)
+        let normalizedKey = normalizedCategory(key)
+        return categoryLabels[normalizedKey] ?? readableFallback(normalizedKey)
     }
 
     static func categoryIcon(_ key: String) -> String {
-        categoryIcons[key] ?? "folder.fill"
+        categoryIcons[normalizedCategory(key)] ?? "folder.fill"
+    }
+
+    static func normalizedCategory(_ key: String) -> String {
+        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowercasedKey = trimmedKey.lowercased()
+        return categoryAliases[lowercasedKey] ?? lowercasedKey
     }
 
     static func subcategoryLabel(_ key: String) -> String {
@@ -707,6 +1107,10 @@ private enum NativeDataTaxonomy {
 
     static func stateDomainLabel(_ key: String) -> String {
         stateLabels[key] ?? readableFallback(key)
+    }
+
+    static func stateDomainOrder(_ key: String) -> Int {
+        stateDomainKeys.firstIndex(of: key) ?? stateDomainKeys.count
     }
 
     static func stateDomainIcon(_ key: String) -> String {
@@ -723,6 +1127,40 @@ private enum NativeDataTaxonomy {
 }
 
 private enum NativeDateFormat {
+    static func displayDate(_ value: String) -> String {
+        guard let date = date(value) else { return value }
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = Locale(identifier: "zh_CN")
+        timeFormatter.dateFormat = "HH:mm"
+        if calendar.isDateInToday(date) {
+            return "今天 \(timeFormatter.string(from: date))"
+        }
+        if calendar.isDateInYesterday(date) {
+            return "昨天 \(timeFormatter.string(from: date))"
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = calendar.component(.year, from: date) == calendar.component(.year, from: Date())
+            ? "M月d日 HH:mm"
+            : "yyyy年M月d日"
+        return formatter.string(from: date)
+    }
+
+    static func periodLabel(_ value: String) -> String {
+        guard let date = date(value) else { return "较早的夜谈" }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "今天" }
+        if calendar.isDateInYesterday(date) { return "昨天" }
+        if calendar.isDate(date, equalTo: Date(), toGranularity: .weekOfYear) { return "本周" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = calendar.component(.year, from: date) == calendar.component(.year, from: Date())
+            ? "M月"
+            : "yyyy年M月"
+        return formatter.string(from: date)
+    }
+
     static func weekLabel(_ value: String) -> String {
         guard let date = date(value) else { return "较早的日记" }
         let calendar = Calendar.current
