@@ -31,10 +31,9 @@ struct NativeConversationView: View {
                 endPoint: .bottomTrailing
             )
         )
-        .task(id: automaticSpeechMessage?.id) {
+        .onChange(of: store.latestLiveAssistantMessage?.id) { _, _ in
             guard speech.automaticallyReadsReplies,
-                  let message = automaticSpeechMessage else { return }
-            await Task.yield()
+                  let message = store.latestLiveAssistantMessage else { return }
             speech.enqueue(messageID: message.id, text: message.content)
         }
     }
@@ -61,7 +60,10 @@ struct NativeConversationView: View {
                 Button("结束并总结", systemImage: "sparkles") {
                     Task { await store.closeCurrentSession() }
                 }
-                .disabled(store.messages.allSatisfy { $0.role != .user })
+                .disabled(
+                    store.selectedSessionID == nil
+                        || store.messages.allSatisfy { $0.role != .user }
+                )
             }
         }
         .controlSize(.small)
@@ -91,6 +93,7 @@ struct NativeConversationView: View {
                 }
                 if let summary = store.closeSummary {
                     NativeCloseSummaryCard(summary: summary)
+                        .id("\(summary.journalSummary)|\(summary.memoryCount)|\(summary.stateProfileCount)")
                 }
             }
             .padding(.horizontal, 18)
@@ -170,10 +173,6 @@ struct NativeConversationView: View {
         NativeConversationTurn.build(from: store.messages)
     }
 
-    private var automaticSpeechMessage: ChatMessage? {
-        store.messages.last(where: { $0.role == .assistant })
-    }
-
     private func submit() {
         let text = draft
         draft = ""
@@ -247,7 +246,7 @@ private struct NativeMessageBubble: View {
                         Label(
                             speech.activeMessageID == message.id && speech.isPreparing
                                 ? "正在生成语音…"
-                                : (speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听忧忧兔说"),
+                                : (speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听\(character.name)说"),
                             systemImage: speech.activeMessageID == message.id && speech.isActive
                                 ? "stop.circle.fill"
                                 : "speaker.wave.2.fill"
@@ -256,6 +255,7 @@ private struct NativeMessageBubble: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.accentPurple)
+                    .accessibilityHint("使用本机 Qwen3-TTS Serena 女性声线朗读\(character.name)的这条回复")
                 }
             }
             .frame(maxWidth: 700, alignment: message.role == .user ? .trailing : .leading)
@@ -407,7 +407,13 @@ private struct NativeConversationSidebar: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 NativeSidebarSection(title: "本周心流") {
-                    NativeSidebarFlowCarousel(cards: flowCards, selectedIndex: $flowCardIndex)
+                    NativeSidebarFlowCarousel(
+                        cards: flowCards,
+                        selectedIndex: $flowCardIndex,
+                        onOpenFlow: {
+                            NotificationCenter.default.post(name: .nativeOpenFlow, object: nil)
+                        }
+                    )
                 }
 
                 Divider()
@@ -500,6 +506,7 @@ private struct NativeSidebarFlowCardModel: Identifiable {
 private struct NativeSidebarFlowCarousel: View {
     let cards: [NativeSidebarFlowCardModel]
     @Binding var selectedIndex: Int
+    let onOpenFlow: () -> Void
 
     var body: some View {
         if cards.isEmpty {
@@ -509,6 +516,12 @@ private struct NativeSidebarFlowCarousel: View {
                 Text("完成夜谈总结后，这里会安静地出现本周方向。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("前往心流", systemImage: "arrow.right") {
+                    onOpenFlow()
+                }
+                .buttonStyle(.plain)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.accentPurple)
             }
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
             .padding(14)
@@ -525,6 +538,10 @@ private struct NativeSidebarFlowCarousel: View {
                     HStack(spacing: 4) {
                         Button { move(-1) } label: { Image(systemName: "chevron.left") }
                         Button { move(1) } label: { Image(systemName: "chevron.right") }
+                        Button(action: onOpenFlow) {
+                            Image(systemName: "arrow.up.right.square")
+                        }
+                        .accessibilityLabel("查看完整心流导航")
                     }
                     .buttonStyle(.plain)
                 }
@@ -693,14 +710,32 @@ private struct NativeAssessmentStrip: View {
 
 private struct NativeCloseSummaryCard: View {
     let summary: SessionCloseSummary
+    @State private var isExpanded = true
 
     var body: some View {
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 10) {
                 Text(summary.journalSummary)
                     .font(.callout)
                     .textSelection(.enabled)
                 if let journal = summary.journal {
+                    HStack(spacing: 8) {
+                        if !journal.dominantEmotion.isEmpty {
+                            Label(journal.dominantEmotion, systemImage: "heart.text.square.fill")
+                        }
+                        Text("心情 \(journal.moodScore > 0 ? "+" : "")\(journal.moodScore)")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    if !journal.emotionCurve.isEmpty {
+                        Text("情绪变化：\(journal.emotionCurve.joined(separator: " → "))")
+                            .font(.caption)
+                    }
+                    if !journal.keywords.isEmpty {
+                        Text("关键词：\(journal.keywords.joined(separator: " · "))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if !journal.insights.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("洞察").font(.caption.bold()).foregroundStyle(.secondary)
@@ -718,15 +753,35 @@ private struct NativeCloseSummaryCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("本轮记忆").font(.caption.bold()).foregroundStyle(.secondary)
                         ForEach(summary.memories) { memory in
-                            Text("• \(memory.content)").font(.caption)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("• [\(memory.category)/\(memory.subcategory)] \(memory.content)")
+                                if !memory.keywords.isEmpty {
+                                    Text("  \(memory.keywords.joined(separator: " · "))")
+                                        .foregroundStyle(.secondary)
+                                }
+                                if !memory.reason.isEmpty {
+                                    Text("  依据：\(memory.reason)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .font(.caption)
                         }
                     }
                 }
-                if !summary.stateProfiles.isEmpty {
+                if !changedStateProfiles.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("长期状态更新").font(.caption.bold()).foregroundStyle(.secondary)
-                        ForEach(summary.stateProfiles) { profile in
-                            Text("• \(profile.domain)：\(profile.summary)").font(.caption)
+                        ForEach(changedStateProfiles) { profile in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("• \(profile.domain)：\(profile.summary)")
+                                Text("  \(profile.stage) · \(profile.trend) · 强度 \(profile.intensity)/10")
+                                    .foregroundStyle(.secondary)
+                                if !profile.supportStrategy.isEmpty {
+                                    Text("  支持方式：\(profile.supportStrategy)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .font(.caption)
                         }
                     }
                 }
@@ -750,5 +805,9 @@ private struct NativeCloseSummaryCard: View {
         }
         .padding(10)
         .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var changedStateProfiles: [SessionCloseStateProfile] {
+        summary.stateProfiles.filter { $0.action != "no_change" }
     }
 }

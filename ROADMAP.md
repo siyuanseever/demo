@@ -81,7 +81,7 @@
 2. **N1 原生壳（已完成）**：独立 `SensenStoryNative` target 已完成启动、导航、设置、诊断和只读缓存概览。
 3. **N2 夜谈纵切（已完成）**：原生 App 直接调用 DeepSeek，完成 quick/plan 并行、按需 deep、历史续聊、对话轨迹与本地持久化；不依赖 Python/SSE。
 4. **N3 数据纵切（已完成）**：原生 App 已贯通本地会话关联、长期记忆层级与最近更新、日记周分组与心情轨迹、长期状态和每周心流卡片；不依赖 Python 同步。
-5. **N4 并行验收**：使用同一脱敏数据集比较 Catalyst 与原生版本的功能和性能。
+5. **N4 并行验收**：使用同一脱敏数据集比较 Catalyst 与原生版本的功能和性能；当前证据与缺口记录在 `docs/native-macos-n4-acceptance.md`。
 6. **N5 切换**：原生版本通过功能、数据兼容、连续发送和长时间运行验收后，才停止 Catalyst 主线。
 
 原生迁移不得改变心理安全契约。传输层按平台拆分：Native 直连 DeepSeek 并使用本地 SQLite，Web/Catalyst 保留 Python 兼容路径。

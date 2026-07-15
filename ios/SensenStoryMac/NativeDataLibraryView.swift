@@ -25,6 +25,7 @@ struct NativeDataLibraryView: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @State private var tab: NativeDataTab = .overview
     @State private var query = ""
+    @State private var selectedMemoryCategory: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,8 +61,11 @@ struct NativeDataLibraryView: View {
             Divider()
             content
         }
-        .onChange(of: tab) { _, _ in
+        .onChange(of: tab) { _, newTab in
             query = ""
+            if newTab != .memories {
+                selectedMemoryCategory = nil
+            }
         }
     }
 
@@ -69,11 +73,11 @@ struct NativeDataLibraryView: View {
     private var content: some View {
         switch tab {
         case .overview:
-            NativeOverviewGrid(tab: $tab)
+            NativeOverviewGrid(tab: $tab, selectedMemoryCategory: $selectedMemoryCategory)
         case .sessions:
             NativeSessionList(query: query)
         case .memories:
-            NativeMemoryBrowser(query: query)
+            NativeMemoryBrowser(query: query, selectedCategory: $selectedMemoryCategory)
         case .journals:
             NativeJournalTimeline(query: query)
         case .states:
@@ -85,19 +89,204 @@ struct NativeDataLibraryView: View {
 private struct NativeOverviewGrid: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @Binding var tab: NativeDataTab
-    private let columns = [GridItem(.adaptive(minimum: 190), spacing: 14)]
+    @Binding var selectedMemoryCategory: String?
+    private let metricColumns = [GridItem(.adaptive(minimum: 190), spacing: 14)]
+    private let sectionColumns = [GridItem(.adaptive(minimum: 360), spacing: 14, alignment: .top)]
 
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 14) {
-                NativeMetricCard(title: "会话", value: store.snapshot.sessionCount, icon: "bubble.left.and.bubble.right") { tab = .sessions }
-                NativeMetricCard(title: "消息", value: store.snapshot.messageCount, icon: "text.bubble") { tab = .sessions }
-                NativeMetricCard(title: "记忆", value: store.snapshot.memoryCount, icon: "books.vertical") { tab = .memories }
-                NativeMetricCard(title: "日记", value: store.snapshot.journalCount, icon: "book.closed") { tab = .journals }
-                NativeMetricCard(title: "长期状态", value: store.stateProfiles.count, icon: "person.text.rectangle") { tab = .states }
+            VStack(alignment: .leading, spacing: 20) {
+                LazyVGrid(columns: metricColumns, spacing: 14) {
+                    NativeMetricCard(title: "会话", value: store.snapshot.sessionCount, icon: "bubble.left.and.bubble.right") { tab = .sessions }
+                    NativeMetricCard(title: "消息", value: store.snapshot.messageCount, icon: "text.bubble") { tab = .sessions }
+                    NativeMetricCard(title: "记忆", value: store.snapshot.memoryCount, icon: "books.vertical") {
+                        selectedMemoryCategory = nil
+                        tab = .memories
+                    }
+                    NativeMetricCard(title: "日记", value: store.snapshot.journalCount, icon: "book.closed") { tab = .journals }
+                    NativeMetricCard(title: "长期状态", value: store.stateProfiles.count, icon: "person.text.rectangle") { tab = .states }
+                }
+
+                LazyVGrid(columns: sectionColumns, spacing: 14) {
+                    NativeRecentDataCard(tab: $tab, selectedMemoryCategory: $selectedMemoryCategory)
+                    NativeMemoryMapCard(tab: $tab, selectedMemoryCategory: $selectedMemoryCategory)
+                }
             }
             .padding(24)
         }
+    }
+}
+
+private struct NativeRecentDataCard: View {
+    @EnvironmentObject private var store: NativeMacShellStore
+    @Binding var tab: NativeDataTab
+    @Binding var selectedMemoryCategory: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("最近更新", systemImage: "clock.arrow.circlepath")
+                .font(.headline)
+
+            NativeOverviewDataRow(
+                title: "最近夜谈",
+                detail: store.sessions.first.map { NativeDateFormat.displayDate($0.createdAt) } ?? "暂无",
+                summary: store.sessions.first?.preview ?? "完成一次夜谈后会出现在这里。",
+                icon: "bubble.left.and.bubble.right.fill"
+            ) { tab = .sessions }
+            Divider()
+            NativeOverviewDataRow(
+                title: "最近日记",
+                detail: store.journals.first.map { NativeDateFormat.displayDate($0.createdAt) } ?? "暂无",
+                summary: latestJournalSummary,
+                icon: "book.closed.fill"
+            ) { tab = .journals }
+            Divider()
+            NativeOverviewDataRow(
+                title: "最近记忆",
+                detail: latestMemoryDetail,
+                summary: store.memories.first?.content ?? "尚未形成长期记忆。",
+                icon: "brain.head.profile"
+            ) {
+                selectedMemoryCategory = store.memories.first.map {
+                    NativeDataTaxonomy.normalizedCategory($0.category)
+                }
+                tab = .memories
+            }
+            Divider()
+            NativeOverviewDataRow(
+                title: "状态画像",
+                detail: latestStateDetail,
+                summary: latestStateSummary,
+                icon: "person.text.rectangle.fill"
+            ) { tab = .states }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(18)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var latestJournalSummary: String {
+        guard let journal = store.journals.first else { return "完成总结后会形成日记。" }
+        let emotion = journal.dominantEmotion.isEmpty ? "未标注情绪" : journal.dominantEmotion
+        return "\(emotion) · 心情 \(journal.moodScore) · \(journal.summary)"
+    }
+
+    private var latestMemoryDetail: String {
+        guard let memory = store.memories.first else { return "暂无" }
+        return "\(NativeDataTaxonomy.categoryLabel(memory.category)) · \(NativeDateFormat.displayDate(memory.updatedAt))"
+    }
+
+    private var latestStateDetail: String {
+        guard let profile = latestState else { return "暂无" }
+        return "\(NativeDataTaxonomy.stateDomainLabel(profile.domain)) · \(NativeDateFormat.displayDate(profile.updatedAt))"
+    }
+
+    private var latestStateSummary: String {
+        latestState?.summary ?? "积累足够证据后会形成长期状态。"
+    }
+
+    private var latestState: StateProfile? {
+        store.stateProfiles.max { $0.updatedAt < $1.updatedAt }
+    }
+}
+
+private struct NativeOverviewDataRow: View {
+    let title: String
+    let detail: String
+    let summary: String
+    let icon: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: icon)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 30, height: 30)
+                    .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(title).font(.callout.bold())
+                        Spacer()
+                        Text(detail)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct NativeMemoryMapCard: View {
+    @EnvironmentObject private var store: NativeMacShellStore
+    @Binding var tab: NativeDataTab
+    @Binding var selectedMemoryCategory: String?
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("记忆地图", systemImage: "square.grid.2x2.fill")
+                    .font(.headline)
+                Spacer()
+                Button("查看全部") {
+                    selectedMemoryCategory = nil
+                    tab = .memories
+                }
+                    .buttonStyle(.link)
+            }
+
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(NativeDataTaxonomy.memoryCategoryKeys, id: \.self) { category in
+                    Button {
+                        selectedMemoryCategory = category
+                        tab = .memories
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: NativeDataTaxonomy.categoryIcon(category))
+                                .foregroundStyle(Color.accentColor)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(NativeDataTaxonomy.categoryLabel(category))
+                                    .font(.caption.bold())
+                                Text("\(memoryCounts[category, default: 0]) 条")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Text("按八个心理陪伴维度整理；进入记忆页后可继续查看小类和每条依据。")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(18)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var memoryCounts: [String: Int] {
+        Dictionary(grouping: store.memories) {
+            NativeDataTaxonomy.normalizedCategory($0.category)
+        }
+        .mapValues(\.count)
     }
 }
 
@@ -163,23 +352,15 @@ private struct NativeSessionList: View {
     private func sessionCard(_ session: SessionSummary) -> some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 12) {
-                if let journal = store.journals.first(where: { $0.sessionID == session.id }) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("会后日记", systemImage: "book.closed.fill")
+                let linkedJournals = store.journals.filter { $0.sessionID == session.id }
+                if !linkedJournals.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("会后日记 · \(linkedJournals.count)", systemImage: "book.closed.fill")
                             .font(.caption.bold())
-                        Text(journal.summary)
-                        if !journal.insights.isEmpty {
-                            Text("洞察：\(journal.insights.joined(separator: "；"))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        if !journal.suggestedNextStep.isEmpty {
-                            Label(journal.suggestedNextStep, systemImage: "arrow.forward.circle.fill")
-                                .font(.caption)
+                        ForEach(linkedJournals) { journal in
+                            NativeSessionJournalSummary(journal: journal)
                         }
                     }
-                    .padding(12)
-                    .background(Color.cardBackground.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
                 }
 
                 let linkedMemories = store.memories.filter { $0.sourceSessionID == session.id }
@@ -188,9 +369,7 @@ private struct NativeSessionList: View {
                         Label("关联记忆 · \(linkedMemories.count)", systemImage: "brain.head.profile")
                             .font(.caption.bold())
                         ForEach(linkedMemories) { memory in
-                            Text("• \(memory.content)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            NativeSessionMemorySummary(memory: memory)
                         }
                     }
                 }
@@ -201,9 +380,7 @@ private struct NativeSessionList: View {
                         Label("长期状态更新 · \(linkedProfiles.count)", systemImage: "person.text.rectangle.fill")
                             .font(.caption.bold())
                         ForEach(linkedProfiles) { profile in
-                            Text("• \(NativeDataTaxonomy.stateDomainLabel(profile.domain))：\(profile.summary)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            NativeSessionStateSummary(profile: profile)
                         }
                     }
                 }
@@ -311,6 +488,103 @@ private struct NativeSessionList: View {
     }
 }
 
+private struct NativeSessionJournalSummary: View {
+    let journal: JournalEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(journal.dominantEmotion.isEmpty ? "日记总结" : journal.dominantEmotion)
+                    .font(.callout.bold())
+                Spacer()
+                Text("心情 \(journal.moodScore) · \(NativeDateFormat.displayDate(journal.createdAt))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Text(journal.summary).textSelection(.enabled)
+            if !journal.emotionCurve.isEmpty {
+                Text("情绪变化：\(journal.emotionCurve.joined(separator: " → "))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !journal.insights.isEmpty {
+                Text("洞察：\(journal.insights.joined(separator: "；"))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !journal.suggestedNextStep.isEmpty {
+                Label(journal.suggestedNextStep, systemImage: "arrow.forward.circle.fill")
+                    .font(.caption)
+            }
+            if !journal.keywords.isEmpty {
+                NativeTagFlow(tags: journal.keywords)
+            }
+        }
+        .padding(12)
+        .background(Color.cardBackground.opacity(0.72), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct NativeSessionMemorySummary: View {
+    let memory: MemoryEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(
+                    "\(NativeDataTaxonomy.categoryLabel(memory.category)) / "
+                        + NativeDataTaxonomy.subcategoryLabel(memory.subcategory)
+                )
+                .font(.caption.bold())
+                Spacer()
+                Text("重要度 \(memory.importance)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(memory.content)
+                .font(.caption)
+                .textSelection(.enabled)
+            if !memory.keywords.isEmpty {
+                NativeTagFlow(tags: memory.keywords)
+            }
+            if !memory.evidence.isEmpty {
+                Text("依据：\(memory.evidence)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+private struct NativeSessionStateSummary: View {
+    let profile: StateProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(NativeDataTaxonomy.stateDomainLabel(profile.domain))
+                    .font(.caption.bold())
+                Spacer()
+                Text("强度 \(profile.intensity)/10 · \(NativeDataTaxonomy.trendLabel(profile.trend))")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(profile.summary)
+                .font(.caption)
+                .textSelection(.enabled)
+            if !profile.supportStrategy.isEmpty {
+                Text("支持方式：\(profile.supportStrategy)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 private enum NativeMemoryViewMode: String, CaseIterable, Identifiable {
     case categories = "按分类"
     case recent = "最近更新"
@@ -321,7 +595,9 @@ private enum NativeMemoryViewMode: String, CaseIterable, Identifiable {
 private struct NativeMemoryBrowser: View {
     @EnvironmentObject private var store: NativeMacShellStore
     @State private var mode: NativeMemoryViewMode = .categories
+    @State private var expandedCategories: Set<String> = []
     let query: String
+    @Binding var selectedCategory: String?
 
     private var categories: [(String, [MemoryEntry])] {
         Dictionary(grouping: filteredMemories) { memory in
@@ -342,59 +618,93 @@ private struct NativeMemoryBrowser: View {
             .frame(maxWidth: 280)
             .padding(.top, 18)
 
-            ScrollView {
-                if filteredMemories.isEmpty {
-                    NativeDataEmptyState(query: query, type: "记忆")
-                } else {
-                    LazyVStack(spacing: 12) {
-                    if mode == .categories {
-                        ForEach(categories, id: \.0) { category, memories in
-                            DisclosureGroup {
-                                VStack(spacing: 9) {
-                                    ForEach(subcategories(memories), id: \.0) { subcategory, items in
-                                        DisclosureGroup {
-                                            VStack(spacing: 8) {
-                                                ForEach(items) { memory in
-                                                    NativeMemoryCard(memory: memory)
-                                                }
-                                            }
-                                            .padding(.top, 8)
-                                        } label: {
-                                            HStack {
-                                                Text(NativeDataTaxonomy.subcategoryLabel(subcategory))
-                                                Spacer()
-                                                Text("\(items.count)").foregroundStyle(.secondary)
-                                            }
-                                            .font(.callout.bold())
-                                        }
-                                        .padding(10)
-                                        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
-                                    }
-                                }
-                                .padding(.top, 10)
-                            } label: {
-                                HStack {
-                                    Label(
-                                        NativeDataTaxonomy.categoryLabel(category),
-                                        systemImage: NativeDataTaxonomy.categoryIcon(category)
-                                    )
-                                    Spacer()
-                                    Text("\(memories.count)").foregroundStyle(.secondary)
-                                }
-                                .font(.headline)
-                            }
-                            .padding(14)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                        }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if filteredMemories.isEmpty {
+                        NativeDataEmptyState(query: query, type: "记忆")
                     } else {
-                        ForEach(filteredMemories.sorted { $0.updatedAt > $1.updatedAt }) { memory in
-                            NativeMemoryCard(memory: memory)
+                        LazyVStack(spacing: 12) {
+                        if mode == .categories {
+                            ForEach(categories, id: \.0) { category, memories in
+                                DisclosureGroup(isExpanded: categoryExpansionBinding(category)) {
+                                    VStack(spacing: 9) {
+                                        ForEach(subcategories(memories), id: \.0) { subcategory, items in
+                                            DisclosureGroup {
+                                                VStack(spacing: 8) {
+                                                    ForEach(items) { memory in
+                                                        NativeMemoryCard(memory: memory)
+                                                    }
+                                                }
+                                                .padding(.top, 8)
+                                            } label: {
+                                                HStack {
+                                                    Text(NativeDataTaxonomy.subcategoryLabel(subcategory))
+                                                    Spacer()
+                                                    Text("\(items.count)").foregroundStyle(.secondary)
+                                                }
+                                                .font(.callout.bold())
+                                            }
+                                            .padding(10)
+                                            .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
+                                        }
+                                    }
+                                    .padding(.top, 10)
+                                } label: {
+                                    HStack {
+                                        Label(
+                                            NativeDataTaxonomy.categoryLabel(category),
+                                            systemImage: NativeDataTaxonomy.categoryIcon(category)
+                                        )
+                                        Spacer()
+                                        Text("\(memories.count)").foregroundStyle(.secondary)
+                                    }
+                                    .font(.headline)
+                                }
+                                .id(category)
+                                .padding(14)
+                                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                            }
+                        } else {
+                            ForEach(filteredMemories.sorted { $0.updatedAt > $1.updatedAt }) { memory in
+                                NativeMemoryCard(memory: memory)
+                            }
                         }
+                        }
+                        .padding(24)
                     }
+                }
+                .onAppear { focusSelectedCategory(using: proxy) }
+                .onChange(of: selectedCategory) { _, _ in
+                    focusSelectedCategory(using: proxy)
+                }
+                .onChange(of: mode) { _, newMode in
+                    if newMode == .categories {
+                        focusSelectedCategory(using: proxy)
                     }
-                    .padding(24)
                 }
             }
+        }
+    }
+
+    private func categoryExpansionBinding(_ category: String) -> Binding<Bool> {
+        Binding(
+            get: { expandedCategories.contains(category) },
+            set: { isExpanded in
+                if isExpanded {
+                    expandedCategories.insert(category)
+                } else {
+                    expandedCategories.remove(category)
+                }
+            }
+        )
+    }
+
+    private func focusSelectedCategory(using proxy: ScrollViewProxy) {
+        guard let selectedCategory else { return }
+        mode = .categories
+        expandedCategories.insert(selectedCategory)
+        Task { @MainActor in
+            proxy.scrollTo(selectedCategory, anchor: .top)
         }
     }
 
@@ -429,14 +739,18 @@ private struct NativeJournalTimeline: View {
                 NativeDataEmptyState(query: query, type: "日记")
             } else {
                 LazyVStack(alignment: .leading, spacing: 16) {
-                    NativeMoodChart(journals: filteredJournals)
-                    ForEach(journalWeeks, id: \.0) { week, journals in
+                    NativeMoodChart(journals: canonicalJournals)
+                    ForEach(journalWeeks, id: \.0) { week, groups in
                         VStack(alignment: .leading, spacing: 10) {
                             Text(week)
                                 .font(.headline)
-                            NativeWeeklyReportCard(weekLabel: week, journals: journals)
-                            ForEach(journals) { journal in
-                                NativeJournalCard(journal: journal)
+                            NativeWeeklyReportCard(
+                                weekLabel: week,
+                                journals: groups.map(\.latest),
+                                versionCount: groups.reduce(0) { $0 + $1.versions.count }
+                            )
+                            ForEach(groups) { group in
+                                NativeJournalGroupCard(group: group)
                             }
                         }
                     }
@@ -446,10 +760,31 @@ private struct NativeJournalTimeline: View {
         }
     }
 
-    private var journalWeeks: [(String, [JournalEntry])] {
-        Dictionary(grouping: filteredJournals) { NativeDateFormat.weekLabel($0.createdAt) }
-            .map { ($0.key, $0.value.sorted { $0.createdAt > $1.createdAt }) }
-            .sorted { ($0.1.first?.createdAt ?? "") > ($1.1.first?.createdAt ?? "") }
+    private var journalGroups: [NativeJournalGroup] {
+        Dictionary(grouping: filteredJournals) { journal in
+            journal.sessionID.isEmpty ? journal.id : journal.sessionID
+        }
+        .map { key, journals in
+            let sorted = journals.sorted { $0.createdAt > $1.createdAt }
+            return NativeJournalGroup(
+                id: key,
+                latest: sorted[0],
+                versions: Array(sorted.dropFirst())
+            )
+        }
+        .sorted { $0.latest.createdAt > $1.latest.createdAt }
+    }
+
+    private var canonicalJournals: [JournalEntry] {
+        journalGroups.map(\.latest)
+    }
+
+    private var journalWeeks: [(String, [NativeJournalGroup])] {
+        Dictionary(grouping: journalGroups) {
+            NativeDateFormat.weekLabel($0.latest.createdAt)
+        }
+        .map { ($0.key, $0.value.sorted { $0.latest.createdAt > $1.latest.createdAt }) }
+        .sorted { ($0.1.first?.latest.createdAt ?? "") > ($1.1.first?.latest.createdAt ?? "") }
     }
 
     private var filteredJournals: [JournalEntry] {
@@ -464,9 +799,74 @@ private struct NativeJournalTimeline: View {
     }
 }
 
+private struct NativeJournalGroup: Identifiable {
+    let id: String
+    let latest: JournalEntry
+    let versions: [JournalEntry]
+}
+
+private struct NativeJournalGroupCard: View {
+    let group: NativeJournalGroup
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            NativeJournalCard(journal: group.latest)
+            if !group.versions.isEmpty {
+                DisclosureGroup("同一会话的历史总结 · \(group.versions.count)") {
+                    VStack(spacing: 8) {
+                        ForEach(group.versions) { journal in
+                            NativeJournalVersionRow(journal: journal)
+                        }
+                    }
+                    .padding(.top, 8)
+                }
+                .font(.caption.bold())
+                .padding(.horizontal, 14)
+            }
+        }
+    }
+}
+
+private struct NativeJournalVersionRow: View {
+    let journal: JournalEntry
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(journal.summary).textSelection(.enabled)
+                if !journal.emotionCurve.isEmpty {
+                    Text("情绪变化：\(journal.emotionCurve.joined(separator: " → "))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if !journal.insights.isEmpty {
+                    Text("洞察：\(journal.insights.joined(separator: "；"))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if !journal.keywords.isEmpty {
+                    NativeTagFlow(tags: journal.keywords)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack {
+                Text(journal.dominantEmotion.isEmpty ? "历史总结" : journal.dominantEmotion)
+                Spacer()
+                Text("心情 \(journal.moodScore) · \(NativeDateFormat.displayDate(journal.createdAt))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 private struct NativeWeeklyReportCard: View {
     let weekLabel: String
     let journals: [JournalEntry]
+    let versionCount: Int
 
     private var averageMood: Double {
         guard !journals.isEmpty else { return 0 }
@@ -500,7 +900,7 @@ private struct NativeWeeklyReportCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("本周小结")
                         .font(.title3.bold())
-                    Text("\(weekLabel) · 根据 \(journals.count) 篇日记自动聚合")
+                    Text(reportSourceLabel)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -533,6 +933,12 @@ private struct NativeWeeklyReportCard: View {
             ),
             in: RoundedRectangle(cornerRadius: 18)
         )
+    }
+
+    private var reportSourceLabel: String {
+        let base = "\(weekLabel) · 根据 \(journals.count) 段夜谈的最新日记自动聚合"
+        guard versionCount > 0 else { return base }
+        return "\(base) · 另保留 \(versionCount) 个历史版本"
     }
 }
 
@@ -676,7 +1082,7 @@ private struct NativeCurrentStateContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !profile.stage.isEmpty {
+            if shouldShowStage {
                 Text(profile.stage)
                     .font(.caption.bold())
                     .foregroundStyle(.indigo)
@@ -709,6 +1115,11 @@ private struct NativeCurrentStateContent: View {
             }
         }
     }
+
+    private var shouldShowStage: Bool {
+        let stage = profile.stage.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !stage.isEmpty && stage != "当前状态"
+    }
 }
 
 private enum NativeStateEvidence {
@@ -726,17 +1137,42 @@ private struct NativeStateHistoryRow: View {
     let profile: StateProfile
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(NativeDateFormat.displayDate(profile.updatedAt))
+                if !profile.stage.isEmpty, profile.stage != "当前状态" {
+                    Text("· \(profile.stage)")
+                }
                 Spacer()
                 Text(NativeDataTaxonomy.trendLabel(profile.trend))
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                Text("强度 \(profile.intensity)/10")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.accentColor.opacity(0.09), in: Capsule())
+                Text("置信度 \(Int(profile.confidence * 100))%")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
             Text(profile.summary)
                 .font(.caption)
                 .textSelection(.enabled)
+            if !profile.supportStrategy.isEmpty {
+                Text("支持方式：\(profile.supportStrategy)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if !profile.evidence.isEmpty {
+                ForEach(NativeStateEvidence.items(from: profile.evidence).prefix(2), id: \.self) { item in
+                    Text("• \(item)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
             if !profile.sourceSessionID.isEmpty {
                 NativeSourceSessionButton(sessionID: profile.sourceSessionID)
             }
@@ -972,6 +1408,8 @@ private enum NativeDataTaxonomy {
         "life_habit",
         "goal_action",
     ]
+
+    static var memoryCategoryKeys: [String] { categoryKeys }
 
     private static let categoryLabels = [
         "self_core": "自我核心",

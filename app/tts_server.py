@@ -114,7 +114,12 @@ class LocalTTS:
             logger.info("cache hit chars=%d", len(text))
             return cache_path.read_bytes()
 
+        with self._cancel_lock:
+            my_count = self._cancel_count
+
         with self._generation_lock:
+            if self._is_cancelled(my_count):
+                raise TTSRequestCancelled("superseded before generation started")
             if cache_path.exists():
                 return cache_path.read_bytes()
 
@@ -134,10 +139,12 @@ class LocalTTS:
             result_sample_rate = None
             for i, seg in enumerate(segments):
                 seg_audio, seg_sr = self._generate_segment(
-                    model, seg, voice, instruct, i + 1, len(segments),
+                    model, seg, voice, instruct, i + 1, len(segments), my_count,
                 )
                 if seg_audio is None:
-                    raise RuntimeError(f"TTS segment {i + 1}/{len(segments)} was cancelled")
+                    raise TTSRequestCancelled(
+                        f"TTS segment {i + 1}/{len(segments)} was cancelled"
+                    )
                 if result_sample_rate is None:
                     result_sample_rate = seg_sr
                 all_audio.append(seg_audio)
@@ -653,6 +660,10 @@ class TTSRequestHandler(BaseHTTPRequestHandler):
         )
 
     def do_POST(self) -> None:
+        if self.path == "/v1/audio/speech/cancel":
+            tts.cancel_current()
+            self._json_response(200, {"status": "cancelled"})
+            return
         if self.path == "/v1/audio/speech/stream":
             self._handle_streaming()
             return

@@ -113,14 +113,45 @@ private func trimJSONLikeString(_ value: String) -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-/// 只针对 reply / expression_id 两个已知字段做保守恢复。
+private func removingRepeatedQuickPrefix(_ reply: String, quickReply: String?) -> String {
+    let candidate = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard
+        let quickReply,
+        !quickReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+        return candidate
+    }
+
+    let quick = quickReply.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard candidate.hasPrefix(quick) else { return candidate }
+
+    let remainderStart = candidate.index(candidate.startIndex, offsetBy: quick.count)
+    if remainderStart < candidate.endIndex {
+        let boundary = candidate[remainderStart]
+        let allowedBoundary = boundary.isWhitespace
+            || "，。！？；：、,.!?;:".contains(boundary)
+        guard allowedBoundary else { return candidate }
+    }
+
+    let separators = CharacterSet.whitespacesAndNewlines
+        .union(CharacterSet(charactersIn: "，。！？；：、,.!?;:"))
+    return candidate[remainderStart...]
+        .trimmingCharacters(in: separators)
+}
+
+/// 只针对 reply / character_id / expression_id 三个已知字段做保守恢复。
 /// 模型偶尔会把 JSON 字符串的结束引号写成中文弯引号；此时不能把整个 JSON 外壳展示给用户。
-private func parseReplyPayload(_ content: String) -> (reply: String, expressionID: String?)? {
+private func parseReplyPayload(_ content: String) -> (reply: String, characterID: String?, expressionID: String?)? {
     if let dict = parseJSONObject(content) {
         let reply = stringFromDict(dict, "reply").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !reply.isEmpty else { return nil }
+        let characterID = stringFromDict(dict, "character_id").trimmingCharacters(in: .whitespacesAndNewlines)
         let expressionID = stringFromDict(dict, "expression_id").trimmingCharacters(in: .whitespacesAndNewlines)
-        return (reply, expressionID.isEmpty ? nil : expressionID)
+        return (
+            reply,
+            characterID.isEmpty ? nil : characterID,
+            expressionID.isEmpty ? nil : expressionID
+        )
     }
 
     let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -153,7 +184,7 @@ private func parseReplyPayload(_ content: String) -> (reply: String, expressionI
         expressionID = safeExpression.isEmpty ? nil : safeExpression
     }
 
-    return (reply, expressionID)
+    return (reply, nil, expressionID)
 }
 
 /// 从 parseJSONObject 的结果中安全提取值
@@ -172,6 +203,11 @@ private func intFromDict(_ dict: [String: Any], _ key: String) -> Int {
 
 private func doubleFromDict(_ dict: [String: Any], _ key: String) -> Double {
     (dict[key] as? Double) ?? 0.0
+}
+
+private func validExpressionID(_ expressionID: String?, for character: CompanionCharacter) -> String? {
+    guard let expressionID else { return nil }
+    return character.expressions.first(where: { $0.id == expressionID })?.id
 }
 
 private func dictFromDict(_ dict: [String: Any], _ key: String) -> [String: Any] {
@@ -264,6 +300,21 @@ private struct LocalRoutePlan {
         return "本轮规划 · \(nextAction) · \(responseMode)：\(name) · \(expression)；\(reason)"
     }
 
+    func presentationMetadata(characterID effectiveCharacterID: String, expressionID effectiveExpressionID: String) -> [String: Any] {
+        var result = metadata
+        if effectiveCharacterID != characterID {
+            result["planned_character_id"] = characterID
+        }
+        result["character_id"] = effectiveCharacterID
+        result["expression_id"] = effectiveExpressionID
+        return result
+    }
+
+    func presentationSummary(character: CompanionCharacter, expressionID effectiveExpressionID: String) -> String {
+        let expression = character.expression(id: effectiveExpressionID)?.label ?? effectiveExpressionID
+        return "本轮规划 · \(nextAction) · \(responseMode)：\(character.name) · \(expression)；\(reason)"
+    }
+
     var assessment: UserConversationAssessment {
         UserConversationAssessment(
             userState: userState,
@@ -278,6 +329,7 @@ private struct LocalRoutePlan {
 
 private struct LocalReplyDraft {
     let reply: String
+    let characterID: String?
     let expressionID: String?
 }
 
@@ -298,10 +350,21 @@ final class LocalDeepSeekService {
 
     init(
         session: URLSession = .shared,
-        endpoint: URL = URL(string: "https://api.deepseek.com/chat/completions")!
+        endpoint: URL? = nil
     ) {
         self.session = session
-        self.endpoint = endpoint
+        self.endpoint = endpoint ?? Self.defaultEndpoint
+    }
+
+    private static var defaultEndpoint: URL {
+#if DEBUG
+        if let rawValue = ProcessInfo.processInfo.environment["SENSEN_DEEPSEEK_ENDPOINT"],
+           let overriddenEndpoint = URL(string: rawValue),
+           ["http", "https"].contains(overriddenEndpoint.scheme?.lowercased() ?? "") {
+            return overriddenEndpoint
+        }
+#endif
+        return URL(string: "https://api.deepseek.com/chat/completions")!
     }
 
     func resetSession() {
@@ -563,15 +626,16 @@ final class LocalDeepSeekService {
             quickReply = nil
         }
 
-        let quickExpressionID = character.expression(id: quickReply?.expressionID ?? character.defaultExpressionID)?.id
-            ?? character.defaultExpressionID
+        let quickCharacter = CompanionFixtures.character(id: quickReply?.characterID) ?? character
+        let quickExpressionID = validExpressionID(quickReply?.expressionID, for: quickCharacter)
+            ?? quickCharacter.defaultExpressionID
         var quickMessage: ChatMessage? = nil
         if let qr = quickReply {
             let qm = database.addLocalMessage(
                 sessionID: activeSessionID,
                 role: .assistant,
                 content: qr.reply,
-                characterID: character.id,
+                characterID: quickCharacter.id,
                 expressionID: quickExpressionID,
                 model: "deepseek-chat",
                 routePlan: ["next_action": "pending_plan"],
@@ -618,7 +682,26 @@ final class LocalDeepSeekService {
             throw error
         }
 
-        let selectedCharacter = CompanionFixtures.character(id: plan.characterID) ?? character
+        let plannedCharacter = CompanionFixtures.character(id: plan.characterID) ?? character
+        let selectedCharacter = quickMessage.flatMap { CompanionFixtures.character(id: $0.characterID) }
+            ?? plannedCharacter
+        let selectedPlanExpressionID = validExpressionID(plan.expressionID, for: selectedCharacter)
+            ?? quickMessage?.expressionID
+            ?? selectedCharacter.defaultExpressionID
+        let routeMetadata = plan.presentationMetadata(
+            characterID: selectedCharacter.id,
+            expressionID: selectedPlanExpressionID
+        )
+        let routeSummary = plan.presentationSummary(
+            character: selectedCharacter,
+            expressionID: selectedPlanExpressionID
+        )
+        if selectedCharacter.id != plannedCharacter.id {
+            fputs(
+                "[LocalDeepSeek] 形态协调：沿用 quick 的 \(selectedCharacter.id)，plan 原选择为 \(plannedCharacter.id)\n",
+                stderr
+            )
+        }
         let normalizedAction = normalizeNextAction(plan.nextAction)
         if normalizedAction == "quick_only", quickMessage != nil {
             fputs("[LocalDeepSeek] plan 决定 quick_only，本轮不再生成第二次回复\n", stderr)
@@ -639,9 +722,9 @@ final class LocalDeepSeekService {
                 role: .assistant,
                 content: actionText,
                 characterID: selectedCharacter.id,
-                expressionID: plan.expressionID,
+                expressionID: selectedPlanExpressionID,
                 model: "route-plan",
-                routePlan: plan.metadata,
+                routePlan: routeMetadata,
                 knowledgeCards: []
             )
             return LocalChatResult(
@@ -657,7 +740,7 @@ final class LocalDeepSeekService {
                     groupRole: actionMessage.groupRole,
                     action: normalizedAction,
                     expressionID: actionMessage.expressionID,
-                    routeSummary: plan.summary,
+                    routeSummary: routeSummary,
                     knowledgeCards: []
                 ),
                 nextAction: normalizedAction,
@@ -675,9 +758,9 @@ final class LocalDeepSeekService {
         )
 
         fputs("[LocalDeepSeek] 开始 requestDeepReply...\n", stderr)
-        let deepReply: LocalReplyDraft
+        let rawDeepReply: LocalReplyDraft
         do {
-            deepReply = try await requestDeepReply(
+            rawDeepReply = try await requestDeepReply(
                 apiKey: apiKey,
                 character: selectedCharacter,
                 history: history,
@@ -687,7 +770,7 @@ final class LocalDeepSeekService {
                 plan: plan,
                 quickReplyText: quickReply?.reply
             )
-            fputs("[LocalDeepSeek] requestDeepReply 成功, 回复长度: \(deepReply.reply.count)\n", stderr)
+            fputs("[LocalDeepSeek] requestDeepReply 成功, 回复长度: \(rawDeepReply.reply.count)\n", stderr)
         } catch {
             fputs("[LocalDeepSeek] requestDeepReply 失败: \(error)\n", stderr)
             if quickMessage != nil {
@@ -702,9 +785,30 @@ final class LocalDeepSeekService {
             }
             throw error
         }
+
+        let cleanedDeepReply = removingRepeatedQuickPrefix(
+            rawDeepReply.reply,
+            quickReply: quickReply?.reply
+        )
+        guard !cleanedDeepReply.isEmpty else {
+            fputs("[LocalDeepSeek] 深度回复仅重复快速回应，本轮不再追加\n", stderr)
+            return LocalChatResult(
+                sessionID: activeSessionID,
+                userMessage: userMessage,
+                quickReply: quickMessage,
+                followUpReply: nil,
+                nextAction: "quick_only_deep_redundant",
+                assessment: plan.assessment
+            )
+        }
+        let deepReply = LocalReplyDraft(
+            reply: cleanedDeepReply,
+            characterID: selectedCharacter.id,
+            expressionID: rawDeepReply.expressionID
+        )
         
-        let deepExpressionID = selectedCharacter.expression(id: deepReply.expressionID ?? plan.expressionID)?.id
-            ?? selectedCharacter.defaultExpressionID
+        let deepExpressionID = validExpressionID(deepReply.expressionID ?? plan.expressionID, for: selectedCharacter)
+            ?? selectedPlanExpressionID
         let assistantMessage = database.addLocalMessage(
             sessionID: activeSessionID,
             role: .assistant,
@@ -712,7 +816,10 @@ final class LocalDeepSeekService {
             characterID: selectedCharacter.id,
             expressionID: deepExpressionID,
             model: "deepseek-chat",
-            routePlan: plan.metadata,
+            routePlan: plan.presentationMetadata(
+                characterID: selectedCharacter.id,
+                expressionID: deepExpressionID
+            ),
             replyStage: "deep",
             knowledgeCards: knowledgeCards
         )
@@ -731,7 +838,10 @@ final class LocalDeepSeekService {
                 action: assistantMessage.action,
                 expressionID: assistantMessage.expressionID,
                 replyStage: "deep",
-                routeSummary: plan.summary,
+                routeSummary: plan.presentationSummary(
+                    character: selectedCharacter,
+                    expressionID: deepExpressionID
+                ),
                 knowledgeCards: knowledgeCards
             ),
             nextAction: "deep",
@@ -914,13 +1024,21 @@ final class LocalDeepSeekService {
         character: CompanionCharacter,
         history: [ChatMessage]
     ) async throws -> LocalReplyDraft {
+        let characterOptions = CompanionFixtures.characters.map { option in
+            let expressions = option.expressions.map(\.id).joined(separator: ", ")
+            return "- \(option.id)（\(option.name)）：\(option.tagline)；可用表情：\(expressions)"
+        }.joined(separator: "\n")
         let prompt = """
-        你是 \(character.name)，一位温柔、克制的心理陪伴者。你正在生成即时回应；后台会同时进行更完整的意图分析，所以不要等待分析结果。
+        你是森森物语的即时回应者。你正在生成快速回应；后台会同时进行更完整的意图分析，所以不要等待分析结果。
 
         用户最后一句话：\(history.last?.content ?? "")
 
+        请先独立选择最适合此刻的一种兔子形态和该形态真实存在的表情：
+        \(characterOptions)
+
+        当前界面形态是 \(character.id)（\(character.name)），只在没有明显更合适的选择时沿用。
         请用 1-2 句话先接住用户，让用户明确感到消息已经被听见。不要深入分析，不要给复杂建议，也不要声称已经了解用户没有说出的内容。
-        输出格式：JSON，包含 reply 和 expression_id 字段。
+        输出格式：JSON，只包含 reply、character_id 和 expression_id 字段。
         """
         let request = try buildJSONRequest(
             apiKey: apiKey,
@@ -935,9 +1053,12 @@ final class LocalDeepSeekService {
         }
         fputs("[LocalDeepSeek] requestQuickReply: content 长度: \(content.count)\n", stderr)
         if let parsed = parseReplyPayload(content) {
+            let selectedCharacter = CompanionFixtures.character(id: parsed.characterID) ?? character
             return LocalReplyDraft(
                 reply: parsed.reply,
-                expressionID: parsed.expressionID ?? character.defaultExpressionID
+                characterID: selectedCharacter.id,
+                expressionID: validExpressionID(parsed.expressionID, for: selectedCharacter)
+                    ?? selectedCharacter.defaultExpressionID
             )
         }
         fputs("[LocalDeepSeek] requestQuickReply: 结构化回复解析失败\n", stderr)
@@ -989,6 +1110,7 @@ final class LocalDeepSeekService {
             fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析成功\n", stderr)
             return LocalReplyDraft(
                 reply: parsed.reply,
+                characterID: character.id,
                 expressionID: parsed.expressionID ?? plan.expressionID
             )
         }

@@ -18,6 +18,7 @@ final class NativeMacShellStore: ObservableObject {
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var selectedSessionID: String?
     @Published private(set) var latestAssessment: UserConversationAssessment?
+    @Published private(set) var latestLiveAssistantMessage: ChatMessage?
     @Published private(set) var closeSummary: SessionCloseSummary?
     @Published private(set) var databasePath = "尚未打开本地数据库"
     @Published private(set) var databaseError: String?
@@ -49,7 +50,9 @@ final class NativeMacShellStore: ObservableObject {
         self.deepSeekService = deepSeekService
         self.secureSettings = secureSettings
         self.database = database ?? (try? SQLiteDatabase())
-        let savedAPIKey = secureSettings.deepSeekAPIKey() ?? ""
+        let savedAPIKey = secureSettings.deepSeekAPIKey()
+            ?? ProcessInfo.processInfo.environment["DEEPSEEK_API_KEY"]
+            ?? ""
         apiKeyText = savedAPIKey
         backendStatus = BackendConnectionStatus(
             state: savedAPIKey.isEmpty ? .unknown : .online,
@@ -116,6 +119,7 @@ final class NativeMacShellStore: ObservableObject {
         selectedSessionID = nil
         messages = []
         latestAssessment = nil
+        latestLiveAssistantMessage = nil
         closeSummary = nil
         notice = nil
         operationStatus = nil
@@ -132,6 +136,7 @@ final class NativeMacShellStore: ObservableObject {
         deepSeekService.useSession(sessionID)
         messages = bounded(database?.messages(sessionID: sessionID, limit: maxDisplayMessages) ?? [])
         latestAssessment = nil
+        latestLiveAssistantMessage = nil
         closeSummary = nil
         notice = nil
         return true
@@ -174,6 +179,7 @@ final class NativeMacShellStore: ObservableObject {
             )
         )
         latestAssessment = nil
+        latestLiveAssistantMessage = nil
         closeSummary = nil
         notice = nil
         isSending = true
@@ -199,6 +205,7 @@ final class NativeMacShellStore: ObservableObject {
                     guard let self else { return }
                     SendInstrumentation.shared.recordPhase(.firstResponseReceived, correlationID: correlationID)
                     self.appendMessage(quickMessage)
+                    self.latestLiveAssistantMessage = quickMessage
                     self.operationStatus = "快速回应已到达，后台仍在判断是否需要深入回应…"
                 }
 
@@ -209,6 +216,9 @@ final class NativeMacShellStore: ObservableObject {
 
                 selectedSessionID = result.sessionID
                 latestAssessment = result.assessment
+                if let followUpReply = result.followUpReply {
+                    latestLiveAssistantMessage = followUpReply
+                }
                 messages = bounded(database.messages(sessionID: result.sessionID, limit: maxDisplayMessages))
                 loadLocalCache()
                 notice = noticeForNextAction(result.nextAction, hasFollowUp: result.followUpReply != nil)
@@ -268,11 +278,14 @@ final class NativeMacShellStore: ObservableObject {
             selectedSessionID = nil
             loadLocalCache()
             notice = "本轮总结已完成，结果已写入本地资料。"
-            await refreshWeeklyFlow(force: false)
+            operationStatus = nil
+            Task { [weak self] in
+                await self?.refreshWeeklyFlow(force: false)
+            }
         } catch {
             notice = "结束并总结失败：\(error.localizedDescription)"
+            operationStatus = nil
         }
-        operationStatus = nil
     }
 
     func refreshWeeklyFlow(force: Bool) async {

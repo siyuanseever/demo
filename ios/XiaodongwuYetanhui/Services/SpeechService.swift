@@ -29,8 +29,25 @@ final class SpeechService: NSObject, ObservableObject {
     }
 
     private static let autoReadKey = "speech.automaticallyReadsReplies"
-    private static let streamEndpoint = URL(string: "http://127.0.0.1:8768/v1/audio/speech/stream")!
-    private static let fallbackEndpoint = URL(string: "http://127.0.0.1:8768/v1/audio/speech")!
+    private static var serviceBaseURL: URL {
+#if DEBUG
+        if let rawValue = ProcessInfo.processInfo.environment["SENSEN_TTS_BASE_URL"],
+           let overriddenURL = URL(string: rawValue),
+           ["http", "https"].contains(overriddenURL.scheme?.lowercased() ?? "") {
+            return overriddenURL
+        }
+#endif
+        return URL(string: "http://127.0.0.1:8768")!
+    }
+    private static var streamEndpoint: URL {
+        serviceBaseURL.appendingPathComponent("v1/audio/speech/stream")
+    }
+    private static var fallbackEndpoint: URL {
+        serviceBaseURL.appendingPathComponent("v1/audio/speech")
+    }
+    private static var cancelEndpoint: URL {
+        serviceBaseURL.appendingPathComponent("v1/audio/speech/cancel")
+    }
     private static let voiceInstruction = "平静、克制、自然地说，像一位年轻女孩在安静地陪伴朋友。保持稳定音量和清晰发音，情绪起伏小，不使用哭腔、气声、播音腔或撒娇语气。"
 
     private var audioEngine: AVAudioEngine?
@@ -67,7 +84,7 @@ final class SpeechService: NSObject, ObservableObject {
         let cleanText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanText.isEmpty else { return }
 
-        stop()
+        stop(cancelRemote: false)
         startPlayback(messageID: messageID, text: cleanText)
     }
 
@@ -96,6 +113,11 @@ final class SpeechService: NSObject, ObservableObject {
     }
 
     func stop() {
+        stop(cancelRemote: true)
+    }
+
+    private func stop(cancelRemote: Bool) {
+        let shouldCancelRemote = isActive || queuedItem != nil || queuedPrefetchTask != nil
         queuedItem = nil
         queuedMessageID = nil
         queuedPrefetchTask?.cancel()
@@ -105,6 +127,11 @@ final class SpeechService: NSObject, ObservableObject {
         requestID = nil
         stopEngine()
         resetPlaybackState()
+        if cancelRemote, shouldCancelRemote {
+            Task {
+                await Self.cancelRemoteGeneration()
+            }
+        }
     }
 
     private func startPlayback(
@@ -245,6 +272,13 @@ final class SpeechService: NSObject, ObservableObject {
             throw SpeechServiceError.invalidResponse
         }
         return data
+    }
+
+    private static func cancelRemoteGeneration() async {
+        var request = URLRequest(url: cancelEndpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 2
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     private static func makeRequest(url: URL, text: String) throws -> URLRequest {

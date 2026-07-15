@@ -46,6 +46,7 @@ final class CompanionStore: ObservableObject {
     @Published var isMoodRefreshing = false
     @Published var chatOperationStatus: String?
     @Published var latestUserAssessment: UserConversationAssessment?
+    @Published var latestLiveAssistantMessage: ChatMessage?
     @Published var flowContext = FlowContext.empty
     @Published var flowRitualIntention: String? = nil
     @Published var todayPlanItems: [PlanItem] = []
@@ -88,6 +89,9 @@ final class CompanionStore: ObservableObject {
     /// Append a message and trim the array if it exceeds the display cap.
     private func appendMessage(_ message: ChatMessage) {
         messages.append(message)
+        if message.role == .assistant {
+            latestLiveAssistantMessage = message
+        }
         if messages.count > maxDisplayMessages {
             messages.removeFirst(messages.count - maxDisplayMessages)
         }
@@ -253,6 +257,7 @@ final class CompanionStore: ObservableObject {
     }
 
     func openSession(_ sessionID: String) {
+        latestLiveAssistantMessage = nil
         chatService.useSession(sessionID)
         localDeepSeekService.useSession(sessionID)
         do {
@@ -311,6 +316,7 @@ final class CompanionStore: ObservableObject {
     }
 
     func startNewSession() {
+        latestLiveAssistantMessage = nil
         chatService.resetSession()
         localDeepSeekService.resetSession()
         messages = [Self.greetingMessage(characterID: selectedCharacterID)]

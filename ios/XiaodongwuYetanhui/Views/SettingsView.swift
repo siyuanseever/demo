@@ -1,5 +1,5 @@
 import SwiftUI
-import MobileCoreServices
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var store: CompanionStore
@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var macBackendURL = ""
     @State private var macSyncToken = ""
     @State private var customDatabasePath = ""
+    @State private var documentPickerDelegate: DocumentPickerDelegate?
 
     var body: some View {
         ZStack {
@@ -39,18 +40,26 @@ struct SettingsView: View {
                         },
                         reset: store.resetDatabasePath,
                         selectFile: {
-                            let picker = UIDocumentPickerViewController(documentTypes: ["public.item"], in: .open)
+                            let picker = UIDocumentPickerViewController(
+                                forOpeningContentTypes: [.data],
+                                asCopy: false
+                            )
                             picker.allowsMultipleSelection = false
+                            let delegate = DocumentPickerDelegate { url in
+                                DispatchQueue.main.async {
+                                    if let url {
+                                        customDatabasePath = url.path
+                                    }
+                                    documentPickerDelegate = nil
+                                }
+                            }
+                            documentPickerDelegate = delegate
+                            picker.delegate = delegate
                             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                                let window = windowScene.windows.first,
                                let rootViewController = window.rootViewController
                             {
                                 rootViewController.present(picker, animated: true)
-                                picker.delegate = DocumentPickerDelegate { url in
-                                    DispatchQueue.main.async {
-                                        customDatabasePath = url.path
-                                    }
-                                }
                             }
                         }
                     )
@@ -568,21 +577,20 @@ private struct DatabasePathPanel: View {
 }
 
 class DocumentPickerDelegate: NSObject, UIDocumentPickerDelegate {
-    private let completion: (URL) -> Void
+    private let completion: (URL?) -> Void
 
-    init(completion: @escaping (URL) -> Void) {
+    init(completion: @escaping (URL?) -> Void) {
         self.completion = completion
         super.init()
     }
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        if let url = urls.first {
-            completion(url)
-        }
+        completion(urls.first)
         controller.dismiss(animated: true)
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        completion(nil)
         controller.dismiss(animated: true)
     }
 }

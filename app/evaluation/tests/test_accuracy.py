@@ -485,6 +485,34 @@ class TTSHelpersAccuracyTest(AccuracyTest):
         self.assert_equal("tts_retry_returns_valid_sample_rate", sample_rate, 1_000)
         self.assert_equal("tts_retry_returns_complete_audio", len(audio), 2_000)
 
+        class CancelModel:
+            def __init__(self):
+                self.call_count = 0
+
+            def generate(self, **kwargs):
+                self.call_count += 1
+                yield SimpleNamespace(
+                    audio=np.full(2_000, 0.1, dtype=np.float32),
+                    sample_rate=1_000,
+                )
+
+        cancel_model = CancelModel()
+        with service._cancel_lock:
+            request_generation = service._cancel_count
+        service.cancel_current()
+        cancelled_audio, cancelled_rate = service._generate_segment(
+            cancel_model,
+            "这条语音应该在推理前停止。",
+            "Serena",
+            tts_server.DEFAULT_INSTRUCT,
+            1,
+            1,
+            request_generation,
+        )
+        self.assert_equal("tts_cancel_skips_model_generation", cancel_model.call_count, 0)
+        self.assert_equal("tts_cancel_returns_no_audio", cancelled_audio, None)
+        self.assert_equal("tts_cancel_returns_no_rate", cancelled_rate, None)
+
         return self.results
 
 

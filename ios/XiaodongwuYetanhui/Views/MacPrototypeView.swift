@@ -358,10 +358,9 @@ private struct MacConversationWorkspace: View {
         .task {
             isComposerFocused = true
         }
-        .onChange(of: store.messages.count) {
+        .onChange(of: store.latestLiveAssistantMessage?.id) {
             guard speech.automaticallyReadsReplies,
-                  let message = store.messages.last,
-                  message.role == .assistant else { return }
+                  let message = store.latestLiveAssistantMessage else { return }
             speech.enqueue(messageID: message.id, text: message.content)
         }
     }
@@ -810,7 +809,7 @@ private struct MacMessageRow: View {
                             Label(
                                 speech.activeMessageID == message.id && speech.isPreparing
                                     ? "正在生成语音…"
-                                    : (speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听忧忧兔说"),
+                                    : (speech.activeMessageID == message.id && speech.isSpeaking ? "停止朗读" : "听\(characterName)说"),
                                 systemImage: speech.activeMessageID == message.id && speech.isPreparing
                                     ? "waveform.badge.magnifyingglass"
                                     : (speech.activeMessageID == message.id && speech.isSpeaking
@@ -821,7 +820,7 @@ private struct MacMessageRow: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.accentPurple)
-                        .accessibilityHint("使用本机 Qwen3-TTS Serena 女性声线朗读这条回复")
+                        .accessibilityHint("使用本机 Qwen3-TTS Serena 女性声线朗读\(characterName)的这条回复")
                     }
                 }
                 .frame(maxWidth: 620, alignment: message.role == .user ? .trailing : .leading)
@@ -868,6 +867,10 @@ private struct MacMessageRow: View {
                 }
             }
         }
+    }
+
+    private var characterName: String {
+        store.character(id: message.characterID)?.name ?? store.selectedCharacter.name
     }
 
     private func copyMessage() {

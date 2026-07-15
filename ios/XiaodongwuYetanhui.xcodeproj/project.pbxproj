@@ -145,6 +145,19 @@
 		F00000000000000000000123 /* sensen-emoji-yoyo-understanding.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000338 /* sensen-emoji-yoyo-understanding.webp */; };
 		F00000000000000000000124 /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00000000000000000000201 /* SpeechService.swift */; };
 		F00000000000000000000125 /* SensenStoryNative.icns in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000220 /* SensenStoryNative.icns */; };
+		F00000000000000000000126 /* sensen-emoji-momo-celebrate.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000339 /* sensen-emoji-momo-celebrate.webp */; };
+		F00000000000000000000127 /* sensen-emoji-momo-curious.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000340 /* sensen-emoji-momo-curious.webp */; };
+		F00000000000000000000128 /* sensen-emoji-momo-encouraging.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000341 /* sensen-emoji-momo-encouraging.webp */; };
+		F00000000000000000000129 /* sensen-emoji-momo-hi.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000342 /* sensen-emoji-momo-hi.webp */; };
+		F00000000000000000000130 /* sensen-emoji-momo-ok.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000343 /* sensen-emoji-momo-ok.webp */; };
+		F00000000000000000000131 /* sensen-emoji-momo-ready.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000344 /* sensen-emoji-momo-ready.webp */; };
+		F00000000000000000000132 /* sensen-emoji-momo-thinking.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000345 /* sensen-emoji-momo-thinking.webp */; };
+		F00000000000000000000133 /* sensen-emoji-momo-wistful.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000346 /* sensen-emoji-momo-wistful.webp */; };
+		F00000000000000000000134 /* sensen-emoji-yoran-content.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000347 /* sensen-emoji-yoran-content.webp */; };
+		F00000000000000000000135 /* sensen-emoji-yoran-ready.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000348 /* sensen-emoji-yoran-ready.webp */; };
+		F00000000000000000000136 /* sensen-emoji-yoran-sad.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000349 /* sensen-emoji-yoran-sad.webp */; };
+		F00000000000000000000137 /* sensen-emoji-yoran-serene.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000350 /* sensen-emoji-yoran-serene.webp */; };
+		F00000000000000000000138 /* sensen-emoji-yoran-wistful.webp in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000351 /* sensen-emoji-yoran-wistful.webp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -686,6 +699,19 @@
 				F00000000000000000000121 /* sensen-emoji-yoyo-listening.webp in Resources */,
 				F00000000000000000000122 /* sensen-emoji-yoyo-proud.webp in Resources */,
 				F00000000000000000000123 /* sensen-emoji-yoyo-understanding.webp in Resources */,
+				F00000000000000000000126 /* sensen-emoji-momo-celebrate.webp in Resources */,
+				F00000000000000000000127 /* sensen-emoji-momo-curious.webp in Resources */,
+				F00000000000000000000128 /* sensen-emoji-momo-encouraging.webp in Resources */,
+				F00000000000000000000129 /* sensen-emoji-momo-hi.webp in Resources */,
+				F00000000000000000000130 /* sensen-emoji-momo-ok.webp in Resources */,
+				F00000000000000000000131 /* sensen-emoji-momo-ready.webp in Resources */,
+				F00000000000000000000132 /* sensen-emoji-momo-thinking.webp in Resources */,
+				F00000000000000000000133 /* sensen-emoji-momo-wistful.webp in Resources */,
+				F00000000000000000000134 /* sensen-emoji-yoran-content.webp in Resources */,
+				F00000000000000000000135 /* sensen-emoji-yoran-ready.webp in Resources */,
+				F00000000000000000000136 /* sensen-emoji-yoran-sad.webp in Resources */,
+				F00000000000000000000137 /* sensen-emoji-yoran-serene.webp in Resources */,
+				F00000000000000000000138 /* sensen-emoji-yoran-wistful.webp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

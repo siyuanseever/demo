@@ -22,6 +22,10 @@ private struct NativeN2ContractTests {
             try await testWeeklyFlowRoundTrip()
             try await testDirectQuickPlanDeepPipeline()
             try await testDirectQuickOnlyPipeline()
+            try await testQuickCharacterSelectionPipeline()
+            try await testDeepCharacterSelectionPipeline()
+            try await testParallelCharacterReconciliation()
+            try await testSessionCloseAndResummarizePipeline()
             try await testTenTurnDirectPipeline()
             print("Native N2/N3 contract tests passed")
         } catch {
@@ -359,6 +363,118 @@ private struct NativeN2ContractTests {
         try expect(result.quickReply != nil, "quick-only lost quick reply")
         try expect(result.followUpReply == nil, "quick-only unexpectedly generated deep reply")
         try expect(database.messages(sessionID: result.sessionID).count == 2, "quick-only should persist user + quick")
+    }
+
+    @MainActor
+    private static func testQuickCharacterSelectionPipeline() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sensen-native-quick-character-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let database = try SQLiteDatabase(databaseURL: url)
+        let service = LocalDeepSeekService(session: .shared, endpoint: try fixtureEndpoint())
+        let result = try await service.send(
+            text: "默默兔快速回复",
+            character: CompanionFixtures.characters[0],
+            apiKey: "fixture-key",
+            database: database
+        )
+
+        try expect(result.nextAction == "quick_only", "momo fixture should remain quick-only")
+        try expect(result.quickReply?.characterID == "momo", "quick reply ignored selected momo form")
+        try expect(result.quickReply?.expressionID == "encouraging", "quick reply lost momo expression")
+        let persisted = database.messages(sessionID: result.sessionID)
+        try expect(persisted.last?.characterID == "momo", "persisted quick reply lost momo form")
+        try expect(persisted.last?.expressionID == "encouraging", "persisted quick reply lost momo expression")
+    }
+
+    @MainActor
+    private static func testDeepCharacterSelectionPipeline() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sensen-native-deep-character-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let database = try SQLiteDatabase(databaseURL: url)
+        let service = LocalDeepSeekService(session: .shared, endpoint: try fixtureEndpoint())
+        let result = try await service.send(
+            text: "悠然兔深入回复",
+            character: CompanionFixtures.characters[0],
+            apiKey: "fixture-key",
+            database: database
+        )
+
+        try expect(result.nextAction == "deep", "yoran fixture should choose deep")
+        try expect(result.quickReply?.characterID == "yoran", "quick reply ignored selected yoran form")
+        try expect(result.quickReply?.expressionID == "serene", "quick reply lost yoran expression")
+        try expect(result.followUpReply?.characterID == "yoran", "deep reply ignored planned yoran form")
+        try expect(result.followUpReply?.expressionID == "serene", "deep reply lost yoran expression")
+        let persisted = database.messages(sessionID: result.sessionID)
+        try expect(persisted.suffix(2).allSatisfy { $0.characterID == "yoran" }, "persisted replies do not share yoran form")
+    }
+
+    @MainActor
+    private static func testParallelCharacterReconciliation() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sensen-native-character-reconciliation-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let database = try SQLiteDatabase(databaseURL: url)
+        let service = LocalDeepSeekService(session: .shared, endpoint: try fixtureEndpoint())
+        let result = try await service.send(
+            text: "形态冲突测试",
+            character: CompanionFixtures.characters[0],
+            apiKey: "fixture-key",
+            database: database
+        )
+
+        try expect(result.quickReply?.characterID == "momo", "fixture quick form should be momo")
+        try expect(result.followUpReply?.characterID == "momo", "deep reply switched away from the visible quick form")
+        try expect(
+            result.followUpReply?.expressionID == "encouraging",
+            "reconciled deep reply lost quick expression, got \(result.followUpReply?.expressionID ?? "nil")"
+        )
+        let persisted = database.messages(sessionID: result.sessionID)
+        try expect(persisted.suffix(2).allSatisfy { $0.characterID == "momo" }, "one turn persisted two different forms")
+    }
+
+    @MainActor
+    private static func testSessionCloseAndResummarizePipeline() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sensen-native-close-session-\(UUID().uuidString).db")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let database = try SQLiteDatabase(databaseURL: url)
+        let service = LocalDeepSeekService(session: .shared, endpoint: try fixtureEndpoint())
+        let sessionID = database.createLocalSession()
+        _ = database.addLocalMessage(sessionID: sessionID, role: .user, content: "最近很累，休息时又会自责")
+        _ = database.addLocalMessage(
+            sessionID: sessionID,
+            role: .assistant,
+            content: "我们先把疲惫和自责分开看。",
+            characterID: "yoyo",
+            expressionID: "understanding",
+            replyStage: "deep"
+        )
+        service.useSession(sessionID)
+
+        let firstSummary = try await service.closeCurrentSession(apiKey: "fixture-key", database: database)
+        try expect(firstSummary.journalSummary == "这次夜谈看见了疲惫与边界的关系。", "close summary lost journal text")
+        try expect(firstSummary.memoryCount == 2, "close summary memory count mismatch")
+        try expect(firstSummary.stateProfileCount == 1, "close summary changed-state count mismatch")
+        try expect(firstSummary.journal?.emotionCurve.count == 3, "close summary lost emotion curve")
+        try expect(firstSummary.memories.count == 2, "close card lost memory details")
+        try expect(firstSummary.stateProfiles.count == 6, "close card must disclose all reviewed state domains")
+        try expect(database.journals().filter { $0.sessionID == sessionID }.count == 1, "first close did not persist one journal")
+        try expect(database.memories().filter { $0.sourceSessionID == sessionID }.count == 2, "first close did not persist memories")
+        try expect(database.stateProfiles().count == 1, "no_change profiles should not overwrite current state")
+
+        service.useSession(sessionID)
+        _ = database.addLocalMessage(sessionID: sessionID, role: .user, content: "我又补充了一点新的感受")
+        let secondSummary = try await service.closeCurrentSession(apiKey: "fixture-key", database: database)
+        try expect(secondSummary.memoryCount == 2, "second close returned an old cached summary")
+        try expect(database.journals().filter { $0.sessionID == sessionID }.count == 2, "resummarize did not create a new journal version")
+        try expect(database.memories().filter { $0.sourceSessionID == sessionID }.count == 4, "resummarize did not persist new memory results")
+        try expect(database.stateProfileVersions().count == 2, "resummarize did not append state history")
     }
 
     @MainActor

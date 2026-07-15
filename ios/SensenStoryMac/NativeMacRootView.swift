@@ -69,6 +69,9 @@ struct NativeMacRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .nativeOpenConversation)) { _ in
             selection = .conversation
         }
+        .onReceive(NotificationCenter.default.publisher(for: .nativeOpenFlow)) { _ in
+            selection = .flow
+        }
     }
 
     private var statusColor: Color {

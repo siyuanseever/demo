@@ -27,7 +27,11 @@ struct SensenStoryNativeApp: App {
                     Task { await store.closeCurrentSession() }
                 }
                     .keyboardShortcut("e", modifiers: [.command, .shift])
-                    .disabled(store.isSending || store.messages.allSatisfy { $0.role != .user })
+                    .disabled(
+                        store.isSending
+                            || store.selectedSessionID == nil
+                            || store.messages.allSatisfy { $0.role != .user }
+                    )
             }
 
             SidebarCommands()
@@ -44,4 +48,5 @@ struct SensenStoryNativeApp: App {
 
 extension Notification.Name {
     static let nativeOpenConversation = Notification.Name("sensen.native.openConversation")
+    static let nativeOpenFlow = Notification.Name("sensen.native.openFlow")
 }

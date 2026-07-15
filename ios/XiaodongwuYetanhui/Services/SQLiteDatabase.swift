@@ -1150,6 +1150,19 @@ final class SQLiteDatabase {
     private static func preparedDatabaseURL() throws -> URL {
         let fileManager = FileManager.default
 
+        if
+            let isolatedPath = ProcessInfo.processInfo.environment["SENSEN_DATABASE_PATH"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !isolatedPath.isEmpty
+        {
+            let isolatedURL = URL(fileURLWithPath: isolatedPath)
+            try fileManager.createDirectory(
+                at: isolatedURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            return isolatedURL
+        }
+
         #if targetEnvironment(macCatalyst)
         if
             let customPath = UserDefaults.standard.string(forKey: "sensen.customDatabasePath.v1"),

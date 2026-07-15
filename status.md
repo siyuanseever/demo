@@ -124,6 +124,65 @@ Git 当前真实状态：`automation/quality-loop` 与 `main` 均指向 `d506635
 - 实机验证搜索“雨雨怪”后仅展开匹配的 `6月` 分组；清空后 `今天` 保持展开，`昨天/本周/7月/6月/5月` 均恢复折叠。
 - `git diff --check`、`scripts/test_native_n2.sh` 和 `SensenStoryNative` clean build 均通过；契约测试覆盖 quick/plan 并行、quick-only、按需 deep、连续 10 轮和 SQLite 持久化。
 
+### 2026-07-15 原生真实 DeepSeek 发送回归
+
+- 新增 `scripts/test_native_deepseek_smoke.sh`，从本地环境读取 Key，使用一次性临时 SQLite，不读取或写入用户历史资料，也不输出回复正文。
+- 真实简单输入验证 `quick + plan → quick_only`：quick `0.97s`，完整路由 `5.37s`，持久化 2 条消息。
+- 真实复杂输入验证 `quick + plan → deep`：quick `0.87s`，完整链路 `8.71s`，持久化 user/quick/deep 共 3 条消息。
+- 两轮均成功解析结构化回复，没有把 `reply`、`expression_id` 等 JSON 外壳泄漏到展示文本；quick 回调均早于 Plan/Deep 完成。
+- 原生 SwiftUI 使用隔离数据库完成真实首条发送：quick 到达时界面保持可点击，deep 到达后 user/quick/deep 三条消息同时保留，没有 `AttributeGraph` 循环或覆盖首条回复。
+- 实机暴露并修复 deep 原样重复 quick 开头的问题：服务层会在持久化前移除完全相同且边界明确的 quick 前缀；如果 deep 只剩重复内容，则不再追加无信息量消息。
+- 修复后再次实机验证，quick 与 deep 从不同内容起点继续；切到“本地资料”再返回“夜谈”，三条消息和右侧评估状态均完整保留。
+- 发送后 30 秒 RSS 共 16 个样本：首次惰性加载从 `148288 KB` 一次升至约 `162432 KB`，随后 13 个样本保持稳定，没有持续增长。
+
+### 2026-07-15 原生本地资料展示闭环
+
+- 本地资料概览从单纯计数扩展为“最近更新 + 记忆地图”：同时显示最近夜谈、日记情绪与心情分数、最近记忆分类、最新状态画像，以及八类记忆的实时数量。
+- 八类记忆卡片均可点击；实机验证点击“支持资源”后直接进入记忆页、滚动并展开该类别，显示 `43` 条记录及其小类，不再只是打开全部列表。
+- 历史会话展开后统一展示关联日记、情绪变化、洞察、下一步、关键词、记忆大类/小类/重要度/依据，以及长期状态强度、趋势和支持方式。
+- 使用真实本地数据验证概览数字、最近更新摘要、八类记忆计数和已总结会话的 3 条关联记忆均能完整显示；来源夜谈与继续对话入口保持可用。
+- `SensenStoryNative` 构建通过，概览、记忆分类直达、历史会话展开等交互均已在运行中的原生 App 验证。
+- 日记页按 `session_id` 选择每段夜谈的最新总结来计算心情曲线和周报，避免重复点击总结产生的多个版本扭曲趋势；旧版本仍保留在“同一会话的历史总结”中。
+- 实机验证本周从原先错误的“9 篇日记”修正为“3 段夜谈的最新日记 + 6 个历史版本”，平均心情和主要情绪随之按独立夜谈重新计算。
+- 长期状态历史行补充阶段、强度、置信度、支持方式和最多两条依据；当前卡不再重复显示两次“当前状态”。实机展开 15 条历史记录验证字段可见。
+- N4 快速页面切换回归中，连续访问夜谈、心流、资料、诊断和设置时 Computer Use 辅助管道因高频无障碍树抓取断开；App 进程仍持续存活，CPU `0.0%`，主线程停留在正常 `mach_msg` AppKit 事件循环。
+- 切页后进程采样 physical footprint `103.5 MB`、peak `120.4 MB`，未发现 AttributeGraph 循环、主线程阻塞或内存失控；这次故障归类为测试控制管道过载，而非 App 卡死。
+- 最新构建再次通过 `scripts/test_native_n2_memory.sh`：20 秒 RSS peak `131.2 MB`，early `117.3 MB`，late `128.4 MB`，增长 `11.2 MB`，低于门控阈值；测试后已恢复普通数据路径启动。
+- 源码复核确认对话轨迹仅左侧 44pt 连续命中区接收交互，预览卡不接收点击；本周心流没有定时轮播，只在从其他页面返回夜谈时推进一张，也可由用户手动切换。
+- 自动语音触发改为只监听新 assistant 消息 ID；页面切换后返回夜谈不会重复播放上一条回复。TTS 服务仍以单生成锁串行执行推理，避免 quick 播放与 deep 预取同时占用两份模型内存。
+- 原生 target 已补齐默默兔 8 张、悠然兔 5 张表情资源；构建包现含忧忧兔 7 张、默默兔 8 张、悠然兔 5 张，共 20 张，与三形态定义一致，不再因资源缺失退回系统占位图。
+- 资源补齐后 `SensenStoryNative` 构建、`scripts/test_native_n2.sh` 与 `scripts/test_native_n2_memory.sh` 再次通过；内存门控 peak `131.2 MB`、增长 `11.2 MB`，首条 quick/deep 消息链路未复现 `AttributeGraph` 循环。
+- quick 回复的结构化协议新增 `character_id`：快速模型会独立选择忧忧兔、默默兔或悠然兔及其合法表情，不再永远沿用上一形态；quick 与 plan 仍并行，不增加首条回应等待。
+- 新增三形态契约回归：默默兔 `quick_only` 会把 `momo/encouraging` 同时写入回调和 SQLite；悠然兔 `deep` 会让 quick/deep 都保存 `yoran/serene`，右侧动态头像可直接跟随最新 assistant 元数据。
+- 真实 DeepSeek 冒烟再次通过：quick `1.32s`、完整 deep 链路 `12.51s`、持久化 3 条消息；回复 JSON 外壳未泄漏，真实形态和表情均经过合法性校验。
+- 上述协议调整后原生构建和内存门控再次通过：RSS peak `131.2 MB`、early `117.2 MB`、late `128.4 MB`、增长 `11.1 MB`。
+- 夜谈右侧“本周心流”新增可见的完整导航入口；空状态也可直接前往心流页，不再只能阅读或用左右箭头切卡。
+- 原生实机点击右侧入口后成功进入“本周心流导航”，再点击侧栏返回夜谈后卡片从“主要方向”推进到“次要方向”；停留聊天页 2.5 秒仍保持不变，验证“页面切换时轮换、聊天时不自动打扰”。
+- 首版把入口放在卡片底部时被固定高度裁切；实机截图发现后已改为标题栏 `arrow.up.right.square` 按钮，并通过无障碍树确认按钮可点击，避免把仅构建成功误判为交互完成。
+- quick 与 plan 并行时新增“单轮形态协调”：只要 quick 已经显示，后续 clarify/interaction/deep 都沿用该形态；quick 失败时才由 plan 的形态接管，避免同一轮回复中途换兔子。
+- 契约测试故意制造 quick=`momo/encouraging`、plan=`yoyo/understanding` 的冲突，最终 quick/deep 均保存为默默兔；同时修复了 `CompanionCharacter.expression(id:)` 会默认回退、不能用于严格校验的误用，无效 deep 表情现在沿用本轮有效表情。
+- 真实 DeepSeek 再次通过：quick `1.34s`、总计 `10.46s`，本轮 quick/deep 均为 `yoyo`，表情分别为 `gentlesmile/understanding`；测试不输出回复正文。
+- 协调逻辑后的原生构建与内存门控通过：RSS peak `121.9 MB`，early `121.9 MB`，late `121.8 MB`，growth `-0.0 MB`。
+- 新增 `docs/native-macos-n4-acceptance.md`，逐项记录构建、发送、三形态、轨迹、心流、资料、总结、TTS、内存和 Catalyst 对照的完成条件、证据及缺口。
+- 原生 close-session 契约新增完整抽取与重复总结回归：第一次写入 journal、2 条记忆、6 域审阅和 1 项状态更新；继续同一 session 后再次总结会新增 journal 版本、记忆和状态历史，不会返回旧总结。
+- 隔离数据库真实 UI 完成“发送 → 结束并总结”：总结卡默认展开，展示摘要、心情、关键词、洞察、下一步和真正变化的长期状态；结束后总结按钮禁用，不会再次触发无 active session 错误。
+- 心流导航刷新已从总结主等待链路移到后台；实机总结完成后立即移除“正在整理”状态，7 秒后界面仍可操作且完成提示保持，正式本地数据库随后已恢复启动。
+- 原生 Debug 构建支持通过 `SENSEN_DEEPSEEK_ENDPOINT` 临时指向本机 fixture；Release 与未设置变量的 Debug 构建仍固定使用 DeepSeek 官方端点，便于做可重复 UI 回归而不改变正式行为。
+- 三形态 UI 实机验收完成：默默兔 `quick_only` 后，标题、消息头像和右栏头像均显示“默默兔 · 鼓励你”；悠然兔 `quick + deep` 后，两条 assistant 消息与右栏均保持“悠然兔 · 平静”，未出现同轮换兔或消息覆盖。
+- 三形态 fixture 进程与隔离数据库 App 已关闭；随后重新启动普通原生 App，确认本周心流“照顾停药反应后的身体恢复”可见，正式本地数据库路径已恢复。
+- 三形态 UI 验收后的最终门控通过：`test_native_n2.sh`、原生 `xcodebuild` 和内存门控均为成功；最新 RSS peak `131.7 MB`、early `117.7 MB`、late `128.9 MB`、growth `11.2 MB`，日常 App 已再次恢复启动。
+- 新增 `scripts/test_tts_service.sh`：验证本机 4-bit TTS 健康状态、短句流式 WAV、108 字四分段长文本、音频格式/时长和缓存命中；实测 short `5.6s`、long `22.4s`、cache `0.004s`，四段均一次生成成功且没有漏段。
+- 新增 `scripts/test_native_speech_offline.sh` 与 `NativeSpeechOfflineSmoke.swift`：Debug 可通过 `SENSEN_TTS_BASE_URL` 注入端点，离线失败会清空 preparing/speaking/active 状态并保留文字路径，立即停止也不会残留播放状态。
+- 原生与 Catalyst 的语音按钮现在跟随消息形态显示“听忧忧兔说 / 听默默兔说 / 听悠然兔说”，辅助功能说明也使用对应角色名，不再固定写忧忧兔。
+- 同版本 Catalyst/Native 构建均通过；20 秒空闲对照中 Native RSS peak `131.6 MB`、growth `11.2 MB`，Catalyst peak `151.5 MB`、growth `8.1 MB`。完整 UI 同数据对照仍待人工窗口验收。
+- TTS 新增 `/v1/audio/speech/cancel`：停止按钮不仅取消本地播放和 URLSession，也会中止服务端正在执行或等待锁的非流式预取，避免 deep 预取继续占用模型并阻塞下一条语音。
+- 新增 `scripts/test_tts_cancel.sh` 真实生成中取消门控：未缓存长文本在 1 秒后被取消，客户端以预期的 chunked incomplete `curl_status=18` 结束，服务健康检查正常，随后短句/长文本/缓存门控再次通过。
+- Python Gate 0、Gate 1 全部通过（325/325）；Native 与 Catalyst 均重新构建成功。
+- 修复 Catalyst 设置页数据库文件选择器 delegate 立即释放的问题，并改用现代 `UTType.data` API；构建日志不再出现 weak delegate 和废弃初始化警告。
+- Native 与 Catalyst 的自动朗读触发从“观察当前消息列表最后一条”改为独立的 live-assistant 事件：只有本轮实时生成的 quick/deep 会进入语音队列，打开历史会话、加载本地缓存和页面返回不再误读旧回复。
+- live-assistant 改动后原生 N2/N3 契约与 Native/Catalyst 构建再次通过；UI 鼠标试听仍因当前 Mac 锁屏待补。
+- 最新 Native 内存门控通过：20 秒 RSS peak `121.9 MB`、early `121.9 MB`、late `121.8 MB`、growth `-0.1 MB`，实时语音事件和远端取消没有引入持续增长。
+
 ---
 
 ## 已确认的产品方向

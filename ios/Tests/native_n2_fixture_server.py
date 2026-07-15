@@ -52,14 +52,99 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 ensure_ascii=False,
             )
-        elif "你正在生成即时回应" in prompt:
+        elif "把一次中文心理陪伴对话整理为结构化数据" in prompt:
+            domains = [
+                "self_relation",
+                "emotion_regulation",
+                "relationship",
+                "agency_boundary",
+                "trauma_pattern",
+                "meaning_value",
+            ]
             content = json.dumps(
-                {"reply": "先接住你", "expression_id": "concerned"},
+                {
+                    "journal": {
+                        "summary": "这次夜谈看见了疲惫与边界的关系。",
+                        "emotion_curve": ["紧绷", "被理解", "稍微清晰"],
+                        "keywords": ["疲惫", "边界"],
+                        "insights": ["休息需求会被自责压住"],
+                        "suggested_next_step": "今晚先留十分钟不处理任务",
+                        "mood_score": -1,
+                        "dominant_emotion": "疲惫",
+                    },
+                    "memories": [
+                        {
+                            "category": "emotion_pattern",
+                            "subcategory": "self_pressure",
+                            "keywords": ["自责", "休息"],
+                            "content": "疲惫时仍容易因休息而自责",
+                            "evidence": "本轮明确表达",
+                            "confidence": 0.86,
+                            "importance": 4,
+                        },
+                        {
+                            "category": "support_resource",
+                            "subcategory": "recovery",
+                            "keywords": ["安静", "恢复"],
+                            "content": "短暂安静空间有助于恢复选择感",
+                            "evidence": "本轮整理出的下一步",
+                            "confidence": 0.74,
+                            "importance": 3,
+                        },
+                    ],
+                    "state_profiles": [
+                        {
+                            "action": "update" if domain == "emotion_regulation" else "no_change",
+                            "domain": domain,
+                            "stage": "正在觉察" if domain == "emotion_regulation" else "",
+                            "summary": "开始识别疲惫与自责的循环" if domain == "emotion_regulation" else "证据不足，保持现状",
+                            "intensity": 6,
+                            "trend": "softening" if domain == "emotion_regulation" else "stable",
+                            "confidence": 0.82 if domain == "emotion_regulation" else 0.6,
+                            "evidence": ["能够说出休息时的自责"] if domain == "emotion_regulation" else [],
+                            "support_strategy": "先允许短暂休息" if domain == "emotion_regulation" else "",
+                        }
+                        for domain in domains
+                    ],
+                },
+                ensure_ascii=False,
+            )
+        elif "你正在生成快速回应" in prompt:
+            if "形态冲突测试" in prompt or "默默兔快速回复" in prompt:
+                character_id = "momo"
+                expression_id = "encouraging"
+            elif "悠然兔深入回复" in prompt:
+                character_id = "yoran"
+                expression_id = "serene"
+            else:
+                character_id = "yoyo"
+                expression_id = "concerned"
+            content = json.dumps(
+                {
+                    "reply": "先接住你",
+                    "character_id": character_id,
+                    "expression_id": expression_id,
+                },
                 ensure_ascii=False,
             )
         elif "策略规划器" in prompt:
             time.sleep(0.08)
-            next_action = "quick_only" if "用户：简单问候" in prompt else "deep"
+            if "形态冲突测试" in prompt:
+                next_action = "deep"
+                character_id = "yoyo"
+                expression_id = "understanding"
+            elif "默默兔快速回复" in prompt:
+                next_action = "quick_only"
+                character_id = "momo"
+                expression_id = "encouraging"
+            elif "悠然兔深入回复" in prompt:
+                next_action = "deep"
+                character_id = "yoran"
+                expression_id = "serene"
+            else:
+                next_action = "quick_only" if "用户：简单问候" in prompt else "deep"
+                character_id = "yoyo"
+                expression_id = "understanding"
             content = json.dumps(
                 {
                     "next_action": next_action,
@@ -67,8 +152,8 @@ class Handler(BaseHTTPRequestHandler):
                     "core_need": "被理解",
                     "risk_level": "low",
                     "response_mode": "insight",
-                    "character_id": "yoyo",
-                    "expression_id": "understanding",
+                    "character_id": character_id,
+                    "expression_id": expression_id,
                     "knowledge_needs": [],
                     "memory_queries": [],
                     "knowledge_queries": [],
@@ -78,9 +163,19 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 ensure_ascii=False,
             )
+        elif "你是悠然兔" in prompt:
+            content = json.dumps(
+                {"reply": "先接住你。再一起看深一点", "expression_id": "serene"},
+                ensure_ascii=False,
+            )
+        elif "你是默默兔" in prompt:
+            content = json.dumps(
+                {"reply": "先接住你。再一起走一小步", "expression_id": "encouraging"},
+                ensure_ascii=False,
+            )
         else:
             content = json.dumps(
-                {"reply": "再一起看深一点", "expression_id": "understanding"},
+                {"reply": "先接住你。再一起看深一点", "expression_id": "understanding"},
                 ensure_ascii=False,
             )
 
