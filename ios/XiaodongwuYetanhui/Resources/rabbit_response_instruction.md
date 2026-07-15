@@ -1,0 +1,1 @@
+../../../app/prompts/rabbit_response_instruction.md

@@ -331,6 +331,8 @@ private struct LocalReplyDraft {
     let reply: String
     let characterID: String?
     let expressionID: String?
+    let retrievedMemories: [MemoryEntry]
+    let retrievedKnowledgeCards: [KnowledgeCard]
 }
 
 private struct LocalKnowledgeItem {
@@ -343,6 +345,51 @@ final class LocalDeepSeekService {
     private let endpoint: URL
     private var sessionID: String?
     var currentSessionID: String? { sessionID }
+    
+    // MARK: - Prompt 文件加载
+    private static func loadPrompt(_ name: String) -> String {
+        if let url = Bundle.main.url(forResource: name, withExtension: "md"),
+           let content = try? String(contentsOf: url) {
+            return content
+        }
+        
+        let projectBasePath = FileManager.default.currentDirectoryPath
+        let promptPath = URL(fileURLWithPath: projectBasePath)
+            .appendingPathComponent("app")
+            .appendingPathComponent("prompts")
+            .appendingPathComponent("\(name).md")
+        
+        if let content = try? String(contentsOf: promptPath) {
+            return content
+        }
+        
+        let fallbackPath = URL(fileURLWithPath: projectBasePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("app")
+            .appendingPathComponent("prompts")
+            .appendingPathComponent("\(name).md")
+        
+        if let content = try? String(contentsOf: fallbackPath) {
+            return content
+        }
+        
+        fatalError("""
+            [LocalDeepSeek] Could not load prompt \(name).md
+            Searched paths:
+            1. Bundle.main: \(Bundle.main.bundlePath)
+            2. app/prompts/ under current directory: \(projectBasePath)/app/prompts/\(name).md
+            3. Parent directory: \(URL(fileURLWithPath: projectBasePath).deletingLastPathComponent().path)/app/prompts/\(name).md
+            Make sure prompt markdown files exist in app/prompts/ and are accessible at runtime.
+            """)
+    }
+    
+    private static let personaPrompt = loadPrompt("persona")
+    private static let weeklyFlowInsightPrompt = loadPrompt("weekly_flow_insight")
+    private static let routePlanPrompt = loadPrompt("route_plan")
+    private static let quickReplyPrompt = loadPrompt("quick_reply")
+    private static let sessionExtractionPrompt = loadPrompt("session_extraction")
+    private static let rabbitResponseInstructionPrompt = loadPrompt("rabbit_response_instruction")
+    private static let quickReplyHandoffPrompt = loadPrompt("quick_reply_handoff")
 
     func clearSession() {
         sessionID = nil
@@ -435,19 +482,7 @@ final class LocalDeepSeekService {
         长期状态：
         \(profiles.map { "- [\($0.domain)] \($0.summary)；趋势：\($0.trend)；支持：\($0.supportStrategy)" }.joined(separator: "\n"))
         """
-        let prompt = """
-        你正在为心理陪伴应用生成一份“本周心流导航”。它不是诊断，也不是任务清单；目标是从近期总结、长期记忆和状态变化中，找出本周最值得照看的一个主要方向，以及至多一个次要方向。
-
-        要求：
-        - 目标必须具体、温柔、可执行，不使用空泛积极话术。
-        - primary_goal_next_step 应当能在 10-30 分钟内开始。
-        - 不编造来源中没有的事实；证据不足时保持克制。
-        - 只输出 JSON，不要 Markdown。
-
-        JSON 字段：primary_goal_title, primary_goal_reason, primary_goal_next_step, primary_goal_challenge, secondary_goal_title, secondary_goal_reason, secondary_goal_next_step, secondary_goal_challenge, recent_emotion_summary, recent_emotion_tags, flow_support, memory_cues, core_insight, core_insight_detail, recent_pattern_title, recent_pattern_items, recent_pattern_detail, flow_condition_title, flow_condition_items, flow_condition_detail, gentle_reminder_title, gentle_reminder, gentle_reminder_detail, source_summary。
-
-        \(source)
-        """
+        let prompt = Self.weeklyFlowInsightPrompt + "\n\n\(source)"
         let request = try buildJSONRequest(
             apiKey: apiKey,
             messages: [DeepSeekMessage(role: "system", content: prompt)],
@@ -804,7 +839,9 @@ final class LocalDeepSeekService {
         let deepReply = LocalReplyDraft(
             reply: cleanedDeepReply,
             characterID: selectedCharacter.id,
-            expressionID: rawDeepReply.expressionID
+            expressionID: rawDeepReply.expressionID,
+            retrievedMemories: memories,
+            retrievedKnowledgeCards: knowledgeCards
         )
         
         let deepExpressionID = validExpressionID(deepReply.expressionID ?? plan.expressionID, for: selectedCharacter)
@@ -842,7 +879,8 @@ final class LocalDeepSeekService {
                     character: selectedCharacter,
                     expressionID: deepExpressionID
                 ),
-                knowledgeCards: knowledgeCards
+                knowledgeCards: knowledgeCards,
+                retrievedMemories: memories
             ),
             nextAction: "deep",
             assessment: plan.assessment
@@ -905,34 +943,11 @@ final class LocalDeepSeekService {
             let expressions = character.expressions.map { "\($0.id)=\($0.label)" }.joined(separator: "、")
             return "- \(character.id)：\(character.name)，\(character.tagline)；表情：\(expressions)"
         }.joined(separator: "\n")
-        let prompt = """
-        你是“森森物语”的本轮策略规划器，不直接回复用户。
-        请结合当前对话和全部长期状态，规划用户状态、核心需要、风险、回复方式、兔子形态、表情、检索词，以及快速回应之后是否还需要第二步动作。
-        只输出 JSON，不要诊断，不要输出解释性正文。
-
-        可用兔子形态：
-        \(characterText)
-
-        当前对话：
-        \(historyText)
-
-        长期状态：
-        \(profileText.isEmpty ? "暂无" : profileText)
-
-        JSON 字段：
-        next_action(deep|quick_only|clarify|interaction),
-        user_state, core_need, risk_level(low|medium|high),
-        response_mode(stabilize|validate|insight|boundary|action|mixed),
-        character_id(yoyo|momo|yoran), expression_id,
-        knowledge_needs(0-5项), memory_queries(0-6项), knowledge_queries(0-6项),
-        response_guidance, reason, action_reply。
-        规则：
-        - deep：需要记忆/知识检索和更完整的第二次回复。
-        - quick_only：简单问候、确认或 quick 已足够，不再追加回复。
-        - clarify：信息不足，action_reply 直接给出一句温和澄清问题。
-        - interaction：更适合一个简短练习，action_reply 直接给出低压力引导。
-        默认形态可参考 \(fallbackCharacter.id)，但应根据本轮真实需要重新选择。
-        """
+        var prompt = Self.routePlanPrompt
+            .replacingOccurrences(of: "{character_text}", with: characterText)
+            .replacingOccurrences(of: "{history_text}", with: historyText)
+            .replacingOccurrences(of: "{profile_text}", with: profileText.isEmpty ? "暂无" : profileText)
+            .replacingOccurrences(of: "{fallback_character_id}", with: fallbackCharacter.id)
         var content = try await requestPlanAPI(
             apiKey: apiKey,
             prompt: prompt,
@@ -1028,18 +1043,11 @@ final class LocalDeepSeekService {
             let expressions = option.expressions.map(\.id).joined(separator: ", ")
             return "- \(option.id)（\(option.name)）：\(option.tagline)；可用表情：\(expressions)"
         }.joined(separator: "\n")
-        let prompt = """
-        你是森森物语的即时回应者。你正在生成快速回应；后台会同时进行更完整的意图分析，所以不要等待分析结果。
-
-        用户最后一句话：\(history.last?.content ?? "")
-
-        请先独立选择最适合此刻的一种兔子形态和该形态真实存在的表情：
-        \(characterOptions)
-
-        当前界面形态是 \(character.id)（\(character.name)），只在没有明显更合适的选择时沿用。
-        请用 1-2 句话先接住用户，让用户明确感到消息已经被听见。不要深入分析，不要给复杂建议，也不要声称已经了解用户没有说出的内容。
-        输出格式：JSON，只包含 reply、character_id 和 expression_id 字段。
-        """
+        var prompt = Self.quickReplyPrompt
+            .replacingOccurrences(of: "{last_user_message}", with: history.last?.content ?? "")
+            .replacingOccurrences(of: "{character_options}", with: characterOptions)
+            .replacingOccurrences(of: "{current_character_id}", with: character.id)
+            .replacingOccurrences(of: "{current_character_name}", with: character.name)
         let request = try buildJSONRequest(
             apiKey: apiKey,
             messages: [DeepSeekMessage(role: "system", content: prompt)],
@@ -1111,7 +1119,9 @@ final class LocalDeepSeekService {
             return LocalReplyDraft(
                 reply: parsed.reply,
                 characterID: character.id,
-                expressionID: parsed.expressionID ?? plan.expressionID
+                expressionID: parsed.expressionID ?? plan.expressionID,
+                retrievedMemories: memories,
+                retrievedKnowledgeCards: knowledgeCards
             )
         }
         fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析失败\n", stderr)
@@ -1129,63 +1139,15 @@ final class LocalDeepSeekService {
         let profileText = currentProfiles.map {
             "- [\($0.domain)] \($0.stage)：\($0.summary)；证据：\($0.evidence)"
         }.joined(separator: "\n")
+        var fullPrompt = Self.sessionExtractionPrompt
+            .replacingOccurrences(of: "{transcript}", with: transcript)
+            .replacingOccurrences(of: "{profile_text}", with: profileText.isEmpty ? "暂无" : profileText)
         let request = try buildJSONRequest(
             apiKey: apiKey,
             messages: [
                 DeepSeekMessage(
-                    role: "system",
-                    content: """
-                    你负责把一次中文心理陪伴对话整理为结构化数据。不要诊断，不要夸大，不要凭空补充事实。
-                    只输出 JSON 对象，包含 journal、memories、state_profiles。
-                    memories 只保留未来确实有帮助的稳定事实、偏好、关系模式或重要经历，0-5 条。
-                    state_profiles 必须审阅六个 domain：self_relation、emotion_regulation、relationship、agency_boundary、trauma_pattern、meaning_value。
-                    每个 domain 输出一次；证据不足使用 action=no_change，不要为了填满而猜测。
-                    action=create|update 时，summary 必须整合仍然成立的旧画像与本次新证据，不能只写本次增量。
-                    mood_score 使用 -5 到 5；confidence 使用 0 到 1；importance 使用 1 到 5。
-                    """
-                ),
-                DeepSeekMessage(
                     role: "user",
-                    content: """
-                    对话：
-                    \(transcript)
-
-                    当前已有长期画像：
-                    \(profileText.isEmpty ? "暂无" : profileText)
-
-                    JSON 格式：
-                    {
-                      "journal": {
-                        "summary": "",
-                        "emotion_curve": [],
-                        "keywords": [],
-                        "insights": [],
-                        "suggested_next_step": "",
-                        "mood_score": 0,
-                        "dominant_emotion": ""
-                      },
-                      "memories": [{
-                        "category": "",
-                        "subcategory": "general",
-                        "keywords": [],
-                        "content": "",
-                        "evidence": "",
-                        "confidence": 0.7,
-                        "importance": 3
-                      }],
-                      "state_profiles": [{
-                        "action": "create | update | no_change",
-                        "domain": "",
-                        "stage": "",
-                        "summary": "",
-                        "intensity": 5,
-                        "trend": "stable",
-                        "confidence": 0.7,
-                        "evidence": [],
-                        "support_strategy": ""
-                      }]
-                    }
-                    """
+                    content: fullPrompt
                 ),
             ],
             maxTokens: 2200,
@@ -1274,53 +1236,40 @@ final class LocalDeepSeekService {
         let memoryText = memories.map { "- [\($0.category)/\($0.subcategory)] \($0.content)（关键词：\($0.keywords.joined(separator: "、"))）" }.joined(separator: "\n")
         let profileText = profiles.map { "- [\($0.domain)] 阶段：\($0.stage)；摘要：\($0.summary)；趋势：\($0.trend)；强度：\($0.intensity)/10" }.joined(separator: "\n")
         let knowledgeText = knowledgeCards.map { "- \($0.title)：\($0.concept)" }.joined(separator: "\n")
-        let quickContext = quickReplyText.map {
-            """
+        let characterProfile = "你是\(character.name)，\(character.tagline)。\(character.voice)"
 
-            下面这段即时回应已经作为上一条消息显示给用户：
-            「\($0)」
-
-            现在生成的是紧接其后的第二条回复。不要重新问候，不要再次复述同一种感受，不要用同义词改写即时回应，也不要向用户解释这是“深度回复”。第一句就从即时回应尚未覆盖的结构、矛盾、历史联系、具体澄清或下一步继续推进。如果没有足够的新信息，应缩短回复，而不是为了显得深入而重复。
-            """
-        } ?? ""
-        return """
-        你是森森物语里的\(character.name)，是一位温和、清醒、有边界的自我理解型心理陪伴者。
-
-        你的职责不是给建议、不是安慰、不是讲道理。你的职责是：帮用户看清自己此刻正在经历什么。
-
-        \(quickContext)
-
-        回应要求：
-        - 如果前面没有即时回应，用你自己的话准确接住用户；如果已经有即时回应，则跳过重复共情，直接增加新的理解。
-        - 把你读到的长期记忆或状态画像里相关的内容，自然地编织进回应里。比如「我记得你之前提到过……」或「从最近的状态来看，你似乎在……」。这让用户感到被记住、被理解。
-        - 如果记忆中有和当前话题直接相关的内容，一定要引用它。这是你最有价值的地方——你不是一个只会说套话的机器人，你真的记得用户说过什么。
-        - 最多引入一个心理知识视角，但不要生硬地贴标签。用日常语言解释，让它感觉像是你在理解用户的过程中自然联想到的，而不是在给用户上课。
-        - 结尾给一个很小、很具体、不费力的下一步。不是「你可以试试多休息」，而是更具体的——比如「如果今晚你发现自己又在反复想这件事，可以先停下来，喝一口水，告诉自己：这件事我明天再想。」
-        - 不制造依赖，不强行积极，不给空洞的安慰。你的温度来自理解，不来自甜言蜜语。
-        - 如果用户表现出自伤、他伤或现实危险，优先建议联系当地紧急服务和可信任的现实支持。
-        - 使用中文，4-8 段。
-        - 只输出 JSON：{"reply":"回复正文","expression_id":"表情 id"}。
-
-        关于你——\(character.name)：
-        \(character.tagline)
-        \(character.voice)
-
-        本轮分析：
+        let rolePlanText = """
         - 用户状态：\(plan.userState)
         - 核心需要：\(plan.coreNeed)
         - 风险等级：\(plan.riskLevel)
         - 回复模式：\(plan.responseMode)
         - 写作方向：\(plan.responseGuidance)
-
-        用户过往的长期记忆（请注意：这些是你应该引用的素材）：
-        \(memoryText.isEmpty ? "暂无" : memoryText)
-
-        用户的长期状态画像：
-        \(profileText.isEmpty ? "暂无" : profileText)
-
-        可参考的心理知识视角：
-        \(knowledgeText.isEmpty ? "暂无" : knowledgeText)
         """
+
+        let handoffText = quickReplyText.map { text in
+            Self.quickReplyHandoffPrompt
+                .replacingOccurrences(of: "{quick_reply_text}", with: text)
+        } ?? ""
+
+        let expressionID = plan.expressionID.isEmpty ? character.defaultExpressionID : plan.expressionID
+        let expressionOptions = character.expressions.map(\.id).joined(separator: ", ")
+        let rabbitInstruction = Self.rabbitResponseInstructionPrompt
+            .replacingOccurrences(of: "{character_name}", with: character.name)
+            .replacingOccurrences(of: "{expression_id}", with: expressionID)
+            .replacingOccurrences(of: "{expression_options}", with: expressionOptions)
+
+        return Self.personaPrompt
+            .replacingOccurrences(of: "{character_profile}", with: characterProfile)
+            .replacingOccurrences(of: "{current_character_name}", with: character.name)
+            .replacingOccurrences(of: "{character_tagline}", with: character.tagline)
+            .replacingOccurrences(of: "{character_voice}", with: character.voice)
+            .replacingOccurrences(of: "{quick_reply_handoff}", with: handoffText)
+            .replacingOccurrences(of: "{rabbit_response_instruction}", with: rabbitInstruction)
+            .replacingOccurrences(of: "{role_plan}", with: rolePlanText)
+            .replacingOccurrences(of: "{memories}", with: memoryText.isEmpty ? "暂无" : memoryText)
+            .replacingOccurrences(of: "{state_profiles}", with: profileText.isEmpty ? "暂无" : profileText)
+            .replacingOccurrences(of: "{conversation_history_section}", with: "")
+            .replacingOccurrences(of: "{knowledge_cards}", with: knowledgeText.isEmpty ? "暂无" : knowledgeText)
     }
 
     private func requestJSON<Response: Decodable>(

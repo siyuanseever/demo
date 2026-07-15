@@ -1,0 +1,1 @@
+../../../app/prompts/diary_memory_extract.md

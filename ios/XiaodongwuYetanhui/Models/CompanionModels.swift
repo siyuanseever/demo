@@ -44,6 +44,7 @@ struct ChatMessage: Identifiable, Hashable {
     var replyStage: String = ""
     var routeSummary: String?
     var knowledgeCards: [KnowledgeCard] = []
+    var retrievedMemories: [MemoryEntry] = []
 }
 
 struct UserConversationAssessment: Hashable {

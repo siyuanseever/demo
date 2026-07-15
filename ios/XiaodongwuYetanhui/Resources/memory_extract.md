@@ -1,0 +1,1 @@
+../../../app/prompts/memory_extract.md

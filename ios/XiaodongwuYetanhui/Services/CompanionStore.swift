@@ -1138,7 +1138,8 @@ final class CompanionStore: ObservableObject {
                     expressionID: response.expressionID ?? "",
                     replyStage: replyStage,
                     routeSummary: response.routeSummary,
-                    knowledgeCards: response.knowledgeCards
+                    knowledgeCards: response.knowledgeCards,
+                    retrievedMemories: response.retrievedMemories
                 )
             )
             return
@@ -1157,7 +1158,8 @@ final class CompanionStore: ObservableObject {
                     expressionID: groupMessage.expressionID ?? response.expressionID ?? "",
                     replyStage: replyStage,
                     routeSummary: index == 0 ? response.routeSummary : nil,
-                    knowledgeCards: groupMessage.knowledgeCards
+                    knowledgeCards: groupMessage.knowledgeCards,
+                    retrievedMemories: response.retrievedMemories
                 )
             )
         }

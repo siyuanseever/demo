@@ -1,0 +1,1 @@
+../../../app/prompts/state_profile_observation.md

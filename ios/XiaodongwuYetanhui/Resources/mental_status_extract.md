@@ -1,0 +1,1 @@
+../../../app/prompts/mental_status_extract.md

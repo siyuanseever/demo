@@ -1,0 +1,1 @@
+../../../app/prompts/session_extraction.md

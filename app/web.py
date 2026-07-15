@@ -3356,8 +3356,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/home_hint":
                 self.respond_home_hint()
                 return
-            if path == "/api/star_map_insight":
-                self.respond_star_map_insight()
+            if path == "/api/weekly_flow_insight":
+                self.respond_weekly_flow_insight()
                 return
             if path == "/api/knowledge_detail":
                 self.respond_knowledge_detail()
@@ -3421,8 +3421,8 @@ class Handler(BaseHTTPRequestHandler):
     def respond_home_hint(self) -> None:
         self.respond_json(self.app.orchestrator.generate_home_hint())
 
-    def respond_star_map_insight(self) -> None:
-        self.respond_json(self.app.orchestrator.generate_star_map_insight())
+    def respond_weekly_flow_insight(self) -> None:
+        self.respond_json(self.app.orchestrator.generate_weekly_flow_insight())
 
     def respond_knowledge_detail(self) -> None:
         query = urlparse(self.path).query
@@ -3855,12 +3855,12 @@ function fmtDur(s) {
 }
 
 function tagClass(type) {
-  const map = { reply:'tag-reply', route_plan:'tag-route', memory_extract:'tag-memory', memory_merge:'tag-memory', journal:'tag-journal', home_hint:'tag-home', quick_reply:'tag-reply', state_profile_observation:'tag-other', state_profile_review:'tag-other', star_map_monthly_review:'tag-other' };
+  const map = { reply:'tag-reply', route_plan:'tag-route', memory_extract:'tag-memory', memory_merge:'tag-memory', journal:'tag-journal', home_hint:'tag-home', quick_reply:'tag-reply', state_profile_observation:'tag-other', state_profile_review:'tag-other', weekly_flow_insight:'tag-other' };
   return map[type] || 'tag-other';
 }
 
 function tagLabel(type) {
-  const map = { reply:'回复', route_plan:'路由', memory_extract:'记忆提取', memory_merge:'记忆合并', journal:'日记', home_hint:'首页提示', quick_reply:'快速回复', state_profile_observation:'状态观察', state_profile_review:'状态融合', star_map_monthly_review:'星图' };
+  const map = { reply:'回复', route_plan:'路由', memory_extract:'记忆提取', memory_merge:'记忆合并', journal:'日记', home_hint:'首页提示', quick_reply:'快速回复', state_profile_observation:'状态观察', state_profile_review:'状态融合', weekly_flow_insight:'心流导航' };
   return map[type] || type;
 }
 

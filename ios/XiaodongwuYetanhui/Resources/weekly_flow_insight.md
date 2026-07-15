@@ -1,0 +1,1 @@
+../../../app/prompts/weekly_flow_insight.md

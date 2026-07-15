@@ -1,0 +1,1 @@
+../../../app/prompts/quick_reply.md

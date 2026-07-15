@@ -1253,6 +1253,10 @@ private struct MacComposer: View {
 private struct MacConversationSidebar: View {
     @EnvironmentObject private var store: CompanionStore
 
+    private var latestDeepReply: ChatMessage? {
+        store.messages.reversed().first { $0.replyStage == "deep" && $0.role == .assistant }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -1307,6 +1311,55 @@ private struct MacConversationSidebar: View {
                         .foregroundStyle(.secondary)
                         .padding(14)
                         .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                if let deepReply = latestDeepReply {
+                    Divider()
+
+                    if !deepReply.retrievedMemories.isEmpty {
+                        MacSidebarSection(title: "检索到的记忆") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(deepReply.retrievedMemories.prefix(5)) { memory in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(memory.content)
+                                            .font(.callout)
+                                            .foregroundStyle(.primary)
+                                        HStack(spacing: 8) {
+                                            Text("[\(memory.category)/\(memory.subcategory)]")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            if !memory.keywords.isEmpty {
+                                                Text(memory.keywords.joined(separator: "、"))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                        }
+                                    }
+                                    .padding(10)
+                                    .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+                    }
+
+                    if !deepReply.knowledgeCards.isEmpty {
+                        MacSidebarSection(title: "参考知识卡") {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(deepReply.knowledgeCards) { card in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(card.title)
+                                            .font(.callout.bold())
+                                            .foregroundStyle(.primary)
+                                        Text(card.concept)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(10)
+                                    .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(minLength: 20)

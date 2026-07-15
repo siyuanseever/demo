@@ -7,6 +7,7 @@ struct ChatServiceResponse {
     let expressionID: String?
     let groupMessages: [ChatServiceGroupMessage]
     let knowledgeCards: [KnowledgeCard]
+    let retrievedMemories: [MemoryEntry]
     let routeSummary: String?
     let assessment: UserConversationAssessment?
     let usedFallback: Bool
@@ -473,6 +474,7 @@ final class ChatService {
                 expressionID: character.defaultExpressionID,
                 groupMessages: [],
                 knowledgeCards: [],
+                retrievedMemories: [],
                 routeSummary: nil,
                 assessment: nil,
                 usedFallback: true,
@@ -541,6 +543,7 @@ final class ChatService {
                         expressionID: body.expression?.id ?? character.defaultExpressionID,
                         groupMessages: [],
                         knowledgeCards: [],
+                        retrievedMemories: [],
                         routeSummary: nil,
                         assessment: nil,
                         usedFallback: false,
@@ -626,6 +629,7 @@ final class ChatService {
                         expressionID: latestResponse.expressionID,
                         groupMessages: latestResponse.groupMessages,
                         knowledgeCards: latestResponse.knowledgeCards,
+                        retrievedMemories: latestResponse.retrievedMemories,
                         routeSummary: latestResponse.routeSummary,
                         assessment: latestResponse.assessment,
                         usedFallback: false,
@@ -644,6 +648,7 @@ final class ChatService {
                     expressionID: character.defaultExpressionID,
                     groupMessages: [],
                     knowledgeCards: [],
+                    retrievedMemories: [],
                     routeSummary: nil,
                     assessment: nil,
                     usedFallback: true,
@@ -777,7 +782,7 @@ final class ChatService {
     }
 
     func fetchStarMapInsight() async throws -> StarMapInsight {
-        var request = URLRequest(url: baseURL.appendingPathComponent("api/star_map_insight"))
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/weekly_flow_insight"))
         request.httpMethod = "GET"
         request.timeoutInterval = 60
         let response: StarMapInsightResponseBody = try await decode(request)
@@ -865,6 +870,7 @@ final class ChatService {
                 )
             },
             knowledgeCards: knowledgeCards,
+            retrievedMemories: body.retrievedMemories.map(\.memoryEntry),
             routeSummary: Self.routeSummary(body.routePlan),
             assessment: body.routePlan?.assessment,
             usedFallback: false,
@@ -1242,6 +1248,7 @@ private struct ChatResponseBody: Decodable {
     let expression: ResponseExpression?
     let groupMessages: [GroupMessageResponseBody]?
     let knowledgeCards: [KnowledgeCardResponseBody]
+    let retrievedMemories: [MemoryEntryResponseBody]
     let routePlan: RoutePlanResponseBody?
 
     enum CodingKeys: String, CodingKey {
@@ -1250,6 +1257,7 @@ private struct ChatResponseBody: Decodable {
         case expression
         case groupMessages = "group_messages"
         case knowledgeCards = "knowledge_cards"
+        case retrievedMemories = "retrieved_memories"
         case routePlan = "route_plan"
     }
 
@@ -1260,6 +1268,7 @@ private struct ChatResponseBody: Decodable {
         expression = try container.decodeIfPresent(ResponseExpression.self, forKey: .expression)
         groupMessages = try container.decodeIfPresent([GroupMessageResponseBody].self, forKey: .groupMessages)
         knowledgeCards = try container.decodeIfPresent([KnowledgeCardResponseBody].self, forKey: .knowledgeCards) ?? []
+        retrievedMemories = try container.decodeIfPresent([MemoryEntryResponseBody].self, forKey: .retrievedMemories) ?? []
         routePlan = try container.decodeIfPresent(RoutePlanResponseBody.self, forKey: .routePlan)
     }
 }
@@ -1485,6 +1494,29 @@ private struct KnowledgeCardResponseBody: Decodable {
 
     var knowledgeCard: KnowledgeCard {
         KnowledgeCard(id: id, title: title, concept: concept ?? "")
+    }
+}
+
+private struct MemoryEntryResponseBody: Decodable {
+    let id: String
+    let category: String
+    let subcategory: String
+    let content: String
+    let evidence: String?
+    let keywords: [String]?
+
+    var memoryEntry: MemoryEntry {
+        MemoryEntry(
+            id: id,
+            category: category,
+            subcategory: subcategory,
+            content: content,
+            evidence: evidence ?? "",
+            keywords: keywords ?? [],
+            sourceSessionID: "",
+            importance: 0,
+            updatedAt: ""
+        )
     }
 }
 

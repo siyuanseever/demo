@@ -64,14 +64,7 @@ def render_quick_reply_handoff(quick_reply_text: str | None) -> str:
     quick_reply = str(quick_reply_text or "").strip()[:1200]
     if not quick_reply:
         return ""
-    return (
-        "\n\n【已经发送给用户的即时回应】\n"
-        f"{quick_reply}\n\n"
-        "这段即时回应已经作为上一条消息显示给用户。现在生成的是紧接其后的第二条回复："
-        "不要重新问候，不要再次复述同一种感受，不要换同义词重复即时回应，也不要提到‘快速回复’或‘第二次回复’。"
-        "第一句就应当从即时回应尚未覆盖的结构、矛盾、历史联系、具体澄清或下一步继续推进。"
-        "如果没有足够的新信息可增加，应缩短回复，而不是为了显得深入而重复。"
-    )
+    return read_prompt("quick_reply_handoff.md").format(quick_reply_text=quick_reply)
 
 
 def render_memories(memories: list) -> str:
@@ -247,17 +240,11 @@ def render_role_plan(route_plan: dict | None) -> str:
 def render_rabbit_response_instruction(route_plan: dict) -> str:
     character = get_character(route_plan["character_id"])
     expression_id = normalize_expression_id(character.id, route_plan.get("expression_id"))
-    return (
-        "\n\n本轮必须输出 JSON，不要输出 Markdown，不要输出 JSON 以外的正文。\n"
-        "JSON schema：\n"
-        "{\n"
-        '  "reply": "最终回复正文，3-7 段，克制但有心理陪伴深度",\n'
-        '  "expression_id": "最终表情 id，必须是当前形态可用表情之一"\n'
-        "}\n"
-        f"当前形态只能是「{character.name}」，不要切换成其他形态说话。\n"
-        f"建议表情是 {expression_id}。如果最终回复的情绪更适合当前形态的另一个可用表情，可以改 expression_id。\n"
-        f"当前形态可用表情：{expression_options(character)}。\n"
-        "reply 字段里不要写角色名，不要写动作括号，不要写“表情：xxx”。"
+    opts = expression_options(character)
+    return "\n\n" + read_prompt("rabbit_response_instruction.md").format(
+        character_name=character.name,
+        expression_id=expression_id,
+        expression_options=opts,
     )
 
 
@@ -325,17 +312,9 @@ class ConversationOrchestrator:
             "profile_ids": [item["id"] for item in profiles[:3] if item.get("id")],
             "memory_ids": [item["id"] for item in memories[:5] if item.get("id")],
         }
-        prompt = (
-            "你是森森物语 App 首页的一句话陪伴文案生成器。\n"
-            "请根据用户最近的状态、记忆、日记摘要，生成一句中文短句。\n"
-            "要求：\n"
-            "- 只输出一句话，不要标题，不要解释，不要 JSON。\n"
-            "- 语气安静、温柔、稳定，不要鸡汤，不要命令用户变好。\n"
-            "- 22 到 42 个汉字左右，可以有一个逗号，最多一个句号。\n"
-            "- 不要使用“加油”“一切都会好起来的”这类固定模板。\n"
-            "- 如果用户喜欢过某些句子，学习它们的节奏和关注点；不要直接复读。\n"
-            "- 如果用户不喜欢过某些句子，避免相似的空泛表达。\n"
-        )
+        
+        # 从 home_hint.md 加载 prompt
+        prompt = read_prompt("home_hint.md")
         user_context = (
             "最近日记：\n"
             f"{preview_text(json.dumps(journals, ensure_ascii=False), 2200)}\n\n"
@@ -413,7 +392,7 @@ class ConversationOrchestrator:
             "context": context,
         }
 
-    def generate_star_map_insight(self) -> dict:
+    def generate_weekly_flow_insight(self) -> dict:
         now = datetime.now(timezone.utc)
         recent_journals = self.store.list_journals(limit=80)
         recent_messages = self.store.list_messages(limit=300)
@@ -448,7 +427,7 @@ class ConversationOrchestrator:
         # Active memories are cross-session knowledge. Keep relevant older memories
         # available instead of limiting them to the journal review window.
         selected_memories = memories[:40]
-        fallback = self._fallback_star_map_insight(
+        fallback = self._fallback_weekly_flow_insight(
             period_start=period_start,
             period_end=now,
             journals=selected_journals,
@@ -507,17 +486,17 @@ class ConversationOrchestrator:
         try:
             response = self._chat(
                 [
-                    {"role": "system", "content": read_prompt("star_map_monthly_review.md")},
+                    {"role": "system", "content": read_prompt("weekly_flow_insight.md")},
                     {"role": "user", "content": json.dumps(context, ensure_ascii=False)},
                 ],
-                call_type="star_map_monthly_review",
+                call_type="weekly_flow_insight",
                 temperature=0.3,
                 max_tokens=1200,
                 response_format={"type": "json_object"},
             )
             payload = json.loads(response.content)
             if isinstance(payload, dict):
-                normalized = self._normalize_star_map_payload(payload, fallback=fallback)
+                normalized = self._normalize_weekly_flow_payload(payload, fallback=fallback)
                 fallback.update(normalized)
         except Exception:
             self.logger.exception("star map monthly review failed")
@@ -541,7 +520,7 @@ class ConversationOrchestrator:
             cleaned = cleaned[:58].rstrip("，。,. ") + "。"
         return cleaned
 
-    def _normalize_star_map_payload(self, payload: dict, fallback: dict) -> dict:
+    def _normalize_weekly_flow_payload(self, payload: dict, fallback: dict) -> dict:
         def short_text(key: str, limit: int) -> str:
             text = str(payload.get(key) or fallback.get(key, "")).strip()
             return text[:limit]
@@ -608,7 +587,7 @@ class ConversationOrchestrator:
         result = [str(item).strip()[:120] for item in values if str(item).strip()]
         return result[:4] or fallback[:4]
 
-    def _fallback_star_map_insight(
+    def _fallback_weekly_flow_insight(
         self,
         *,
         period_start: datetime,
@@ -966,20 +945,21 @@ class ConversationOrchestrator:
                 "knowledge_plan": public_knowledge_plan,
             },
         })
+        conversation_history_section = f"当前对话历史：\n{render_conversation_history(messages[:-1])}"
         system_prompt = read_prompt("persona.md").format(
             character_profile=character.prompt,
             current_character_name=character.name,
-            conversation_history=render_conversation_history(messages[:-1]),
+            character_tagline=character.tagline,
+            character_voice=character.voice,
+            conversation_history_section=conversation_history_section,
             memories=render_memories(memories),
             state_profiles=render_state_profiles(state_profiles),
             knowledge_cards=render_knowledge_cards(knowledge_cards, knowledge_plan),
             role_plan=render_role_plan(route_plan),
+            rabbit_response_instruction=render_rabbit_response_instruction(route_plan) if route_plan else "",
+            quick_reply_handoff=render_quick_reply_handoff(quick_reply_text),
         )
-        if route_plan:
-            system_prompt += render_rabbit_response_instruction(route_plan)
         if quick_reply_text:
-            quick_reply_text = quick_reply_text.strip()[:1200]
-            system_prompt += render_quick_reply_handoff(quick_reply_text)
             debug_trace["steps"].append({
                 "name": "quick_reply_handoff",
                 "status": "done",
@@ -1034,6 +1014,17 @@ class ConversationOrchestrator:
                 "group_messages": [],
                 "knowledge_cards": knowledge_cards,
                 "knowledge_plan": public_knowledge_plan,
+                "retrieved_memories": [
+                    {
+                        "id": memory.get("id", ""),
+                        "category": memory.get("category", ""),
+                        "subcategory": memory.get("subcategory", ""),
+                        "content": memory.get("content", ""),
+                        "evidence": memory.get("evidence", ""),
+                        "keywords": memory.get("keywords", []),
+                    }
+                    for memory in memories[:8]
+                ],
                 "character": character.to_public_dict(),
                 "expression": {
                     "id": expression_id,
@@ -1106,6 +1097,17 @@ class ConversationOrchestrator:
             "group_messages": [],
             "knowledge_cards": knowledge_cards,
             "knowledge_plan": public_knowledge_plan,
+            "retrieved_memories": [
+                {
+                    "id": memory.get("id", ""),
+                    "category": memory.get("category", ""),
+                    "subcategory": memory.get("subcategory", ""),
+                    "content": memory.get("content", ""),
+                    "evidence": memory.get("evidence", ""),
+                    "keywords": memory.get("keywords", []),
+                }
+                for memory in memories[:8]
+            ],
             "character": character.to_public_dict(),
             "expression": {
                 "id": expression_id,
@@ -1564,14 +1566,10 @@ class ConversationOrchestrator:
     ) -> str:
         """使用极短上下文生成真实 quick 回复。"""
         character = get_character(character_id)
-        history_text = self._render_quick_history(recent_history)
-        system_prompt = (
-            f"你是{character.name}，{character.voice}\n"
-            f"角色核心：{character.tagline}\n"
-            "任务：生成第一条快速回应，用来让用户尽快感到被听见。\n"
-            "要求：只回复 1-2 句；不要长篇分析；不要列点；不要写角色名；不要写动作描写；"
-            "要贴着用户这句话里的具体情绪或需求说，不要使用空泛模板。\n"
-            f"最近上下文：\n{history_text or '（无）'}"
+        system_prompt = read_prompt("quick_reply_py.md").format(
+            last_user_message=user_text,
+            current_character_name=character.name,
+            character_tagline=character.tagline,
         )
         started_at = time.monotonic()
         response = self._chat(
@@ -1580,6 +1578,17 @@ class ConversationOrchestrator:
             temperature=0.65,
             max_tokens=self.quick_reply_max_tokens,
         )
+        content = response.content.strip()
+        
+        try:
+            payload = json.loads(content)
+            if isinstance(payload, dict) and "text" in payload:
+                content = str(payload["text"]).strip()
+            elif isinstance(payload, dict) and "reply" in payload:
+                content = str(payload["reply"]).strip()
+        except (TypeError, json.JSONDecodeError):
+            pass
+        
         if debug_trace is not None:
             debug_trace["llm_calls"].append({
                 "name": "quick_reply",
@@ -1587,11 +1596,12 @@ class ConversationOrchestrator:
                 "elapsed_sec": round(time.monotonic() - started_at, 2),
                 "response_format": "text",
                 "raw_output": preview_text(response.content),
+                "cleaned_output": preview_text(content),
                 "prompt_chars": len(system_prompt) + len(user_text),
                 "history_turns": self.quick_reply_history_turns,
                 "max_tokens": self.quick_reply_max_tokens,
             })
-        return response.content.strip()
+        return content
 
     def _render_quick_history(self, recent_history: list) -> str:
         items = recent_history[-max(0, self.quick_reply_history_turns * 2):]
@@ -1669,10 +1679,11 @@ class ConversationOrchestrator:
         messages = self.store.get_session_messages(session_id)
         if state_profiles is None:
             state_profiles = self.store.list_state_profiles()
-        prompt = read_prompt("role_router.md").format(
-            character_options=render_character_options(),
-            conversation_history=render_conversation_history(messages[-12:]),
-            state_profiles=render_state_profiles(state_profiles),
+        prompt = read_prompt("route_plan.md").format(
+            character_text=render_character_options(),
+            history_text=render_conversation_history(messages[-12:]),
+            profile_text=render_state_profiles(state_profiles),
+            fallback_character_id=fallback.id,
         )
         router_started_at = time.monotonic()
         try:

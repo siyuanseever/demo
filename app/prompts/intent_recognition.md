@@ -53,7 +53,10 @@
    - mixed：综合陪伴（先承接感受，再给理解或行动；DEEP_REPLY 最常用）
    - 如果 intent=DEEP_REPLY，不要只输出 validate；应优先使用 insight 或 mixed。
 
-8. memory_queries / knowledge_queries：0-6 个检索词。仅在涉及具体人或反复出现的困扰时提取记忆检索词；仅在涉及明确心理概念时提取知识检索词。不要编造。
+8. memory_queries / knowledge_queries：0-6 个检索词。
+   - 如果用户明确要求"检索记忆""说说我是一个什么样的人""看看我的长期状态""回顾我的历史记录"等，必须生成 memory_queries，不少于 3 个检索词。
+   - 如果用户提到的话题（如工作选择、人际关系、自我成长、情绪模式）可能与长期记忆相关，应主动生成记忆检索词。
+   - 仅在涉及明确心理概念时提取知识检索词。不要编造。
 
 9. clarify_reply（追问回复，仅 CLARIFY 时必填）：
    - 1-2 句温柔的追问，帮助用户表达更清楚。
