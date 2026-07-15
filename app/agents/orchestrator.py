@@ -195,6 +195,12 @@ def normalize_response_plan(raw_plan: dict, fallback_character_id: str) -> dict:
     if character_id not in CHARACTERS:
         character_id = fallback_character_id if fallback_character_id in CHARACTERS else auto_select_character("").id
     expression_id = normalize_expression_id(character_id, raw_plan.get("expression_id"))
+    history_turns = raw_plan.get("history_turns_needed", 5)
+    try:
+        history_turns = max(0, min(20, int(history_turns)))
+    except (TypeError, ValueError):
+        history_turns = 5
+    context_strategy = _normalize_choice(raw_plan.get("context_strategy"), ["focus_current", "balanced", "history_heavy"], "balanced")
     return {
         "user_state": _short_text(raw_plan.get("user_state"), "需要进一步理解用户此刻状态。", 60),
         "core_need": _short_text(raw_plan.get("core_need"), "被接住，并获得一点清晰感。", 60),
@@ -211,6 +217,10 @@ def normalize_response_plan(raw_plan: dict, fallback_character_id: str) -> dict:
         "character_id": character_id,
         "expression_id": expression_id,
         "reason": str(raw_plan.get("reason") or "根据用户当前表达的情绪强度、问题类型和需要的支持方式选择。")[:160],
+        "history_turns_needed": history_turns,
+        "need_state_profiles": bool(raw_plan.get("need_state_profiles", True)),
+        "need_more_memories": bool(raw_plan.get("need_more_memories", False)),
+        "context_strategy": context_strategy,
     }
 
 
@@ -886,14 +896,19 @@ class ConversationOrchestrator:
         knowledge_queries = []
         if route_plan:
             knowledge_queries = route_plan.get("knowledge_needs", []) + route_plan.get("knowledge_queries", [])
+        
+        need_more_memories = route_plan.get("need_more_memories", False) if route_plan else False
+        relevant_limit = 10 if need_more_memories else 5
+        total_limit = 20 if need_more_memories else 10
+        
         memories = self.store.search_memories_hybrid(
             user_text,
             query_terms=memory_queries,
-            relevant_limit=5,
+            relevant_limit=relevant_limit,
             recent_limit=1,
             important_limit=2,
             important_threshold=5,
-            total_limit=10,
+            total_limit=total_limit,
         )
         memory_keywords = []
         for memory in memories:
@@ -945,7 +960,19 @@ class ConversationOrchestrator:
                 "knowledge_plan": public_knowledge_plan,
             },
         })
-        conversation_history_section = f"当前对话历史：\n{render_conversation_history(messages[:-1])}"
+        history_turns_needed = route_plan.get("history_turns_needed", 5) if route_plan else 5
+        need_state_profiles = route_plan.get("need_state_profiles", True) if route_plan else True
+        
+        history_messages = messages[:-1]
+        if history_turns_needed > 0:
+            history_messages = history_messages[-history_turns_needed * 2:]
+        else:
+            history_messages = []
+        
+        conversation_history_section = f"当前对话历史：\n{render_conversation_history(history_messages)}"
+        
+        state_profiles_text = render_state_profiles(state_profiles) if need_state_profiles else "当前不需要长期状态画像。"
+        
         system_prompt = read_prompt("persona.md").format(
             character_profile=character.prompt,
             current_character_name=character.name,
@@ -953,7 +980,7 @@ class ConversationOrchestrator:
             character_voice=character.voice,
             conversation_history_section=conversation_history_section,
             memories=render_memories(memories),
-            state_profiles=render_state_profiles(state_profiles),
+            state_profiles=state_profiles_text,
             knowledge_cards=render_knowledge_cards(knowledge_cards, knowledge_plan),
             role_plan=render_role_plan(route_plan),
             rabbit_response_instruction=render_rabbit_response_instruction(route_plan) if route_plan else "",

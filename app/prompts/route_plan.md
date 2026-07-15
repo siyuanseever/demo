@@ -80,6 +80,26 @@
 13. action_reply：当 next_action 是 clarify 或 interaction 时直接使用的回复
     - 温和、具体的问题或引导
 
+14. history_turns_needed：需要的历史对话轮数
+    - 0-20 的整数
+    - 简单问候、明确独立问题（如"你好""帮我分析一下""你能说说我的优点吗"）：0-3 轮，聚焦当前问题
+    - 需要一定上下文理解的问题（如"为什么总是这样""上次那件事后来怎么样了"）：5-10 轮
+    - 复杂情绪复盘、模式识别、关系分析：10-15 轮
+    - 当用户明确要求回顾历史、分析长期模式时：15-20 轮
+
+15. need_state_profiles：是否需要用户长期状态画像
+    - true：用户询问自我认知、长期状态、性格分析、习惯模式、成长变化等
+    - false：当前问题与长期状态无关，是即时性问题
+
+16. need_more_memories：是否需要增加记忆检索数量
+    - true：用户明确要求检索记忆、了解自己、分析长期模式、回顾历史记录
+    - false：当前问题不需要大量记忆，少量相关记忆即可
+
+17. context_strategy：上下文拼接策略
+    - focus_current：聚焦当前问题，少用历史对话，优先使用当前消息和记忆
+    - balanced：平衡当前问题和历史背景，适度使用历史对话
+    - history_heavy：以历史对话为主，理解长期模式和变化趋势
+
 只输出 JSON，不要输出 Markdown，不要输出解释性正文。
 {{
   "next_action": "deep|quick_only|clarify|interaction",
@@ -94,5 +114,9 @@
   "knowledge_queries": ["知识卡片检索词 1", "知识卡片检索词 2"],
   "response_guidance": "给最终回复模型的写作提醒",
   "reason": "选择这个形态和表情的理由",
-  "action_reply": "clarify 或 interaction 时的直接回复内容"
+  "action_reply": "clarify 或 interaction 时的直接回复内容",
+  "history_turns_needed": 0,
+  "need_state_profiles": false,
+  "need_more_memories": false,
+  "context_strategy": "balanced"
 }}

@@ -274,6 +274,10 @@ private struct LocalRoutePlan {
     let responseGuidance: String
     let reason: String
     let actionReply: String
+    let historyTurnsNeeded: Int
+    let needStateProfiles: Bool
+    let needMoreMemories: Bool
+    let contextStrategy: String
 
     var metadata: [String: Any] {
         [
@@ -290,6 +294,10 @@ private struct LocalRoutePlan {
             "response_guidance": responseGuidance,
             "reason": reason,
             "action_reply": actionReply,
+            "history_turns_needed": historyTurnsNeeded,
+            "need_state_profiles": needStateProfiles,
+            "need_more_memories": needMoreMemories,
+            "context_strategy": contextStrategy,
         ]
     }
 
@@ -348,9 +356,14 @@ final class LocalDeepSeekService {
     
     // MARK: - Prompt 文件加载
     private static func loadPrompt(_ name: String) -> String {
+        func preprocess(_ content: String) -> String {
+            content
+                .replacingOccurrences(of: "{{", with: "{")
+                .replacingOccurrences(of: "}}", with: "}")
+        }
         if let url = Bundle.main.url(forResource: name, withExtension: "md"),
            let content = try? String(contentsOf: url) {
-            return content
+            return preprocess(content)
         }
         
         let projectBasePath = FileManager.default.currentDirectoryPath
@@ -360,7 +373,7 @@ final class LocalDeepSeekService {
             .appendingPathComponent("\(name).md")
         
         if let content = try? String(contentsOf: promptPath) {
-            return content
+            return preprocess(content)
         }
         
         let fallbackPath = URL(fileURLWithPath: projectBasePath)
@@ -370,7 +383,7 @@ final class LocalDeepSeekService {
             .appendingPathComponent("\(name).md")
         
         if let content = try? String(contentsOf: fallbackPath) {
-            return content
+            return preprocess(content)
         }
         
         fatalError("""
@@ -783,9 +796,10 @@ final class LocalDeepSeekService {
             )
         }
 
+        let memoryLimit = plan.needMoreMemories ? 16 : 8
         let memories = database.contextMemories(
             queryTerms: plan.memoryQueries,
-            limit: 8
+            limit: memoryLimit
         )
         let knowledgeCards = Self.retrieveKnowledgeCards(
             queryTerms: plan.knowledgeNeeds + plan.knowledgeQueries,
@@ -1004,7 +1018,19 @@ final class LocalDeepSeekService {
             knowledgeQueries: stringArrayFromDict(dict, "knowledge_queries"),
             responseGuidance: stringFromDict(dict, "response_guidance"),
             reason: stringFromDict(dict, "reason"),
-            actionReply: stringFromDict(dict, "action_reply")
+            actionReply: stringFromDict(dict, "action_reply"),
+            historyTurnsNeeded: {
+                if let v = dict["history_turns_needed"] as? Int { return max(0, min(20, v)) }
+                if let v = dict["history_turns_needed"] as? Double { return max(0, min(20, Int(v))) }
+                if let v = dict["history_turns_needed"] as? NSNumber { return max(0, min(20, v.intValue)) }
+                return 5
+            }(),
+            needStateProfiles: dict["need_state_profiles"] as? Bool ?? true,
+            needMoreMemories: dict["need_more_memories"] as? Bool ?? false,
+            contextStrategy: {
+                let v = stringFromDict(dict, "context_strategy")
+                return ["focus_current", "balanced", "history_heavy"].contains(v) ? v : "balanced"
+            }()
         )
     }
 
@@ -1066,10 +1092,23 @@ final class LocalDeepSeekService {
                 reply: parsed.reply,
                 characterID: selectedCharacter.id,
                 expressionID: validExpressionID(parsed.expressionID, for: selectedCharacter)
-                    ?? selectedCharacter.defaultExpressionID
+                    ?? selectedCharacter.defaultExpressionID,
+                retrievedMemories: [],
+                retrievedKnowledgeCards: []
             )
         }
-        fputs("[LocalDeepSeek] requestQuickReply: 结构化回复解析失败\n", stderr)
+        let fallbackText = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !fallbackText.isEmpty {
+            fputs("[LocalDeepSeek] requestQuickReply: 结构化回复解析失败，使用纯文本兜底\n", stderr)
+            return LocalReplyDraft(
+                reply: fallbackText,
+                characterID: character.id,
+                expressionID: character.defaultExpressionID,
+                retrievedMemories: [],
+                retrievedKnowledgeCards: []
+            )
+        }
+        fputs("[LocalDeepSeek] requestQuickReply: 结构化回复解析失败且内容为空\n", stderr)
         throw LocalDeepSeekError.invalidResponse
     }
 
@@ -1091,13 +1130,14 @@ final class LocalDeepSeekService {
             plan: plan,
             quickReplyText: quickReplyText
         )
-        fputs("[LocalDeepSeek] requestDeepReply: 历史消息数: \(history.count)\n", stderr)
-        let recentHistory = history.suffix(20).map { msg in
+        fputs("[LocalDeepSeek] requestDeepReply: 历史消息数: \(history.count), 规划历史轮数: \(plan.historyTurnsNeeded)\n", stderr)
+        let historySliceCount = plan.historyTurnsNeeded > 0 ? min(plan.historyTurnsNeeded * 2, history.count) : 0
+        let recentHistory = history.suffix(historySliceCount).map { msg in
             let roleLabel = msg.role == .user ? "用户" : character.name
             let content = msg.content.count > 1200 ? String(msg.content.prefix(1200)) + "…" : msg.content
             return "\(roleLabel)：\(content)"
         }.joined(separator: "\n")
-        let promptWithHistory = prompt + "\n\n当前对话历史：\n\(recentHistory)\n"
+        let promptWithHistory = recentHistory.isEmpty ? prompt : (prompt + "\n\n当前对话历史：\n\(recentHistory)\n")
         let lastUserText = history.last?.content ?? ""
         let request = try buildJSONRequest(
             apiKey: apiKey,
@@ -1124,7 +1164,18 @@ final class LocalDeepSeekService {
                 retrievedKnowledgeCards: knowledgeCards
             )
         }
-        fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析失败\n", stderr)
+        let fallbackText = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !fallbackText.isEmpty {
+            fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析失败，使用纯文本兜底\n", stderr)
+            return LocalReplyDraft(
+                reply: fallbackText,
+                characterID: character.id,
+                expressionID: plan.expressionID,
+                retrievedMemories: memories,
+                retrievedKnowledgeCards: knowledgeCards
+            )
+        }
+        fputs("[LocalDeepSeek] requestDeepReply: 结构化回复解析失败且内容为空\n", stderr)
         throw LocalDeepSeekError.invalidResponse
     }
 
@@ -1234,7 +1285,7 @@ final class LocalDeepSeekService {
         quickReplyText: String? = nil
     ) -> String {
         let memoryText = memories.map { "- [\($0.category)/\($0.subcategory)] \($0.content)（关键词：\($0.keywords.joined(separator: "、"))）" }.joined(separator: "\n")
-        let profileText = profiles.map { "- [\($0.domain)] 阶段：\($0.stage)；摘要：\($0.summary)；趋势：\($0.trend)；强度：\($0.intensity)/10" }.joined(separator: "\n")
+        let profileText = plan.needStateProfiles ? profiles.map { "- [\($0.domain)] 阶段：\($0.stage)；摘要：\($0.summary)；趋势：\($0.trend)；强度：\($0.intensity)/10" }.joined(separator: "\n") : ""
         let knowledgeText = knowledgeCards.map { "- \($0.title)：\($0.concept)" }.joined(separator: "\n")
         let characterProfile = "你是\(character.name)，\(character.tagline)。\(character.voice)"
 
@@ -1267,7 +1318,7 @@ final class LocalDeepSeekService {
             .replacingOccurrences(of: "{rabbit_response_instruction}", with: rabbitInstruction)
             .replacingOccurrences(of: "{role_plan}", with: rolePlanText)
             .replacingOccurrences(of: "{memories}", with: memoryText.isEmpty ? "暂无" : memoryText)
-            .replacingOccurrences(of: "{state_profiles}", with: profileText.isEmpty ? "暂无" : profileText)
+            .replacingOccurrences(of: "{state_profiles}", with: profileText.isEmpty ? "当前不需要长期状态画像。" : profileText)
             .replacingOccurrences(of: "{conversation_history_section}", with: "")
             .replacingOccurrences(of: "{knowledge_cards}", with: knowledgeText.isEmpty ? "暂无" : knowledgeText)
     }
