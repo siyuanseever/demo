@@ -470,8 +470,12 @@ private struct NativeConversationSidebar: View {
                         }
                     }
 
-                    if !deepReply.retrievedMemories.isEmpty {
-                        NativeSidebarSection(title: "检索到的记忆") {
+                    NativeSidebarSection(title: "检索到的记忆（\(deepReply.retrievedMemories.count) 条）") {
+                        if deepReply.retrievedMemories.isEmpty {
+                            Label("未检索到相关记忆", systemImage: "tray")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
                             VStack(alignment: .leading, spacing: 8) {
                                 ForEach(deepReply.retrievedMemories.prefix(5)) { memory in
                                     VStack(alignment: .leading, spacing: 3) {
@@ -498,8 +502,12 @@ private struct NativeConversationSidebar: View {
                         }
                     }
 
-                    if !deepReply.knowledgeCards.isEmpty {
-                        NativeSidebarSection(title: "参考知识卡") {
+                    NativeSidebarSection(title: "参考知识卡（\(deepReply.knowledgeCards.count) 张）") {
+                        if deepReply.knowledgeCards.isEmpty {
+                            Label("未检索到相关知识", systemImage: "tray")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(deepReply.knowledgeCards) { card in
                                     HStack(spacing: 6) {
