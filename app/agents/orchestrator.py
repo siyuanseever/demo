@@ -999,14 +999,14 @@ class ConversationOrchestrator:
         generation_started_at = time.monotonic()
         try:
             response = self._chat(
-                llm_messages,
-                call_type="reply",
-                session_id=session_id,
-                temperature=0.75,
-                max_tokens=2000,
-                response_format={"type": "json_object"} if route_plan else None,
-                thinking="disabled",
-            )
+                    llm_messages,
+                    call_type="reply",
+                    session_id=session_id,
+                    temperature=0.75,
+                    max_tokens=4000,
+                    response_format={"type": "json_object"} if route_plan else None,
+                    thinking="disabled",
+                )
         except Exception as error:
             self.logger.exception(
                 "deep reply generation failed session=%s error=%s",

@@ -1144,7 +1144,7 @@ final class LocalDeepSeekService {
                 DeepSeekMessage(role: "system", content: promptWithHistory),
                 DeepSeekMessage(role: "user", content: lastUserText)
             ],
-            maxTokens: 2400,
+            maxTokens: 4000,
             thinking: false
         )
         let (data, _) = try await session.data(for: request)
