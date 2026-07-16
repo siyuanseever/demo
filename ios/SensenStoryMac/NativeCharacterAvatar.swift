@@ -32,6 +32,8 @@ struct NativeCharacterAvatar: View {
     let character: CompanionCharacter
     let expressionID: String?
     var size: CGFloat = 38
+    var cornerRadius: CGFloat = 12
+    var fillsWidth: Bool = false
 
     var body: some View {
         Group {
@@ -47,10 +49,10 @@ struct NativeCharacterAvatar: View {
                     .background(character.bubbleColor.opacity(0.16))
             }
         }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
+        .frame(width: fillsWidth ? nil : size, height: fillsWidth ? nil : size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
-            Circle()
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(Color.avatarStroke.opacity(0.8), lineWidth: 1)
         }
         .shadow(color: character.bubbleColor.opacity(0.18), radius: 4, y: 2)

@@ -263,7 +263,7 @@ class EvaluationRunner:
         elapsed = time.monotonic() - started_at
 
         # 将 dataclass 对象转为 dict，确保 JSON 可序列化
-        def _to_dict(obj):
+        def _to_dict(obj: Any) -> Any:
             if hasattr(obj, "__dataclass_fields__"):
                 return {k: _to_dict(v) for k, v in obj.__dict__.items()}
             if isinstance(obj, list):

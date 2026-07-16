@@ -301,7 +301,7 @@ class IntentAgentRobustnessTest(RobustnessTest):
         # 边界: _render_history 中 max_history_turns 被异常设置
         original_turns = agent.max_history_turns
         try:
-            agent.max_history_turns = None
+            agent.max_history_turns = None  # type: ignore[reportAttributeAccessIssue]
             self.test_edge_case("render_history_none_turns", agent._render_history, [])
         finally:
             agent.max_history_turns = original_turns
@@ -321,7 +321,11 @@ class WebBoundaryRobustnessTest(RobustnessTest):
 
         # 边界: 空 query
         query = ""
-        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        params: dict[str, str] = {}
+        for part in query.split("&"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                params[k] = v
         self.results.append(RobustnessResult(
             test_name="parse_empty_query",
             passed=params == {},
@@ -332,7 +336,11 @@ class WebBoundaryRobustnessTest(RobustnessTest):
 
         # 边界: 重复 key
         query = "type=messages&type=sessions&limit=10"
-        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        params = {}
+        for part in query.split("&"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                params[k] = v
         self.results.append(RobustnessResult(
             test_name="parse_duplicate_keys",
             passed=params.get("type") == "sessions",
@@ -343,7 +351,11 @@ class WebBoundaryRobustnessTest(RobustnessTest):
 
         # 边界: 特殊字符在 query 中
         query = "type=mem%6Fries&limit=5"
-        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        params = {}
+        for part in query.split("&"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                params[k] = v
         self.results.append(RobustnessResult(
             test_name="parse_encoded_query",
             passed=params.get("type") == "mem%6Fries",
@@ -354,7 +366,11 @@ class WebBoundaryRobustnessTest(RobustnessTest):
 
         # 边界: 无等号的参数片段
         query = "type=messages&invalid_fragment&limit=10"
-        params = dict(part.split("=", 1) for part in query.split("&") if "=" in part)
+        params = {}
+        for part in query.split("&"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                params[k] = v
         self.results.append(RobustnessResult(
             test_name="parse_invalid_fragment",
             passed="invalid_fragment" not in params and params.get("type") == "messages",

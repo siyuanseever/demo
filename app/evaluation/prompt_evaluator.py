@@ -185,7 +185,7 @@ class PromptEvaluator:
         avg_score = sum(s.overall_score for s in scores) / len(scores)
         json_valid_rate = sum(1 for s in scores if s.json_valid) / len(scores)
         has_rating = [s for s in scores if s.user_rating is not None]
-        avg_user_rating = sum(s.user_rating for s in has_rating) / len(has_rating) if has_rating else 0
+        avg_user_rating = sum(s.user_rating for s in has_rating if s.user_rating is not None) / len(has_rating) if has_rating else 0
 
         return {
             "total_evaluated": len(scores),

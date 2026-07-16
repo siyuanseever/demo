@@ -236,19 +236,23 @@ class KnowledgeAccuracyTest(AccuracyTest):
             "library_cards_have_concept_graph",
             all(card.get("related_cards") for card in library_cards),
         )
+        h3_card = kr.get_card("psych-library-h3")
+        h3_concept_type = h3_card["concept_type"] if h3_card else ""
         self.assert_equal(
             "personalized_hypothesis_is_not_fact",
-            kr.get_card("psych-library-h3")["concept_type"],
+            h3_concept_type,
             "personalized_hypothesis",
         )
+        card_36 = kr.get_card("psych-library-3-6")
         self.assert_equal(
             "contested_theory_is_marked",
-            kr.get_card("psych-library-3-6")["concept_type"],
+            card_36["concept_type"] if card_36 else "",
             "contested_theory",
         )
+        card_41 = kr.get_card("psych-library-4-1")
         self.assert_true(
             "body_card_has_medical_differential",
-            bool(kr.get_card("psych-library-4-1")["medical_differential"]),
+            bool(card_41.get("medical_differential") if card_41 else False),
         )
         supplemental_cards = [
             card for card in kr.list_cards()
@@ -268,17 +272,22 @@ class KnowledgeAccuracyTest(AccuracyTest):
             "supplemental_actions_are_bounded",
             all(card.get("low_load_actions") and "action_safety" in card for card in supplemental_cards),
         )
+        card_36 = kr.get_card("psych-library-3-6")
+        card_36_aliases = card_36["aliases"] if card_36 else []
         self.assert_true(
             "dorsal_vagal_is_contested_alias",
-            "背侧迷走神经强制关机" in kr.get_card("psych-library-3-6")["aliases"],
+            "背侧迷走神经强制关机" in card_36_aliases,
         )
+        card_72 = kr.get_card("psych-library-7-2")
+        card_72_triggers = card_72["retrieval_triggers"] if card_72 else []
+        card_72_overpath = card_72["risk_of_overpathologizing"] if card_72 else ""
         self.assert_true(
             "curated_triggers_are_merged",
-            "她不回我" in kr.get_card("psych-library-7-2")["retrieval_triggers"],
+            "她不回我" in card_72_triggers,
         )
         self.assert_equal(
             "curated_overpathologizing_risk",
-            kr.get_card("psych-library-7-2")["risk_of_overpathologizing"],
+            card_72_overpath,
             "medium",
         )
 
@@ -483,6 +492,7 @@ class TTSHelpersAccuracyTest(AccuracyTest):
             and model.calls[0]["temperature"] != model.calls[1]["temperature"],
         )
         self.assert_equal("tts_retry_returns_valid_sample_rate", sample_rate, 1_000)
+        assert audio is not None  # safety: retry path always returns audio
         self.assert_equal("tts_retry_returns_complete_audio", len(audio), 2_000)
 
         class CancelModel:

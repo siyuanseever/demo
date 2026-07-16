@@ -10,7 +10,7 @@ import os
 from app.evaluation.timer import Timer, timed
 
 
-def benchmark_memory_store() -> dict:
+def benchmark_memory_store() -> list[dict]:
     """测试 memory.store 模块耗时"""
     from app.memory.store import Store
     timer = Timer()
@@ -47,7 +47,7 @@ def benchmark_memory_store() -> dict:
     return timer.summary()
 
 
-def benchmark_knowledge_retriever() -> dict:
+def benchmark_knowledge_retriever() -> list[dict]:
     """测试 knowledge.retriever 模块耗时"""
     from app.knowledge.retriever import KnowledgeRetriever
     timer = Timer()
@@ -70,7 +70,7 @@ def benchmark_knowledge_retriever() -> dict:
     return timer.summary()
 
 
-def benchmark_characters() -> dict:
+def benchmark_characters() -> list[dict]:
     """测试 characters 模块耗时"""
     from app.characters import get_character, auto_select_character, CHARACTERS
     timer = Timer()
@@ -87,7 +87,7 @@ def benchmark_characters() -> dict:
     return timer.summary()
 
 
-def benchmark_safety() -> dict:
+def benchmark_safety() -> list[dict]:
     """测试 safety 模块耗时"""
     from app.agents.safety import detect_crisis
     timer = Timer()
@@ -108,7 +108,7 @@ def benchmark_safety() -> dict:
     return timer.summary()
 
 
-def benchmark_llm_base() -> dict:
+def benchmark_llm_base() -> list[dict]:
     """测试 llm.base 模块耗时"""
     from app.llm.base import LLMResponse, Message
     timer = Timer()
@@ -120,7 +120,7 @@ def benchmark_llm_base() -> dict:
     return timer.summary()
 
 
-def benchmark_orchestrator_helpers() -> dict:
+def benchmark_orchestrator_helpers() -> list[dict]:
     """测试 orchestrator 辅助函数耗时"""
     from app.agents.orchestrator import parse_json_object, render_memories, render_state_profiles
     timer = Timer()

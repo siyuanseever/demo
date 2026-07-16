@@ -108,11 +108,11 @@ def check_sse_deep_reply_contract() -> None:
     )
 
     final_payload = next(payload for event_type, payload in events if event_type == "final")
-    check(final_payload.get("quick_reply"), "final payload must include quick_reply")
-    check(final_payload.get("deep_reply"), "final payload must include deep_reply")
+    check(bool(final_payload.get("quick_reply")), "final payload must include quick_reply")
+    check(bool(final_payload.get("deep_reply")), "final payload must include deep_reply")
     debug_trace = final_payload.get("debug_trace") or {}
-    check(debug_trace.get("quick_reply"), "debug_trace must include quick_reply for dev panel")
-    check(debug_trace.get("deep_reply"), "debug_trace must include deep_reply for dev panel")
+    check(bool(debug_trace.get("quick_reply")), "debug_trace must include quick_reply for dev panel")
+    check(bool(debug_trace.get("deep_reply")), "debug_trace must include deep_reply for dev panel")
     llm_call_names = [call.get("name") for call in debug_trace.get("llm_calls", [])]
     check("quick_reply" in llm_call_names, "debug_trace llm_calls must include quick_reply", llm_call_names)
     check("rabbit_response" in llm_call_names, "debug_trace llm_calls must include rabbit_response", llm_call_names)
@@ -170,10 +170,10 @@ def check_sse_quick_reply_contract() -> None:
     )
 
     final_payload = next(payload for event_type, payload in events if event_type == "final")
-    check(final_payload.get("quick_reply"), "quick final payload must include quick_reply")
+    check(bool(final_payload.get("quick_reply")), "quick final payload must include quick_reply")
     check(not final_payload.get("deep_reply"), "quick final payload must not require deep_reply")
     debug_trace = final_payload.get("debug_trace") or {}
-    check(debug_trace.get("quick_reply"), "quick debug_trace must include quick_reply for dev panel")
+    check(bool(debug_trace.get("quick_reply")), "quick debug_trace must include quick_reply for dev panel")
     llm_call_names = [call.get("name") for call in debug_trace.get("llm_calls", [])]
     check("quick_reply" in llm_call_names, "quick debug_trace llm_calls must include quick_reply", llm_call_names)
 

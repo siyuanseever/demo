@@ -1257,6 +1257,10 @@ private struct MacConversationSidebar: View {
         store.messages.reversed().first { $0.replyStage == "deep" && $0.role == .assistant }
     }
 
+    private var latestPlanMetadata: [String: Any]? {
+        latestDeepReply?.routePlan
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -1271,7 +1275,9 @@ private struct MacConversationSidebar: View {
                 }
 
                 VStack(spacing: 14) {
-                    CharacterAvatar(character: store.selectedCharacter, size: 96)
+                    CharacterAvatar(character: store.selectedCharacter, cornerRadius: 12, isFixedSize: false)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
                     Text(store.selectedCharacter.name)
                         .font(.title2.bold())
                     Text(store.selectedCharacter.tagline)
@@ -1315,6 +1321,22 @@ private struct MacConversationSidebar: View {
 
                 if let deepReply = latestDeepReply {
                     Divider()
+
+                    if let planMetadata = latestPlanMetadata {
+                        MacSidebarSection(title: "规划详情") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                planInfoRow(label: "用户状态", value: planMetadata["user_state"] as? String)
+                                planInfoRow(label: "核心需要", value: planMetadata["core_need"] as? String)
+                                planInfoRow(label: "风险等级", value: planMetadata["risk_level"] as? String)
+                                planInfoRow(label: "回复模式", value: planMetadata["response_mode"] as? String)
+                                planInfoRow(label: "历史轮数", value: (planMetadata["history_turns_needed"] as? Int).map { "\($0)" })
+                                planInfoRow(label: "需要状态画像", value: (planMetadata["need_state_profiles"] as? Bool).map { $0 ? "是" : "否" })
+                                planInfoRow(label: "需要更多记忆", value: (planMetadata["need_more_memories"] as? Bool).map { $0 ? "是" : "否" })
+                                planInfoRow(label: "上下文策略", value: planMetadata["context_strategy"] as? String)
+                                planInfoRow(label: "选择理由", value: planMetadata["reason"] as? String)
+                            }
+                        }
+                    }
 
                     if !deepReply.retrievedMemories.isEmpty {
                         MacSidebarSection(title: "检索到的记忆") {
@@ -1367,6 +1389,22 @@ private struct MacConversationSidebar: View {
             .padding(22)
         }
         .background(Color.sidebarBackground)
+    }
+
+    @ViewBuilder
+    private func planInfoRow(label: String, value: String?) -> some View {
+        if let value, !value.isEmpty {
+            HStack(alignment: .top, spacing: 6) {
+                Text("\(label)：")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .trailing)
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }
 

@@ -3517,7 +3517,7 @@ class Handler(BaseHTTPRequestHandler):
             for sse_chunk in self.app.orchestrator.reply_stream(
                 payload["session_id"],
                 payload["text"],
-                character_id=payload.get("character_id"),
+                character_id=str(payload.get("character_id", "auto")),
             ):
                 if compact_response:
                     sse_chunk = self._compact_chat_stream_chunk(sse_chunk)

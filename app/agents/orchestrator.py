@@ -172,7 +172,7 @@ def _short_text(value: object, fallback: str, limit: int) -> str:
     return text[:limit]
 
 
-def _normalize_choice(value: object, allowed: set[str], fallback: str) -> str:
+def _normalize_choice(value: object, allowed: set[str] | list[str], fallback: str) -> str:
     text = str(value or "").strip().lower()
     return text if text in allowed else fallback
 
@@ -296,7 +296,7 @@ class ConversationOrchestrator:
     ):
         """包装 LLM 调用，自动设置 Prompt 追踪上下文"""
         if hasattr(self.llm, "set_context"):
-            self.llm.set_context(call_type=call_type, session_id=session_id)
+            self.llm.set_context(call_type=call_type, session_id=session_id)  # type: ignore[attr-defined]
         return self.llm.chat(
             messages,
             temperature=temperature,
@@ -741,7 +741,7 @@ class ConversationOrchestrator:
 
         if character_id == "auto":
             messages = self.store.get_session_messages(session_id)
-            recent_history = messages[-(5 * 2):]  # 最近 5 轮
+            recent_history = [dict(m) for m in messages[-(5 * 2):]]  # 最近 5 轮
 
             # 统一意图识别
             intent_result = self.intent_agent.recognize(user_text, recent_history)
@@ -1352,8 +1352,9 @@ class ConversationOrchestrator:
         intent_future = None
         try:
             if character_id == "auto":
+                recent_history = [dict(m) for m in messages[-(5 * 2):]]
                 intent_future = executor.submit(
-                    self.intent_agent.recognize, user_text, messages[-(5 * 2):],
+                    self.intent_agent.recognize, user_text, recent_history,
                 )
 
             quick_future = executor.submit(

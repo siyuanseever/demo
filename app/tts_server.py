@@ -10,6 +10,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 
 HOST = os.getenv("TTS_HOST", "127.0.0.1")
@@ -76,7 +77,7 @@ class LocalTTS:
             return self._model
         with self._load_lock:
             if self._model is None:
-                from mlx_audio.tts.utils import load_model
+                from mlx_audio.tts.utils import load_model  # type: ignore[reportMissingImports]
 
                 logger.info("loading model=%s", MODEL_ID)
                 self._model = load_model(MODEL_ID)
@@ -123,9 +124,9 @@ class LocalTTS:
             if cache_path.exists():
                 return cache_path.read_bytes()
 
-            import mlx.core as mx
+            import mlx.core as mx  # type: ignore[reportMissingImports]
             import numpy as np
-            from mlx_audio.audio_io import write as audio_write
+            from mlx_audio.audio_io import write as audio_write  # type: ignore[reportMissingImports]
 
             model = self._load_model()
             segments = self._split_text(text)
@@ -136,7 +137,7 @@ class LocalTTS:
             self._log_segments(segments)
 
             all_audio = []
-            result_sample_rate = None
+            result_sample_rate: int | None = None
             for i, seg in enumerate(segments):
                 seg_audio, seg_sr = self._generate_segment(
                     model, seg, voice, instruct, i + 1, len(segments), my_count,
@@ -152,6 +153,7 @@ class LocalTTS:
 
             if not all_audio:
                 raise RuntimeError("TTS model returned no audio for any segment")
+            assert result_sample_rate is not None
 
             full_audio = (
                 np.concatenate(all_audio, axis=0)
@@ -225,9 +227,9 @@ class LocalTTS:
                     send_chunk(wav_bytes[44:])
                 return
 
-            import mlx.core as mx
+            import mlx.core as mx  # type: ignore[reportMissingImports]
             import numpy as np
-            from mlx_audio.audio_io import write as audio_write
+            from mlx_audio.audio_io import write as audio_write  # type: ignore[reportMissingImports]
 
             # Record cancel count at start; abort if a newer request arrives
             with self._cancel_lock:
@@ -242,7 +244,7 @@ class LocalTTS:
             self._log_segments(segments)
 
             all_audio = []
-            sample_rate = None
+            sample_rate: int | None = None
             header_sent = False
             client_gone = False
 
@@ -268,6 +270,7 @@ class LocalTTS:
 
                 if not header_sent:
                     sample_rate = seg_sr
+                    assert sample_rate is not None
                     header = self._make_wav_header(sample_rate)
                     try:
                         send_chunk(header)
@@ -276,6 +279,7 @@ class LocalTTS:
                         break
                     header_sent = True
 
+                assert sample_rate is not None
                 # Trim tail silence per segment
                 trimmed = self._trim_tail_silence(seg_audio, sample_rate)
                 pcm_bytes = self._float_to_int16_bytes(trimmed)
@@ -289,6 +293,7 @@ class LocalTTS:
                 self._clear_metal_cache()
 
             if all_audio and not client_gone:
+                assert sample_rate is not None
                 # Save to cache for future requests
                 full_audio = (
                     np.concatenate(all_audio, axis=0)
@@ -320,14 +325,14 @@ class LocalTTS:
         """Aggressively clear MLX Metal state to prevent degradation across calls."""
         # 1. Clear buffer cache
         try:
-            import mlx.core as mx
+            import mlx.core as mx  # type: ignore[reportMissingImports]
             mx.clear_cache()
         except Exception:
             pass
 
         # 2. Force-release all cached Metal buffers by temporarily setting limit to 0
         try:
-            import mlx.metal as mx_metal
+            import mlx.metal as mx_metal  # type: ignore[reportMissingImports]
             original_limit = mx_metal.get_cache_memory()
             mx_metal.set_cache_limit(0)
             mx_metal.clear_cache()
@@ -349,7 +354,7 @@ class LocalTTS:
 
         # 4. Reset peak memory counter for better diagnostics
         try:
-            import mlx.metal as mx_metal
+            import mlx.metal as mx_metal  # type: ignore[reportMissingImports]
             mx_metal.reset_peak_memory()
         except Exception:
             pass
@@ -452,7 +457,7 @@ class LocalTTS:
         idx: int,
         total: int,
         my_count: int = -1,
-    ):
+    ) -> tuple[Any, Any]:
         """Generate audio for one segment.
 
         Returns (np.array, sample_rate), or (None, None) when cancelled.

@@ -37,7 +37,11 @@ class MetricsCollector:
         self._histograms: dict[str, list[float]] = defaultdict(list)
         self._snapshots: list[MetricSnapshot] = []
         self._lock = threading.Lock()
-        self._process = psutil.Process(os.getpid()) if _HAS_PSUTIL else None
+        if _HAS_PSUTIL:
+            import psutil
+            self._process = psutil.Process(os.getpid())
+        else:
+            self._process = None
 
     def increment(self, name: str, value: int = 1, labels: dict | None = None) -> None:
         with self._lock:

@@ -2,8 +2,9 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import cast
 
-from app.intent.schema import IntentResult
+from app.intent.schema import IntentResult, IntentType, InteractionType, RiskLevel
 from app.llm.base import LLMClient
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompts"
@@ -70,9 +71,10 @@ class IntentAgent:
             },
         ]
 
+        response = None
         try:
             if hasattr(self.llm, "set_context"):
-                self.llm.set_context(call_type="intent_recognition")
+                self.llm.set_context(call_type="intent_recognition")  # type: ignore[attr-defined]
             response = self.llm.chat(
                 messages,
                 temperature=0.1,
@@ -125,6 +127,7 @@ class IntentAgent:
         intent = str(raw.get("intent", "QUICK_REPLY")).strip().upper()
         if intent not in VALID_INTENTS:
             intent = "QUICK_REPLY"
+        intent = cast(IntentType, intent)
 
         confidence = self._parse_float(raw.get("confidence"), 0.5)
         confidence = max(0.0, min(1.0, confidence))
@@ -132,6 +135,7 @@ class IntentAgent:
         risk = str(raw.get("risk_level", "low")).strip().lower()
         if risk not in {"low", "medium", "high"}:
             risk = "low"
+        risk = cast(RiskLevel, risk)
 
         memory_queries = self._parse_string_list(raw.get("memory_queries"), limit=6)
         knowledge_queries = self._parse_string_list(raw.get("knowledge_queries"), limit=6)
@@ -147,10 +151,13 @@ class IntentAgent:
         if intent == "CLARIFY":
             clarify_reply = str(raw.get("clarify_reply", "")).strip()[:200]
 
-        interaction_type = None
+        interaction_type: InteractionType | None = None
         if intent == "INTERACTION":
             raw_type = str(raw.get("interaction_type", "")).strip().lower()
-            interaction_type = raw_type if raw_type in VALID_INTERACTIONS else "breathing"
+            if raw_type in VALID_INTERACTIONS:
+                interaction_type = cast(InteractionType, raw_type)
+            else:
+                interaction_type = "breathing"
 
         return IntentResult(
             intent=intent,

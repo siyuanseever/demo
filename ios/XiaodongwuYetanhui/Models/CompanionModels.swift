@@ -43,8 +43,17 @@ struct ChatMessage: Identifiable, Hashable {
     var expressionID: String = ""
     var replyStage: String = ""
     var routeSummary: String?
+    var routePlan: [String: Any]?
     var knowledgeCards: [KnowledgeCard] = []
     var retrievedMemories: [MemoryEntry] = []
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 struct UserConversationAssessment: Hashable {

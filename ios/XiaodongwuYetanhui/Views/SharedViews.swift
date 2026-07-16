@@ -52,26 +52,27 @@ struct CharacterAvatar: View {
     let character: CompanionCharacter
     var size: CGFloat = 52
     var expressionID: String?
+    var cornerRadius: CGFloat = 8
+    var isFixedSize: Bool = true
 
     var body: some View {
         let assetName = character.expression(id: expressionID)?.assetName ?? character.avatarName
         ZStack {
-            Circle()
+            RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(character.bubbleColor)
             if let image = UIImage(named: assetName) ?? UIImage(named: "\(assetName).webp") ?? UIImage(named: "\(assetName).png") {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    .clipShape(Circle())
             } else {
                 Image(systemName: character.systemImageName)
                     .font(.system(size: size * 0.42, weight: .semibold))
                     .foregroundStyle(Color.warmBrown)
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: isFixedSize ? size : nil, height: isFixedSize ? size : nil)
         .overlay {
-            Circle().stroke(Color.avatarStroke.opacity(0.75), lineWidth: 1)
+            RoundedRectangle(cornerRadius: cornerRadius).stroke(Color.avatarStroke.opacity(0.75), lineWidth: 1)
         }
         .accessibilityLabel(character.name)
     }

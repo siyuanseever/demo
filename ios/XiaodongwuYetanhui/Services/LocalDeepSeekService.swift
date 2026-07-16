@@ -867,12 +867,10 @@ final class LocalDeepSeekService {
             characterID: selectedCharacter.id,
             expressionID: deepExpressionID,
             model: "deepseek-chat",
-            routePlan: plan.presentationMetadata(
-                characterID: selectedCharacter.id,
-                expressionID: deepExpressionID
-            ),
+            routePlan: plan.metadata,
             replyStage: "deep",
-            knowledgeCards: knowledgeCards
+            knowledgeCards: knowledgeCards,
+            retrievedMemories: memories
         )
         fputs("[LocalDeepSeek] 深度回复消息已保存\n", stderr)
         return LocalChatResult(
@@ -893,6 +891,7 @@ final class LocalDeepSeekService {
                     character: selectedCharacter,
                     expressionID: deepExpressionID
                 ),
+                routePlan: plan.metadata,
                 knowledgeCards: knowledgeCards,
                 retrievedMemories: memories
             ),

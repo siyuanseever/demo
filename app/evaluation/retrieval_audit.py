@@ -95,7 +95,7 @@ def _legacy_memory_relevant(
 ) -> list[dict[str, Any]]:
     tokens = list(dict.fromkeys([*tokenize_query(query), *query_terms]))
     if not tokens:
-        return store.recent_memories(limit=limit)
+        return [dict(memory) for memory in store.recent_memories(limit=limit)]
     scored = []
     for memory in store.list_memories(limit=10000):
         if memory.get("status") != "active":

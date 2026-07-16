@@ -174,7 +174,7 @@ class FunctionalTest:
             memory_queries=[], knowledge_queries=[],
             user_state="信息不足", core_need="被理解",
             response_guidance="", clarify_reply="你能多说一点吗？",
-            interaction_type="", reason="测试",
+            interaction_type=None, reason="测试",
         )
         reply_path = ReplyPath(
             path="clarify", use_thinking=False,

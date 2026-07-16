@@ -423,7 +423,6 @@ private struct NativeConversationSidebar: View {
                         character: store.selectedCharacter,
                         expressionID: latestAssistantMessage?.expressionID
                     )
-                    .frame(height: 150)
                     Text(store.selectedCharacter.name)
                         .font(.title3.bold())
                     Text(store.selectedCharacter.tagline)
@@ -448,6 +447,76 @@ private struct NativeConversationSidebar: View {
                     Label("DeepSeek 直连双阶段", systemImage: "brain.head.profile")
                 }
                 .font(.callout)
+
+                if let deepReply = latestDeepReply {
+                    Divider()
+
+                    if let planMetadata = deepReply.routePlan {
+                        NativeSidebarSection(title: "规划详情") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                planInfoRow(label: "用户状态", value: planMetadata["user_state"] as? String)
+                                planInfoRow(label: "核心需要", value: planMetadata["core_need"] as? String)
+                                planInfoRow(label: "风险等级", value: planMetadata["risk_level"] as? String)
+                                planInfoRow(label: "回复模式", value: planMetadata["response_mode"] as? String)
+                                planInfoRow(label: "历史轮数", value: (planMetadata["history_turns_needed"] as? Int).map { "\($0)" })
+                                planInfoRow(label: "需要状态画像", value: (planMetadata["need_state_profiles"] as? Bool).map { $0 ? "是" : "否" })
+                                planInfoRow(label: "需要更多记忆", value: (planMetadata["need_more_memories"] as? Bool).map { $0 ? "是" : "否" })
+                                planInfoRow(label: "上下文策略", value: planMetadata["context_strategy"] as? String)
+                                if let queries = planMetadata["memory_queries"] as? [String], !queries.isEmpty {
+                                    planInfoRow(label: "记忆检索词", value: queries.joined(separator: "、"))
+                                }
+                                planInfoRow(label: "选择理由", value: planMetadata["reason"] as? String)
+                            }
+                        }
+                    }
+
+                    if !deepReply.retrievedMemories.isEmpty {
+                        NativeSidebarSection(title: "检索到的记忆") {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(deepReply.retrievedMemories.prefix(5)) { memory in
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(memory.content)
+                                            .font(.callout)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(4)
+                                        HStack(spacing: 6) {
+                                            Text("[\(memory.category)/\(memory.subcategory)]")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            if !memory.keywords.isEmpty {
+                                                Text(memory.keywords.joined(separator: "、"))
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.tertiary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                    }
+                                    .padding(8)
+                                    .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+                    }
+
+                    if !deepReply.knowledgeCards.isEmpty {
+                        NativeSidebarSection(title: "参考知识卡") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(deepReply.knowledgeCards) { card in
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "leaf.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(card.title)
+                                            .font(.callout)
+                                            .lineLimit(2)
+                                    }
+                                    .padding(8)
+                                    .background(Color.overlayLight, in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+                    }
+                }
             }
             .padding(20)
         }
@@ -456,6 +525,25 @@ private struct NativeConversationSidebar: View {
 
     private var latestAssistantMessage: ChatMessage? {
         store.messages.last(where: { $0.role == .assistant })
+    }
+
+    private var latestDeepReply: ChatMessage? {
+        store.messages.reversed().first { $0.replyStage == "deep" && $0.role == .assistant }
+    }
+
+    @ViewBuilder
+    private func planInfoRow(label: String, value: String?) -> some View {
+        if let value, !value.isEmpty {
+            HStack(alignment: .top, spacing: 4) {
+                Text("\(label)：")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private var flowCards: [NativeSidebarFlowCardModel] {
@@ -592,8 +680,12 @@ private struct NativeRabbitPortrait: View {
             NativeCharacterAvatar(
                 character: character,
                 expressionID: expressionID,
-                size: 112
+                size: 112,
+                cornerRadius: 14,
+                fillsWidth: true
             )
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)
             Text(expressionLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)

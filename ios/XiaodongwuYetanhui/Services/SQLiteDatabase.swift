@@ -168,6 +168,7 @@ final class SQLiteDatabase {
                 expressionID: metadata["expression_id"] as? String ?? "",
                 replyStage: Self.replyStage(metadata: metadata, model: row["model"] ?? ""),
                 routeSummary: Self.routeSummary(from: metadata["route_plan"] as? [String: Any]),
+                routePlan: metadata["route_plan"] as? [String: Any],
                 knowledgeCards: Self.knowledgeCards(from: metadata["knowledge_card_ids"])
             )
         }
@@ -431,7 +432,8 @@ final class SQLiteDatabase {
         model: String = "",
         routePlan: [String: Any]? = nil,
         replyStage: String = "",
-        knowledgeCards: [KnowledgeCard] = []
+        knowledgeCards: [KnowledgeCard] = [],
+        retrievedMemories: [MemoryEntry] = []
     ) -> ChatMessage {
         let messageID = UUID().uuidString
         let createdAt = Self.string(from: Date())
@@ -450,6 +452,18 @@ final class SQLiteDatabase {
         }
         if !knowledgeCards.isEmpty {
             metadata["knowledge_card_ids"] = knowledgeCards.map(\.id)
+        }
+        if !retrievedMemories.isEmpty {
+            metadata["retrieved_memories"] = retrievedMemories.map { memory in
+                [
+                    "id": memory.id,
+                    "category": memory.category,
+                    "subcategory": memory.subcategory,
+                    "content": memory.content,
+                    "evidence": memory.evidence,
+                    "keywords": memory.keywords
+                ]
+            }
         }
         execute(
             sql: """
@@ -475,7 +489,8 @@ final class SQLiteDatabase {
             expressionID: expressionID,
             replyStage: replyStage,
             routeSummary: Self.routeSummary(from: routePlan),
-            knowledgeCards: knowledgeCards
+            knowledgeCards: knowledgeCards,
+            retrievedMemories: retrievedMemories
         )
     }
 
@@ -1210,6 +1225,23 @@ final class SQLiteDatabase {
         return ids.map { KnowledgeCard(id: $0, title: $0, concept: "") }
     }
 
+    private static func retrievedMemories(from value: Any?) -> [MemoryEntry] {
+        guard let dicts = value as? [[String: Any]] else { return [] }
+        return dicts.map { dict in
+            MemoryEntry(
+                id: dict["id"] as? String ?? UUID().uuidString,
+                category: dict["category"] as? String ?? "general",
+                subcategory: dict["subcategory"] as? String ?? "general",
+                content: dict["content"] as? String ?? "",
+                evidence: dict["evidence"] as? String ?? "",
+                keywords: dict["keywords"] as? [String] ?? [],
+                sourceSessionID: "",
+                importance: 0,
+                updatedAt: ""
+            )
+        }
+    }
+
     private static func stringArray(from jsonString: String) -> [String] {
         guard
             let data = jsonString.data(using: .utf8),
@@ -1333,7 +1365,9 @@ final class SQLiteDatabase {
             expressionID: metadata["expression_id"] as? String ?? "",
             replyStage: replyStage(metadata: metadata, model: row["model"] ?? ""),
             routeSummary: routeSummary(from: metadata["route_plan"] as? [String: Any]),
-            knowledgeCards: knowledgeCards(from: metadata["knowledge_card_ids"])
+            routePlan: metadata["route_plan"] as? [String: Any],
+            knowledgeCards: knowledgeCards(from: metadata["knowledge_card_ids"]),
+            retrievedMemories: retrievedMemories(from: metadata["retrieved_memories"])
         )
     }
 

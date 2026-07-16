@@ -25,6 +25,7 @@ from typing import Any
 
 from app.evaluation.robustness import RobustnessTest, RobustnessResult
 from app.evaluation.accuracy import AccuracyTest
+from app.llm.base import LLMResponse
 
 
 # ---------------------------------------------------------------------------
@@ -54,17 +55,17 @@ class BrokenJsonClient:
         })
         # 如果要求 json_object 格式，返回无效 JSON
         if response_format and response_format.get("type") == "json_object":
-            return type("R", (), {
-                "content": "这不是有效的JSON!!!{broken",
-                "model": "broken-json-client",
-                "raw": {},
-            })()
+            return LLMResponse(
+                content="这不是有效的JSON!!!{broken",
+                model="broken-json-client",
+                raw={},
+            )
         # 否则返回正常文本
-        return type("R", (), {
-            "content": "这是一条普通文本回复。",
-            "model": "broken-json-client",
-            "raw": {},
-        })()
+        return LLMResponse(
+            content="这是一条普通文本回复。",
+            model="broken-json-client",
+            raw={},
+        )
 
 
 class FailingClient:
@@ -117,11 +118,11 @@ class SelectiveFailingClient:
             for kw in self.fail_keywords:
                 if kw in system:
                     raise RuntimeError(f"模拟失败: 匹配到关键词 '{kw}'")
-        return type("R", (), {
-            "content": '{"reply": "正常回复", "expression_id": "calm"}',
-            "model": "selective-failing",
-            "raw": {},
-        })()
+        return LLMResponse(
+            content='{"reply": "正常回复", "expression_id": "calm"}',
+            model="selective-failing",
+            raw={},
+        )
 
 
 class SlowClient:
@@ -146,11 +147,11 @@ class SlowClient:
             "response_format": response_format,
         })
         time.sleep(self.delay_sec)
-        return type("R", (), {
-            "content": '{"reply": "延迟回复", "expression_id": "calm"}',
-            "model": "slow-client",
-            "raw": {},
-        })()
+        return LLMResponse(
+            content='{"reply": "延迟回复", "expression_id": "calm"}',
+            model="slow-client",
+            raw={},
+        )
 
 
 # ===========================================================================
@@ -233,6 +234,8 @@ class SetContextThreadSafetyTest(RobustnessTest):
             message="无异常" if not errors else f"异常: {errors[:3]}",
         ))
 
+        return self.results
+
 
 # ===========================================================================
 # 问题 2: _write_journal 中 json.loads 无异常保护
@@ -301,6 +304,8 @@ class WriteJournalJsonProtectionTest(RobustnessTest):
                 message=f"意外的异常类型: {type(e).__name__}: {e}",
                 exception=str(e),
             ))
+
+        return self.results
 
 
 # ===========================================================================
@@ -373,6 +378,8 @@ class ExtractMemoriesJsonProtectionTest(RobustnessTest):
                 message=f"意外的异常类型: {type(e).__name__}: {e}",
                 exception=str(e),
             ))
+
+        return self.results
 
 
 # ===========================================================================
@@ -492,6 +499,8 @@ class DeepResponseLlmProtectionTest(RobustnessTest):
                 exception=str(e),
             ))
 
+        return self.results
+
 
 # ===========================================================================
 # 问题 5: close_session 中 journal_future.result() 无异常保护
@@ -571,6 +580,8 @@ class CloseSessionJournalFutureTest(RobustnessTest):
                 exception=str(e),
             ))
 
+        return self.results
+
 
 # ===========================================================================
 # 问题 6: reply_stream 意图识别超时后的回退路径
@@ -623,11 +634,11 @@ class ReplyStreamIntentTimeoutTest(RobustnessTest):
                     }, ensure_ascii=False)
                 else:
                     content = "快速回复文本。"
-                return type("R", (), {
-                    "content": content,
-                    "model": "mixed-slow-client",
-                    "raw": {},
-                })()
+                return LLMResponse(
+                    content=content,
+                    model="mixed-slow-client",
+                    raw={},
+                )
 
         tmpdir = tempfile.mkdtemp()
         db_path = os.path.join(tmpdir, "intent_timeout_test.db")
@@ -689,6 +700,8 @@ class ReplyStreamIntentTimeoutTest(RobustnessTest):
                 scenario="意图识别超时后有 final 事件",
                 message=f"final/deep_reply 事件: {'存在' if has_final else '缺失'}",
             ))
+
+        return self.results
 
 
 # ===========================================================================

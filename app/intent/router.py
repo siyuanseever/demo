@@ -1,8 +1,9 @@
 import logging
+from typing import cast
 
 from app.agents.safety import CRISIS_RESPONSE, detect_crisis
 from app.characters import auto_select_character, get_character, normalize_expression_id
-from app.intent.schema import IntentResult, ReplyPath
+from app.intent.schema import IntentResult, IntentType, ReplyPath
 
 
 class IntentRouter:
@@ -129,7 +130,7 @@ class IntentRouter:
         )
 
         corrected = IntentResult(
-            intent=corrected_intent,
+            intent=cast(IntentType, corrected_intent),
             confidence=reply_path.intent_result.confidence,
             user_state=reply_path.intent_result.user_state,
             core_need=reply_path.intent_result.core_need,

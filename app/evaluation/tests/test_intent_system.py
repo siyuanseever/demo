@@ -148,7 +148,7 @@ def test_intent_agent_normalize():
     results.append(run_test("normalize: INTERACTION 提取 interaction_type", lambda: check(
         result8.interaction_type == "breathing",
         "breathing",
-        result8.interaction_type,
+        str(result8.interaction_type),
     )))
 
     # 1.8 无效 interaction_type 修正为 breathing
@@ -157,7 +157,7 @@ def test_intent_agent_normalize():
     results.append(run_test("normalize: 无效 interaction_type 修正", lambda: check(
         result9.interaction_type == "breathing",
         "breathing",
-        result9.interaction_type,
+        str(result9.interaction_type),
     )))
 
     # 1.9 memory_queries 非 list 处理
@@ -546,7 +546,7 @@ def test_choose_reply_roles_compatibility():
     results.append(run_test("兼容性: character_id 可用于 get_character", lambda: check(
         character_id in ("yoyo", "momo", "yoran"),
         "有效角色 ID",
-        character_id,
+        str(character_id),
     )))
 
     results.append(run_test("兼容性: memory_queries 是 list 且可迭代", lambda: check(
@@ -564,13 +564,13 @@ def test_choose_reply_roles_compatibility():
     results.append(run_test("兼容性: response_mode 是有效值", lambda: check(
         response_mode in ("stabilize", "validate", "insight", "boundary", "action", "mixed"),
         "有效模式",
-        response_mode,
+        str(response_mode),
     )))
 
     results.append(run_test("兼容性: risk_level 是有效值", lambda: check(
         risk_level in ("low", "medium", "high"),
         "有效风险等级",
-        risk_level,
+        str(risk_level),
     )))
 
     return results

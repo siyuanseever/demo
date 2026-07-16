@@ -451,7 +451,7 @@ class Store:
             )
             return list(cursor.fetchall())
 
-    def recent_memories(self, limit: int = 12) -> list[sqlite3.Row]:
+    def recent_memories(self, limit: int = 12) -> list[dict[str, Any]]:
         with self.connect() as conn:
             cursor = conn.execute(
                 """
@@ -465,7 +465,7 @@ class Store:
                 """,
                 (limit,),
             )
-            return list(cursor.fetchall())
+            return [dict(row) for row in cursor.fetchall()]
 
     def add_memory(self, session_id: str, memory: dict[str, Any]) -> str:
         memory_id = str(uuid.uuid4())

@@ -43,13 +43,16 @@ class PromptTracker:
 
     _instance = None
     _lock = threading.Lock()
+    _records: list[PromptCallRecord]
+    _enabled: bool
+    _storage_dir: Path
 
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super().__new__(cls)
-                    cls._instance._records: list[PromptCallRecord] = []
+                    cls._instance._records = []
                     cls._instance._lock = threading.Lock()
                     cls._instance._enabled = True
                     cls._instance._storage_dir = Path("data/prompt_logs")
@@ -74,7 +77,7 @@ class PromptTracker:
         response: LLMResponse,
         response_time_sec: float,
         metadata: dict | None = None,
-    ) -> PromptCallRecord:
+    ) -> PromptCallRecord | None:
         if not self._enabled:
             return None
 

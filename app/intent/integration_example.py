@@ -99,6 +99,7 @@ def reply_with_intent(
 
     if reply_path.path == "quick":
         # 快速路径：直接返回轻量回复
+        assert reply_path.route_plan is not None
         character = get_character(reply_path.route_plan["character_id"])
         expression_id = reply_path.route_plan["expression_id"]
         self.store.add_message(
@@ -129,6 +130,7 @@ def reply_with_intent(
     if reply_path.path == "clarify":
         # 追问路径：快速回复 + 追问
         clarify_text = quick_reply_text + "\n\n（我想更理解你，可以多告诉我一点吗？）"
+        assert reply_path.route_plan is not None
         character = get_character(reply_path.route_plan["character_id"])
         expression_id = reply_path.route_plan["expression_id"]
         self.store.add_message(

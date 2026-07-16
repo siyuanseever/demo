@@ -240,7 +240,7 @@ class ReplySpeedTest:
             core_need="被陪伴",
             response_guidance="",
             clarify_reply="",
-            interaction_type="",
+            interaction_type=None,
             reason="测试",
         )
 

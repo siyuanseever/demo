@@ -22,7 +22,7 @@ class CompletenessResult:
     check_type: str
     passed: bool
     message: str
-    detail: dict = None
+    detail: dict | None = None
 
     def __post_init__(self):
         if self.detail is None:

@@ -16,7 +16,9 @@
 import tempfile
 import os
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
+
+from app.intent.schema import InteractionType
 
 
 @dataclass
@@ -210,7 +212,7 @@ class ReplyQualityTest:
             memory_queries=[], knowledge_queries=[],
             user_state="信息不足", core_need="被理解",
             response_guidance="", clarify_reply="能多说一点你现在的感受吗？我想更好地理解你。",
-            interaction_type="", reason="测试 clarify",
+            interaction_type=None, reason="测试 clarify",
         )
         reply_path = ReplyPath(
             path="clarify", use_thinking=False,
@@ -253,7 +255,7 @@ class ReplyQualityTest:
                 memory_queries=[], knowledge_queries=[],
                 user_state="需要稳定", core_need="放松",
                 response_guidance="", clarify_reply="",
-                interaction_type=interaction_type, reason="测试 interaction",
+                interaction_type=cast(InteractionType, interaction_type), reason="测试 interaction",
             )
             reply_path = ReplyPath(
                 path="interaction", use_thinking=False,
