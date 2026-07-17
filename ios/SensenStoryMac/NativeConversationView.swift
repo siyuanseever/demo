@@ -148,11 +148,27 @@ struct NativeConversationView: View {
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 12) {
-            TextField("慢慢说，我在听…", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+            ZStack(alignment: .topLeading) {
+                if draft.isEmpty {
+                    Text("慢慢说，我在听…")
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 7)
+                        .allowsHitTesting(false)
+                }
+
+                TextEditor(text: $draft)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .scrollIndicators(.automatic)
+                    .padding(.horizontal, 1)
+            }
+                // A vertically expanding TextField asks AppKit to measure the whole
+                // document during layout. Large pastes can therefore monopolize the
+                // main thread. A bounded TextEditor lays out only its visible viewport.
+                .frame(height: 92)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
                 .background(Color.inputBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
