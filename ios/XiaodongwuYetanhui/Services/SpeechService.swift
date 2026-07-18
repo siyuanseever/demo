@@ -15,11 +15,6 @@ final class SpeechService: NSObject, ObservableObject {
             UserDefaults.standard.set(automaticallyReadsReplies, forKey: Self.autoReadKey)
         }
     }
-    @Published var automaticallyReadsSummaries: Bool {
-        didSet {
-            UserDefaults.standard.set(automaticallyReadsSummaries, forKey: Self.autoReadSummariesKey)
-        }
-    }
 
     private struct LocalSpeechRequest: Encodable {
         let model: String
@@ -34,7 +29,6 @@ final class SpeechService: NSObject, ObservableObject {
     }
 
     private static let autoReadKey = "speech.automaticallyReadsReplies"
-    private static let autoReadSummariesKey = "speech.automaticallyReadsSummaries"
     private static var serviceBaseURL: URL {
 #if DEBUG
         if let rawValue = ProcessInfo.processInfo.environment["SENSEN_TTS_BASE_URL"],
@@ -67,9 +61,6 @@ final class SpeechService: NSObject, ObservableObject {
 
     override init() {
         automaticallyReadsReplies = UserDefaults.standard.bool(forKey: Self.autoReadKey)
-        automaticallyReadsSummaries = UserDefaults.standard.object(forKey: Self.autoReadSummariesKey) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: Self.autoReadSummariesKey)
         super.init()
     }
 

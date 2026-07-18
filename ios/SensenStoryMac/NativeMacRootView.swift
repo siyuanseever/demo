@@ -32,7 +32,6 @@ private enum NativeMacSection: String, CaseIterable, Identifiable {
 
 struct NativeMacRootView: View {
     @EnvironmentObject private var store: NativeMacShellStore
-    @EnvironmentObject private var speech: SpeechService
     @State private var selection: NativeMacSection? = .conversation
     @State private var conversationFlowCardIndex = 0
 
@@ -72,14 +71,6 @@ struct NativeMacRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .nativeOpenFlow)) { _ in
             selection = .flow
-        }
-        .onChange(of: store.closeSummary?.id) { _, _ in
-            guard speech.automaticallyReadsSummaries,
-                  let summary = store.closeSummary else { return }
-            speech.enqueue(
-                messageID: "session-summary-\(summary.id.uuidString)",
-                text: NativeSpeechNarration.sessionSummary(summary)
-            )
         }
     }
 
@@ -194,7 +185,6 @@ struct NativeMacSettingsView: View {
             Section("忧忧兔的声音") {
                 LabeledContent("语音", value: speech.voiceName)
                 Toggle("自动朗读新回复", isOn: $speech.automaticallyReadsReplies)
-                Toggle("自动朗读会后总结", isOn: $speech.automaticallyReadsSummaries)
                 Button {
                     if speech.activeMessageID == "speech-preview" && speech.isActive {
                         speech.stop()
@@ -211,7 +201,7 @@ struct NativeMacSettingsView: View {
                             : "speaker.wave.2.fill"
                     )
                 }
-                Text("结束夜谈后，忧忧兔会自动接着讲会后总结；日记、周报和心流导航也可以手动播放。使用本机 Qwen3-TTS 服务，需要先启动 `scripts/run_tts.sh`；语音失败不会影响文字内容。")
+                Text("会后总结、日记、周报和心流导航只会在你点击播放按钮后朗读。使用本机 Qwen3-TTS 服务，需要先启动 `scripts/run_tts.sh`；语音失败不会影响文字内容。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let error = speech.lastError {

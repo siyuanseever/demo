@@ -164,33 +164,35 @@ struct NativeConversationView: View {
                         .allowsHitTesting(false)
                 }
 
-                Text(draftHeightMeasurementText)
+                TextEditor(text: $draft)
                     .font(.body)
-                    .foregroundStyle(.clear)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 7)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityHidden(true)
-                    .allowsHitTesting(false)
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: NativeDraftHeightPreferenceKey.self,
-                                value: proxy.size.height
-                            )
-                        }
-                    }
-
-                NativeGrowingTextEditor(
-                    text: $draft,
-                    showsVerticalScroller: hasOverflow
-                )
+                    .scrollContentBackground(.hidden)
+                    .scrollIndicators(hasOverflow ? .visible : .hidden)
+                    .padding(.horizontal, 1)
             }
                 // Measure at most a small prefix, then cap the editor at one third of
                 // the conversation view. This keeps large pastes out of full-document
                 // SwiftUI layout while preserving a naturally growing composer.
                 .frame(height: editorHeight)
+                .background(alignment: .topLeading) {
+                    Text(draftHeightMeasurementText)
+                        .font(.body)
+                        .foregroundStyle(.clear)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 7)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityHidden(true)
+                        .allowsHitTesting(false)
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: NativeDraftHeightPreferenceKey.self,
+                                    value: proxy.size.height
+                                )
+                            }
+                        }
+                }
                 .clipped()
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
@@ -235,65 +237,6 @@ private struct NativeDraftHeightPreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
-    }
-}
-
-private struct NativeGrowingTextEditor: NSViewRepresentable {
-    @Binding var text: String
-    let showsVerticalScroller: Bool
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.borderType = .noBorder
-        scrollView.drawsBackground = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.hasVerticalScroller = showsVerticalScroller
-        scrollView.autohidesScrollers = true
-
-        let textView = NSTextView()
-        textView.delegate = context.coordinator
-        textView.string = text
-        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
-        textView.textColor = .labelColor
-        textView.drawsBackground = false
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.allowsUndo = true
-        textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = true
-        textView.autoresizingMask = [.width]
-        textView.textContainerInset = NSSize(width: 4, height: 6)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.containerSize = NSSize(
-            width: 0,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        scrollView.documentView = textView
-        return scrollView
-    }
-
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        scrollView.hasVerticalScroller = showsVerticalScroller
-        guard let textView = scrollView.documentView as? NSTextView,
-              textView.string != text else { return }
-        textView.string = text
-    }
-
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        private var text: Binding<String>
-
-        init(text: Binding<String>) {
-            self.text = text
-        }
-
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
-        }
     }
 }
 
