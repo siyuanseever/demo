@@ -215,6 +215,18 @@ class Store:
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS memory_reflection_runs (
+                    id TEXT PRIMARY KEY,
+                    reflection_date TEXT NOT NULL UNIQUE,
+                    status TEXT NOT NULL,
+                    merged_count INTEGER NOT NULL DEFAULT 0,
+                    archived_count INTEGER NOT NULL DEFAULT 0,
+                    noop_count INTEGER NOT NULL DEFAULT 0,
+                    error TEXT NOT NULL DEFAULT '',
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT
+                );
+
                 CREATE TABLE IF NOT EXISTS home_hint_feedback (
                     id TEXT PRIMARY KEY,
                     hint_id TEXT NOT NULL UNIQUE,
@@ -531,6 +543,64 @@ class Store:
                     utc_now(),
                 ),
             )
+
+    def start_memory_reflection(self, reflection_date: str) -> str | None:
+        """Claim a daily reflection run, returning its id only to the winner."""
+        run_id = str(uuid.uuid4())
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO memory_reflection_runs (
+                    id, reflection_date, status, started_at
+                )
+                VALUES (?, ?, 'running', ?)
+                """,
+                (run_id, reflection_date, utc_now()),
+            )
+        return run_id if cursor.rowcount == 1 else None
+
+    def finish_memory_reflection(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        merged_count: int = 0,
+        archived_count: int = 0,
+        noop_count: int = 0,
+        error: str = "",
+    ) -> None:
+        with self.connect() as conn:
+            conn.execute(
+                """
+                UPDATE memory_reflection_runs
+                SET status = ?, merged_count = ?, archived_count = ?,
+                    noop_count = ?, error = ?, finished_at = ?
+                WHERE id = ?
+                """,
+                (
+                    status,
+                    merged_count,
+                    archived_count,
+                    noop_count,
+                    error,
+                    utc_now(),
+                    run_id,
+                ),
+            )
+
+    def list_memory_reflection_runs(self, limit: int = 30) -> list[dict[str, Any]]:
+        with self.connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT id, reflection_date, status, merged_count, archived_count,
+                       noop_count, error, started_at, finished_at
+                FROM memory_reflection_runs
+                ORDER BY reflection_date DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            return [row_to_dict(row) for row in cursor.fetchall()]
 
     def add_memories(self, session_id: str, memories: list[dict[str, Any]]) -> None:
         for memory in memories[:3]:

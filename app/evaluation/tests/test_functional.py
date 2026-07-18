@@ -17,6 +17,7 @@ import tempfile
 import os
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 from app.evaluation.robustness import RobustnessTest
@@ -481,6 +482,87 @@ class FunctionalTest:
             {"errors": errors[:3]},
         )
 
+    def test_nightly_memory_reflection(self):
+        """夜间反思会合并重复项、软删除废弃项，并保证每日幂等。"""
+        from app.memory.reflection import (
+            ConservativeReflectionPolicy,
+            MemoryReflector,
+            NightlyReflectionScheduler,
+        )
+        from app.memory.store import Store
+
+        store = Store(os.path.join(self.tmpdir, "reflection_test.db"))
+        session_id = store.create_session()
+        memory = {
+            "category": "life_habit",
+            "subcategory": "rest",
+            "content": "晚上散步会让我更平静。",
+            "evidence": "两次记录",
+            "confidence": 0.8,
+            "importance": 3,
+            "keywords": ["散步", "平静"],
+        }
+        target_id = store.add_memory(session_id, memory)
+        duplicate_id = store.add_memory(session_id, {**memory, "confidence": 0.5})
+        stale_id = store.add_memory(session_id, {
+            "category": "goal_action",
+            "subcategory": "small_step",
+            "content": "一次性的低置信提醒",
+            "evidence": "",
+            "confidence": 0.1,
+            "importance": 1,
+        })
+        with store.connect() as conn:
+            conn.execute(
+                "UPDATE memories SET updated_at = ? WHERE id = ?",
+                ("2020-01-01T00:00:00+00:00", stale_id),
+            )
+
+        reflector = MemoryReflector(
+            store,
+            ConservativeReflectionPolicy(stale_days=180),
+        )
+        result = reflector.reflect(now=datetime(2026, 7, 18, 23, tzinfo=timezone.utc))
+        second_result = reflector.reflect(now=datetime(2026, 7, 18, 23, 30, tzinfo=timezone.utc))
+        before_window = NightlyReflectionScheduler(
+            reflector,
+            hour=2,
+            clock=lambda: datetime(2026, 7, 19, 1, 59, tzinfo=timezone.utc),
+        ).run_if_due()
+        in_window = NightlyReflectionScheduler(
+            reflector,
+            hour=2,
+            clock=lambda: datetime(2026, 7, 19, 2, 15, tzinfo=timezone.utc),
+        ).run_if_due()
+        after_window = NightlyReflectionScheduler(
+            reflector,
+            hour=2,
+            clock=lambda: datetime(2026, 7, 19, 23, tzinfo=timezone.utc),
+        ).run_if_due()
+        memories = {item["id"]: item for item in store.list_memories(limit=20)}
+        duplicate_statuses = {memories[target_id]["status"], memories[duplicate_id]["status"]}
+        merged_item = memories[target_id] if memories[target_id]["status"] == "merged" else memories[duplicate_id]
+        passed = (
+            result.get("status") == "completed"
+            and result.get("merged") == 1
+            and result.get("archived") == 1
+            and second_result.get("status") == "skipped"
+            and before_window is None
+            and in_window.get("status") == "completed"
+            and after_window is None
+            and duplicate_statuses == {"active", "merged"}
+            and bool(merged_item.get("merged_into_id"))
+            and memories[stale_id]["status"] == "archived"
+            and len(store.list_memory_reflection_runs()) == 2
+        )
+        self._record(
+            "nightly_memory_reflection", "记忆反思", passed,
+            f"首次={result.get('status')} 合并={result.get('merged')} "
+            f"归档={result.get('archived')} 二次={second_result.get('status')} "
+            f"凌晨窗口={in_window.get('status')}",
+            {"result": result, "second_result": second_result},
+        )
+
     # ------------------------------------------------------------------
     # 6. 关键函数签名检查
     # ------------------------------------------------------------------
@@ -547,6 +629,7 @@ class FunctionalTest:
             self.test_message_metadata,
             self.test_state_profile_two_stage_contract,
             self.test_concurrent_store_access,
+            self.test_nightly_memory_reflection,
             self.test_critical_function_signatures,
         ]
         for test in tests:

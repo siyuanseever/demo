@@ -11,6 +11,11 @@ from urllib.parse import urlparse
 from app.characters import list_characters
 from app.config import get_settings
 from app.main import build_orchestrator
+from app.memory.reflection import (
+    ConservativeReflectionPolicy,
+    MemoryReflector,
+    NightlyReflectionScheduler,
+)
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -3204,6 +3209,24 @@ HTML = """<!doctype html>
 class WebApp:
     def __init__(self) -> None:
         self.orchestrator = build_orchestrator()
+        settings = get_settings()
+        self.reflection_scheduler = None
+        if settings.memory_reflection_enabled:
+            reflector = MemoryReflector(
+                self.orchestrator.store,
+                ConservativeReflectionPolicy(
+                    stale_days=settings.memory_reflection_stale_days,
+                ),
+            )
+            self.reflection_scheduler = NightlyReflectionScheduler(
+                reflector,
+                hour=settings.memory_reflection_hour,
+            )
+            self.reflection_scheduler.start()
+
+    def close(self) -> None:
+        if self.reflection_scheduler:
+            self.reflection_scheduler.stop()
 
 
 class WebServer(ThreadingHTTPServer):
@@ -4031,7 +4054,11 @@ def main() -> None:
         print(f"绑定地址：{bound_url}")
     print(f"后台日志：{settings.log_path}")
     print("按 Ctrl+C 停止。")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        Handler.app.close()
+        server.server_close()
 
 
 def get_lan_ip() -> str:

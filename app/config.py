@@ -25,6 +25,9 @@ class Settings:
     quick_reply_history_turns: int
     quick_reply_history_chars: int
     prompt_tracking_enabled: bool
+    memory_reflection_enabled: bool
+    memory_reflection_hour: int
+    memory_reflection_stale_days: int
 
 
 def load_dotenv(path: str = ".env") -> None:
@@ -64,4 +67,7 @@ def get_settings() -> Settings:
         quick_reply_history_turns=int(os.getenv("QUICK_REPLY_HISTORY_TURNS", "2")),
         quick_reply_history_chars=int(os.getenv("QUICK_REPLY_HISTORY_CHARS", "600")),
         prompt_tracking_enabled=os.getenv("PROMPT_TRACKING_ENABLED", "false").lower() == "true",
+        memory_reflection_enabled=os.getenv("MEMORY_REFLECTION_ENABLED", "true").lower() == "true",
+        memory_reflection_hour=int(os.getenv("MEMORY_REFLECTION_HOUR", "2")),
+        memory_reflection_stale_days=int(os.getenv("MEMORY_REFLECTION_STALE_DAYS", "180")),
     )
