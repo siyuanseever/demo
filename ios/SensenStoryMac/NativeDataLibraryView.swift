@@ -501,6 +501,11 @@ private struct NativeSessionJournalSummary: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
+            NativeSpeechButton(
+                messageID: "session-journal-\(journal.id)",
+                text: NativeSpeechNarration.journal(journal),
+                idleLabel: "听忧忧兔读日记"
+            )
             Text(journal.summary).textSelection(.enabled)
             if !journal.emotionCurve.isEmpty {
                 Text("情绪变化：\(journal.emotionCurve.joined(separator: " → "))")
@@ -833,6 +838,11 @@ private struct NativeJournalVersionRow: View {
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 7) {
+                NativeSpeechButton(
+                    messageID: "journal-version-\(journal.id)",
+                    text: NativeSpeechNarration.journal(journal),
+                    idleLabel: "听忧忧兔读这版总结"
+                )
                 Text(journal.summary).textSelection(.enabled)
                 if !journal.emotionCurve.isEmpty {
                     Text("情绪变化：\(journal.emotionCurve.joined(separator: " → "))")
@@ -917,6 +927,12 @@ private struct NativeWeeklyReportCard: View {
                 .font(.callout)
                 .lineLimit(8)
                 .textSelection(.enabled)
+
+            NativeSpeechButton(
+                messageID: "weekly-report-\(weekLabel)",
+                text: NativeSpeechNarration.weeklyReport(weekLabel: weekLabel, journals: journals),
+                idleLabel: "听忧忧兔讲本周小结"
+            )
 
             NativeMoodChart(journals: journals)
 
@@ -1237,6 +1253,11 @@ private struct NativeJournalCard: View {
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 9) {
+                NativeSpeechButton(
+                    messageID: "journal-\(journal.id)",
+                    text: NativeSpeechNarration.journal(journal),
+                    idleLabel: "听忧忧兔读日记"
+                )
                 Text(journal.summary).textSelection(.enabled)
                 if !journal.emotionCurve.isEmpty {
                     Text("情绪变化：\(journal.emotionCurve.joined(separator: " → "))")

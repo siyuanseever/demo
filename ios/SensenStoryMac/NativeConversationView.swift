@@ -6,23 +6,26 @@ struct NativeConversationView: View {
     @EnvironmentObject private var speech: SpeechService
     @Binding var flowCardIndex: Int
     @State private var draft = ""
+    @State private var measuredDraftHeight: CGFloat = 36
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                header
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    header
+                    Divider()
+                    statusArea
+                    conversationBody
+                    Divider()
+                    composer(maxEditorHeight: geometry.size.height / 3)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 Divider()
-                statusArea
-                conversationBody
-                Divider()
-                composer
+
+                NativeConversationSidebar(flowCardIndex: $flowCardIndex)
+                    .frame(width: 300)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-
-            NativeConversationSidebar(flowCardIndex: $flowCardIndex)
-                .frame(width: 300)
         }
         .background(
             LinearGradient(
@@ -146,8 +149,12 @@ struct NativeConversationView: View {
         }
     }
 
-    private var composer: some View {
-        HStack(alignment: .bottom, spacing: 12) {
+    private func composer(maxEditorHeight: CGFloat) -> some View {
+        let maxContentHeight = max(36, maxEditorHeight - 8)
+        let editorHeight = min(maxContentHeight, max(36, measuredDraftHeight))
+        let hasOverflow = measuredDraftHeight > maxContentHeight
+
+        return HStack(alignment: .bottom, spacing: 12) {
             ZStack(alignment: .topLeading) {
                 if draft.isEmpty {
                     Text("慢慢说，我在听…")
@@ -157,16 +164,34 @@ struct NativeConversationView: View {
                         .allowsHitTesting(false)
                 }
 
-                TextEditor(text: $draft)
+                Text(draftHeightMeasurementText)
                     .font(.body)
-                    .scrollContentBackground(.hidden)
-                    .scrollIndicators(.automatic)
-                    .padding(.horizontal, 1)
+                    .foregroundStyle(.clear)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: NativeDraftHeightPreferenceKey.self,
+                                value: proxy.size.height
+                            )
+                        }
+                    }
+
+                NativeGrowingTextEditor(
+                    text: $draft,
+                    showsVerticalScroller: hasOverflow
+                )
             }
-                // A vertically expanding TextField asks AppKit to measure the whole
-                // document during layout. Large pastes can therefore monopolize the
-                // main thread. A bounded TextEditor lays out only its visible viewport.
-                .frame(height: 92)
+                // Measure at most a small prefix, then cap the editor at one third of
+                // the conversation view. This keeps large pastes out of full-document
+                // SwiftUI layout while preserving a naturally growing composer.
+                .frame(height: editorHeight)
+                .clipped()
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
                 .background(Color.inputBackground.opacity(0.96), in: RoundedRectangle(cornerRadius: 14))
@@ -175,6 +200,9 @@ struct NativeConversationView: View {
                         .stroke(Color.cardBorder.opacity(0.7))
                 )
                 .disabled(store.isSending)
+                .onPreferenceChange(NativeDraftHeightPreferenceKey.self) { height in
+                    measuredDraftHeight = height
+                }
 
             Button("发送", systemImage: "paperplane.fill") { submit() }
                 .buttonStyle(.borderedProminent)
@@ -185,6 +213,12 @@ struct NativeConversationView: View {
         .background(.regularMaterial)
     }
 
+    private var draftHeightMeasurementText: String {
+        let prefix = draft.prefix(4_000)
+        let isTruncated = prefix.endIndex != draft.endIndex
+        return draft.isEmpty ? " " : String(prefix) + (isTruncated ? "\n" : "")
+    }
+
     private var turns: [NativeConversationTurn] {
         NativeConversationTurn.build(from: store.messages)
     }
@@ -193,6 +227,126 @@ struct NativeConversationView: View {
         let text = draft
         draft = ""
         store.send(text)
+    }
+}
+
+private struct NativeDraftHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 36
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct NativeGrowingTextEditor: NSViewRepresentable {
+    @Binding var text: String
+    let showsVerticalScroller: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasVerticalScroller = showsVerticalScroller
+        scrollView.autohidesScrollers = true
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+        textView.textColor = .labelColor
+        textView.drawsBackground = false
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.textContainerInset = NSSize(width: 4, height: 6)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.containerSize = NSSize(
+            width: 0,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        scrollView.hasVerticalScroller = showsVerticalScroller
+        guard let textView = scrollView.documentView as? NSTextView,
+              textView.string != text else { return }
+        textView.string = text
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        private var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+        }
+    }
+}
+
+private struct NativeMessageContent: View {
+    let content: String
+    @State private var isExpanded = false
+
+    private let previewLimit = 1_200
+    private let chunkSize = 2_000
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if isLongMessage, !isExpanded {
+                Text(String(content.prefix(previewLimit)) + "\n…")
+                    .textSelection(.enabled)
+                Button("展开全文（" + String(content.count) + " 字）") {
+                    isExpanded = true
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else if isLongMessage {
+                ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
+                    Text(chunk)
+                        .textSelection(.enabled)
+                }
+                Button("收起长文本") {
+                    isExpanded = false
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+                Text(content)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+
+    private var isLongMessage: Bool {
+        content.count > previewLimit
+    }
+
+    private var chunks: [String] {
+        var result: [String] = []
+        var start = content.startIndex
+        while start < content.endIndex {
+            let end = content.index(start, offsetBy: chunkSize, limitedBy: content.endIndex)
+                ?? content.endIndex
+            result.append(String(content[start..<end]))
+            start = end
+        }
+        return result
     }
 }
 
@@ -225,8 +379,7 @@ private struct NativeMessageBubble: View {
                     .foregroundStyle(.secondary)
                 }
 
-                Text(message.content)
-                    .textSelection(.enabled)
+                NativeMessageContent(content: message.content)
                     .foregroundStyle(message.role == .user ? .secondary : .primary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
@@ -831,6 +984,11 @@ private struct NativeCloseSummaryCard: View {
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
             VStack(alignment: .leading, spacing: 10) {
+                NativeSpeechButton(
+                    messageID: "session-summary-\(summary.id.uuidString)",
+                    text: NativeSpeechNarration.sessionSummary(summary),
+                    idleLabel: "听忧忧兔总结"
+                )
                 Text(summary.journalSummary)
                     .font(.callout)
                     .textSelection(.enabled)
@@ -925,5 +1083,115 @@ private struct NativeCloseSummaryCard: View {
 
     private var changedStateProfiles: [SessionCloseStateProfile] {
         summary.stateProfiles.filter { $0.action != "no_change" }
+    }
+}
+
+struct NativeSpeechButton: View {
+    @EnvironmentObject private var speech: SpeechService
+    let messageID: String
+    let text: String
+    var idleLabel = "听忧忧兔说"
+
+    var body: some View {
+        Button {
+            speech.toggle(messageID: messageID, text: text)
+        } label: {
+            Label(label, systemImage: isActive ? "stop.circle.fill" : "speaker.wave.2.fill")
+                .font(.caption.weight(.medium))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.accentPurple)
+        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .accessibilityHint(isActive ? "停止当前朗读" : "使用忧忧兔的声音朗读这段内容")
+    }
+
+    private var isActive: Bool {
+        speech.activeMessageID == messageID && speech.isActive
+    }
+
+    private var label: String {
+        guard speech.activeMessageID == messageID else {
+            return speech.queuedMessageID == messageID ? "等待朗读…" : idleLabel
+        }
+        if speech.isPreparing { return "正在生成语音…" }
+        if speech.isSpeaking { return "停止朗读" }
+        return idleLabel
+    }
+}
+
+enum NativeSpeechNarration {
+    static func sessionSummary(_ summary: SessionCloseSummary) -> String {
+        var parts = ["今晚的夜谈结束啦，我是忧忧兔，来陪你回顾一下。", summary.journalSummary]
+        if let journal = summary.journal {
+            if !journal.dominantEmotion.isEmpty {
+                parts.append("今天比较明显的感受是\(journal.dominantEmotion)。")
+            }
+            if !journal.insights.isEmpty {
+                parts.append("我们还一起看见了：\(journal.insights.joined(separator: "；"))。")
+            }
+            if !journal.suggestedNextStep.isEmpty {
+                parts.append("接下来，如果你愿意，可以试试：\(journal.suggestedNextStep)。")
+            }
+        }
+        parts.append("今天先到这里也很好。晚一点休息时，记得对自己温柔一点。")
+        return joined(parts)
+    }
+
+    static func journal(_ journal: JournalEntry) -> String {
+        var parts = ["我是忧忧兔，来陪你读这篇日记。", journal.summary]
+        if !journal.emotionCurve.isEmpty {
+            parts.append("这段时间的情绪变化是：\(journal.emotionCurve.joined(separator: "，然后"))。")
+        }
+        if !journal.insights.isEmpty {
+            parts.append("日记里留下的洞察是：\(journal.insights.joined(separator: "；"))。")
+        }
+        if !journal.suggestedNextStep.isEmpty {
+            parts.append("给自己的下一小步是：\(journal.suggestedNextStep)。")
+        }
+        return joined(parts)
+    }
+
+    static func weeklyReport(weekLabel: String, journals: [JournalEntry]) -> String {
+        let summaries = journals.map(\.summary).filter { !$0.isEmpty }.prefix(3)
+        let emotions = journals.map(\.dominantEmotion).filter { !$0.isEmpty }
+        let dominantEmotion = Dictionary(grouping: emotions, by: { $0 })
+            .max { $0.value.count < $1.value.count }?.key
+        var parts = ["我是忧忧兔，来陪你回顾\(weekLabel)的小结。"]
+        if let dominantEmotion {
+            parts.append("这一周比较常出现的感受是\(dominantEmotion)。")
+        }
+        parts.append(contentsOf: summaries)
+        let nextSteps = journals.map(\.suggestedNextStep).filter { !$0.isEmpty }.prefix(2)
+        if !nextSteps.isEmpty {
+            parts.append("接下来可以轻轻记住：\(nextSteps.joined(separator: "；"))。")
+        }
+        return joined(parts)
+    }
+
+    static func flow(_ insight: StarMapInsight) -> String {
+        var parts = ["我是忧忧兔，来陪你看看\(insight.periodLabel)的心流导航。"]
+        if !insight.primaryGoalTitle.isEmpty {
+            parts.append("这一周最值得照看的方向是：\(insight.primaryGoalTitle)。\(insight.primaryGoalReason)")
+        }
+        if !insight.primaryGoalNextStep.isEmpty {
+            parts.append("可以从这一步开始：\(insight.primaryGoalNextStep)。")
+        }
+        if !insight.recentEmotionSummary.isEmpty {
+            parts.append("最近的情绪天气是：\(insight.recentEmotionSummary)")
+        }
+        if !insight.coreInsight.isEmpty || !insight.coreInsightDetail.isEmpty {
+            parts.append("这一周看见的核心是：\(joined([insight.coreInsight, insight.coreInsightDetail]))")
+        }
+        if !insight.gentleReminder.isEmpty || !insight.gentleReminderDetail.isEmpty {
+            parts.append("最后留一个温柔提醒：\(joined([insight.gentleReminder, insight.gentleReminderDetail]))")
+        }
+        return joined(parts)
+    }
+
+    private static func joined<S: Sequence>(_ parts: S) -> String where S.Element == String {
+        parts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
     }
 }

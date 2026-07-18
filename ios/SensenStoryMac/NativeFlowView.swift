@@ -48,6 +48,13 @@ struct NativeFlowView: View {
                 }
             }
             Spacer()
+            if let insight = store.flowInsight {
+                NativeSpeechButton(
+                    messageID: "weekly-flow-\(insight.id)",
+                    text: NativeSpeechNarration.flow(insight),
+                    idleLabel: "听忧忧兔讲本周导航"
+                )
+            }
             Button(store.isGeneratingFlow ? "生成中…" : "重新生成", systemImage: "arrow.clockwise") {
                 Task { await store.refreshWeeklyFlow(force: true) }
             }
