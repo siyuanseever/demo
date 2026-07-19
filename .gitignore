@@ -33,3 +33,6 @@ test_*.swift
 
 .claude/
 logs/tts.log
+
+# Codex 生成的小红书草稿与配图发布包（可能包含未公开内容）
+.content/
