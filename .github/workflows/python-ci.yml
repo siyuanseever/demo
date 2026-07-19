@@ -1,0 +1,56 @@
+# 这行是工作流在 GitHub Actions 页面显示的名字。
+name: Python CI
+
+# on 决定“什么时候运行”。
+on:
+  # 在 Actions 页面也可以点 Run workflow 手动运行，适合学习和排查。
+  workflow_dispatch:
+
+  # push 到任意分支时运行，但只关心下面这些路径。
+  push:
+    paths:
+      - "app/**"
+      - "tests/**"
+      - ".github/workflows/python-ci.yml"
+
+  # Pull Request 中相关文件变化时，在合并前运行。
+  pull_request:
+    paths:
+      - "app/**"
+      - "tests/**"
+      - ".github/workflows/python-ci.yml"
+
+# CI 只需要读取仓库内容，不授予写入权限。
+permissions:
+  contents: read
+
+# jobs 是一组任务；不同 job 默认可以并行运行。
+jobs:
+  test:
+    name: Python 3.12 checks
+    runs-on: ubuntu-latest
+
+    steps:
+      # GitHub 的虚拟机一开始没有你的代码，先检出当前提交。
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # 明确固定 Python 3.12，避免 runner 默认版本变化影响结果。
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # 对应项目 Gate 0：发现语法错误时立即失败。
+      - name: Check Python syntax
+        run: python -m compileall app
+
+      # web.py 的 JavaScript 渲染与 SSE 数据契约检查。
+      - name: Check SSE and JavaScript contract
+        run: python -m app.evaluation.check_sse_stream
+
+      # 对应项目 Gate 1；测试使用 fake LLM，不需要 API Key。
+      - name: Run project evaluation
+        env:
+          LLM_PROVIDER: fake
+        run: python -m app.evaluation.runner

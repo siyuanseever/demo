@@ -1,0 +1,40 @@
+# Swift/macOS 使用单独的工作流，因为它必须使用较昂贵的 macOS runner。
+name: Swift CI
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "ios/**"
+      - ".github/workflows/swift-ci.yml"
+
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/swift-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Mac Catalyst app
+    # Xcode 只能在 macOS runner 上运行。
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      # CI 只验证能否编译，不启动 GUI，也不做开发者签名。
+      - name: Build with Xcode
+        run: |
+          xcodebuild \
+            -project ios/XiaodongwuYetanhui.xcodeproj \
+            -scheme XiaodongwuYetanhui \
+            -configuration Debug \
+            -destination 'generic/platform=macOS,variant=Mac Catalyst' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData-Mac" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
